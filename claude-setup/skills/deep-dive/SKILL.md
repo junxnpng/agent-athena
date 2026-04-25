@@ -144,7 +144,7 @@ Update state: `trace_path = ".athena/deep-dive/<slug>/trace.md"`, `current_phase
 
 ## Phase 4 — Interview with 3-Point Trace Injection
 
-Follow the **deep-interview** SKILL Phases 2–4 (Interview Loop / Challenge Modes / Crystallize Spec) as the base behavioral contract — do NOT duplicate that protocol here. Read deep-interview/SKILL.md for the full spec.
+Follow the **deep-interview** SKILL's `Interview Loop`, `Challenge Modes`, and `Crystallize Spec` sections as the base behavioral contract — do NOT duplicate that protocol here. Read deep-interview/SKILL.md for the full spec. (Section names are referenced by name, not phase number, so deep-interview can renumber its phases without breaking deep-dive.)
 
 Apply exactly **3 initialization overrides**:
 

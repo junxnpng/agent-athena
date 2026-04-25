@@ -117,6 +117,7 @@ Keyword triggers:
 - Never self-approve: authoring and review are separate passes.
 - For AI/research work: scientist for data, researcher for survey, multi-review for paper/code review.
 - Completion requires: build pass + tests pass + no type errors + no debug artifacts + verifier evidence.
+- **Ralplan pre-execution gate**: before invoking ralph / autopilot / continuous-overnight, check the prompt for concrete anchors (file path, symbol name, issue#, code block, numbered steps, acceptance criteria). If NO anchor is present AND the prompt is ≤15 effective words, use `AskUserQuestion` to ask the user whether to run `/athena:ralplan` first. Bypass with `force:` or `!` prefix on the original call. Inside an active continuous-overnight session (autonomy mode): skip the `AskUserQuestion` and route silently to ralplan — the autonomy envelope owns the decision and must NOT prompt the user.
 </execution_protocols>
 
 <review_philosophy>
