@@ -103,7 +103,9 @@ Keyword triggers:
 - "where was I" / "summary" / "what was I doing" → summary
 - "cancel" / "stop mode" → cancel
 - "deep interview" / "interview me" → deep-interview
-- "make this a skill" → skillify
+- "make this a skill" / "skillify" → skillify
+- "save this insight" / "learn this" / "extract this learning" → learner
+- "deslop" / "anti-slop" / "AI slop" / "clean up bloat" → ai-slop-cleaner
 </skills>
 
 <execution_protocols>
