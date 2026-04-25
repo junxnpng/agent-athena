@@ -9,7 +9,8 @@
 
 import { execFileSync } from 'child_process';
 import { existsSync } from 'fs';
-import { extname } from 'path';
+import { extname, dirname, join } from 'path';
+import { checkAgentSkillConsistency } from './check-consistency.mjs';
 
 function readStdin(timeoutMs = 3000) {
   return new Promise((resolve) => {
@@ -61,6 +62,19 @@ function cmdExists(cmd) {
   }
 }
 
+function findPluginRoot(filePath) {
+  let dir = dirname(filePath);
+  for (let i = 0; i < 10; i++) {
+    if (existsSync(join(dir, '.claude-plugin', 'plugin.json'))) {
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 async function main() {
   try {
     const input = await readStdin();
@@ -94,6 +108,19 @@ async function main() {
       } else if (cmdExists('pyright')) {
         const tc = tryExec('pyright', [filePath]);
         if (tc && !tc.includes('0 errors')) results.push(`[pyright] ${tc}`);
+      }
+    }
+
+    // Athena plugin invariant: agent/skill consistency
+    // Triggers only when an agent .md or SKILL.md inside a Claude Code plugin is edited.
+    if (ext === '.md') {
+      const pluginRoot = findPluginRoot(filePath);
+      if (pluginRoot && (filePath.includes(`${pluginRoot}/agents/`) || filePath.includes(`${pluginRoot}/skills/`))) {
+        const { issues } = checkAgentSkillConsistency(pluginRoot);
+        if (issues.length > 0) {
+          const lines = issues.map((i) => `  ${i.location}: ${i.referenced} unresolved\n    fix: ${i.fix}`);
+          results.push(`[agent-skill consistency] ${issues.length} broken reference(s):\n${lines.join('\n')}`);
+        }
       }
     }
 

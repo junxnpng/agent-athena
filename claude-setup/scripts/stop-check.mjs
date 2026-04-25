@@ -7,7 +7,7 @@
  */
 
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 function readStdin(timeoutMs = 3000) {
@@ -79,6 +79,56 @@ function saveLastContext(cwd, data) {
   } catch {}
 }
 
+function checkContinuousOvernight(cwd) {
+  const baseDir = join(cwd, '.athena', 'continuous');
+  if (!existsSync(baseDir)) return null;
+
+  let entries;
+  try {
+    entries = readdirSync(baseDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+  } catch {
+    return null;
+  }
+
+  const lines = [];
+  for (const entry of entries) {
+    const stateFile = join(baseDir, entry.name, 'state.json');
+    if (!existsSync(stateFile)) continue;
+
+    let state;
+    try { state = JSON.parse(readFileSync(stateFile, 'utf-8')); } catch { continue; }
+    if (!state.active && state.status !== 'blocked') continue;
+
+    const startedAt = state.started_at ? new Date(state.started_at) : null;
+    const elapsedH = startedAt ? (Date.now() - startedAt.getTime()) / 3.6e6 : 0;
+    const maxH = state.max_hours ?? 8;
+    const iter = state.iteration ?? 0;
+    const maxIter = state.max_iterations ?? 20;
+
+    let line = `[continuous-overnight] id=${state.id} status=${state.status} iter=${iter}/${maxIter} elapsed=${elapsedH.toFixed(1)}h/${maxH}h`;
+
+    if (state.status === 'blocked') {
+      const blockedFile = join(baseDir, entry.name, 'BLOCKED.md');
+      if (existsSync(blockedFile)) {
+        line += `\n  BLOCKED — see .athena/continuous/${entry.name}/BLOCKED.md (do NOT auto-resume per policy).`;
+      }
+    } else if (state.status === 'running') {
+      if (elapsedH >= maxH) {
+        line += `\n  WALL-TIME CAP HIT — finalize as graceful done (status=done) and write SUMMARY.md.`;
+      } else if (elapsedH > maxH * 0.9) {
+        line += `\n  WARNING — ${(maxH - elapsedH).toFixed(1)}h until wall-time cap.`;
+      }
+      if (iter >= maxIter) {
+        line += `\n  ITERATION CAP HIT — finalize as graceful done.`;
+      }
+    }
+
+    lines.push(line);
+  }
+
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
 function detectBuildCheck(cwd) {
   if (existsSync(join(cwd, 'pyproject.toml')) || existsSync(join(cwd, 'setup.py'))) {
     return { type: 'python', cmd: 'python', args: ['-m', 'py_compile'] };
@@ -121,8 +171,15 @@ async function main() {
       });
     }
 
-    // 2. Build check (only on normal stop with uncommitted changes)
-    if (stopReason === 'end_turn') {
+    // 2. Continuous-overnight autonomy awareness
+    const overnight = checkContinuousOvernight(cwd);
+    const overnightActive = overnight !== null;
+    if (overnight) {
+      messages.push(`<continuous-overnight>\n${overnight}\n</continuous-overnight>`);
+    }
+
+    // 3. Build check (only on normal stop with uncommitted changes; skip in autonomous mode to avoid prompting noise)
+    if (stopReason === 'end_turn' && !overnightActive) {
       const build = detectBuildCheck(cwd);
       if (build && git.files.length > 0) {
         const result = tryExec(build.cmd, build.args, cwd);

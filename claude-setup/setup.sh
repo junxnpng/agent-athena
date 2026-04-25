@@ -84,6 +84,11 @@ for required in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks
   fi
 done
 
+# ── Verify agent-skill consistency (catches dangling athena: refs) ──
+if ! node "$SCRIPT_DIR/scripts/check-consistency.mjs" "$SCRIPT_DIR"; then
+  warn "Continuing registration anyway — fix the references for healthy plugin state."
+fi
+
 # ── Register marketplace + enable plugin in settings.json ──
 node -e "
   const fs = require('fs');
