@@ -19,7 +19,7 @@ No silent partial completions. No "should work". Evidence or keep going.
 
 <Do_Not_Use_When>
 - Full idea-to-code pipeline → use autopilot
-- Just exploring or planning → use plan skill
+- Just exploring or planning → delegate to planner agent directly
 - Quick one-shot fix → delegate to executor directly
 </Do_Not_Use_When>
 

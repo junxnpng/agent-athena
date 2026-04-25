@@ -31,16 +31,18 @@ When invoked:
 ```
 Read .athena/state/autopilot.json — if active, cancel autopilot
 Read .athena/state/ralph.json — if active, cancel ralph
-Read .athena/state/research.json — if active, cancel research
+List .athena/continuous/*/state.json — for any with status=running, mark status=blocked + write BLOCKED.md (cancellation)
 ```
 
 ### 2. Cancel each active mode
-- Remove the state file
+- For autopilot/ralph: remove the state file
+- For continuous-overnight: never delete `.athena/continuous/<id>/` (preserves decisions.md + results/ for review). Mark status=blocked, write BLOCKED.md with reason="user-cancelled".
 - Report: "[mode] cancelled. State cleaned up."
 
 ### 3. Force mode (--force)
-- Delete entire `.athena/state/` directory contents
-- Report: "All athena state cleared."
+- Delete `.athena/state/` directory contents (autopilot/ralph)
+- Do NOT touch `.athena/continuous/` — preserve overnight artifacts even on force cancel
+- Report: "All athena state cleared (continuous-overnight artifacts preserved)."
 
 ## Messages
 
@@ -48,6 +50,6 @@ Read .athena/state/research.json — if active, cancel research
 |------|---------|
 | Autopilot | "Autopilot cancelled at phase: {phase}." |
 | Ralph | "Ralph cancelled. {N}/{total} criteria completed." |
-| Research | "Research cancelled." |
-| Force | "All athena state cleared." |
+| Continuous-overnight | "Continuous-overnight {id} blocked at iteration {N}. Artifacts preserved at .athena/continuous/{id}/." |
+| Force | "All athena state cleared (continuous-overnight artifacts preserved)." |
 | None | "No active modes detected." |

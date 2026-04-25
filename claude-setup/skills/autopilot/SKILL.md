@@ -17,7 +17,7 @@ spec → plan → implement → QA → validate. Produces working, verified code
 
 <Do_Not_Use_When>
 - Quick fix or single file change → delegate to executor directly
-- Exploring options or brainstorming → use plan or ideate skill
+- Exploring options or brainstorming → delegate to architect (design) or critic (devil's advocate) directly
 - User wants step-by-step control → work interactively
 </Do_Not_Use_When>
 
