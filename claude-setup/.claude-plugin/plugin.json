@@ -1,0 +1,8 @@
+{
+  "name": "athena",
+  "version": "0.1.0",
+  "description": "Personal multi-agent orchestration for Claude Code",
+  "author": {
+    "name": "jun"
+  }
+}

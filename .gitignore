@@ -1,0 +1,11 @@
+# Reference clones (not part of this repo)
+oh-my-claudecode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~

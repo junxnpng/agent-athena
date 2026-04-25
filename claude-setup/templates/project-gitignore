@@ -1,0 +1,2 @@
+# Athena plugin runtime state — add this to your project's .gitignore
+.athena/
