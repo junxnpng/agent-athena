@@ -103,6 +103,8 @@ Keyword triggers:
 - "where was I" / "summary" / "what was I doing" → summary
 - "cancel" / "stop mode" → cancel
 - "deep interview" / "interview me" → deep-interview
+- "deep dive" / "trace and interview" / "investigate deeply" → deep-dive
+- "ralplan" / "plan first" / "consensus" → ralplan
 - "make this a skill" / "skillify" → skillify
 - "save this insight" / "learn this" / "extract this learning" → learner
 - "deslop" / "anti-slop" / "AI slop" / "clean up bloat" → ai-slop-cleaner

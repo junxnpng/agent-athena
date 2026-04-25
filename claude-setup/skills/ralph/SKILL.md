@@ -48,6 +48,7 @@ No silent partial completions. No "should work". Evidence or keep going.
    - Code work → executor (default opus 4.7)
    - Investigation / non-deterministic bug → tracer (hypotheses) → debugger (fix)
    - Run independent tasks in parallel; use `run_in_background: true` for long builds
+   - Cleanup smell detected after iteration (duplicates, dead code, needless wrappers, weak coverage) → invoke `/athena:ai-slop-cleaner` on the iteration's changed files (standard mode, NOT `--review`). Return to step 4 verify after cleanup completes.
 
 4. **Verify**: For each acceptance criterion:
    - Run the specific check (test, build, manual verification)
