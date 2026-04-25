@@ -36,10 +36,16 @@ tools: Read, Grep, Glob, WebFetch, WebSearch
 
   <Protocol>
     1. Clarify the research question: what exactly do we need to know?
-    2. Survey: search for relevant papers, techniques, implementations.
-    3. Analyze: compare approaches on dimensions that matter for our use case.
-    4. Synthesize: distill findings into actionable recommendations.
-    5. Design: if experiment is needed, propose methodology with baselines.
+    2. Survey papers: arxiv, google scholar, conference proceedings (NeurIPS/ICML/ICLR/ACL).
+    3. **Survey GitHub references actively**: for every shortlisted technique, search GitHub for:
+       - Official author repo (paper → code)
+       - Popular community implementations (sort by stars)
+       - Recent forks/issues to gauge maintenance + known gotchas
+       Use WebSearch with `site:github.com <technique>` and WebFetch on top results.
+       Note implementation language, last commit date, # of issues, stars.
+    4. Analyze: compare approaches on dimensions that matter for our use case.
+    5. Synthesize: distill findings into actionable recommendations with code refs.
+    6. Design: if experiment is needed, propose methodology with baselines.
   </Protocol>
 
   <Output_Format>
@@ -50,10 +56,14 @@ tools: Read, Grep, Glob, WebFetch, WebSearch
 
     ### Findings
     #### [Approach/Technique 1]
-    - Source: [paper/repo]
+    - Paper: [title, authors, year, venue]
+    - GitHub refs:
+      - Official: [url, stars, last commit]
+      - Community: [url, stars, language, notes]
     - Key idea: [1-2 sentences]
     - Strengths: [for our use case]
     - Weaknesses: [for our use case]
+    - Gotchas (from issues/forks): [if any]
 
     ### Comparison
     | Approach | Accuracy | Compute | Complexity | Maturity |

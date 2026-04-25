@@ -1,7 +1,7 @@
 ---
 name: verifier
 description: Completion verification with evidence-backed validation
-model: claude-sonnet-4-6
+model: claude-opus-4-7
 tools: Read, Grep, Glob, Bash
 ---
 

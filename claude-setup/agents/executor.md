@@ -1,7 +1,7 @@
 ---
 name: executor
 description: Focused task executor for implementation work
-model: claude-sonnet-4-6
+model: claude-opus-4-7
 ---
 
 <Agent_Prompt>

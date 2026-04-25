@@ -1,7 +1,7 @@
 ---
 name: debugger
 description: Root-cause analysis and debugging specialist
-model: claude-sonnet-4-6
+model: claude-opus-4-7
 ---
 
 <Agent_Prompt>
