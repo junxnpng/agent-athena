@@ -6,7 +6,7 @@
  * and injects it as a session reminder.
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 function readStdin(timeoutMs = 3000) {
@@ -47,6 +47,40 @@ function readJson(path) {
   }
 }
 
+function checkContinuousOvernight(cwd) {
+  const baseDir = join(cwd, '.athena', 'continuous');
+  if (!existsSync(baseDir)) return null;
+
+  let entries;
+  try {
+    entries = readdirSync(baseDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+  } catch {
+    return null;
+  }
+
+  const lines = [];
+  for (const entry of entries) {
+    const stateFile = join(baseDir, entry.name, 'state.json');
+    const state = readJson(stateFile);
+    if (!state) continue;
+    if (!state.active && state.status !== 'blocked') continue;
+
+    const startedAt = state.started_at ? new Date(state.started_at) : null;
+    const elapsedH = startedAt ? (Date.now() - startedAt.getTime()) / 3.6e6 : 0;
+
+    let line = `[continuous-overnight] id=${state.id} status=${state.status} iter=${state.iteration ?? 0}/${state.max_iterations ?? 20} elapsed=${elapsedH.toFixed(1)}h`;
+
+    if (state.status === 'blocked') {
+      line += `\n  BLOCKED — see .athena/continuous/${entry.name}/BLOCKED.md (do NOT auto-resume per policy).`;
+    } else if (state.status === 'running') {
+      line += `\n  RUNNING from a prior session — verify no zombie process; if abandoned, mark status=done in state.json.`;
+    }
+    lines.push(line);
+  }
+
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
 async function main() {
   try {
     const input = await readStdin();
@@ -78,6 +112,18 @@ ${ctx.branch ? `Branch: ${ctx.branch}` : ''}
 Treat this as prior-session context only. Prioritize the user's newest request.
 
 </session-restore>
+
+---
+`);
+    }
+
+    // Surface any active continuous-overnight session so a fresh terminal/session
+    // can see autonomous work in progress (or stuck/blocked) and act accordingly.
+    const overnight = checkContinuousOvernight(cwd);
+    if (overnight) {
+      messages.push(`<continuous-overnight>
+${overnight}
+</continuous-overnight>
 
 ---
 `);
