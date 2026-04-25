@@ -105,6 +105,10 @@ Keyword triggers:
 - "deep interview" / "interview me" → deep-interview
 - "deep dive" / "trace and interview" / "investigate deeply" → deep-dive
 - "ralplan" / "plan first" / "consensus" → ralplan
+- "trace" / "why did X happen" / "evidence for/against" → trace
+- "external context" / "compare X vs Y" / "best practices for" → external-context
+- "self-improve" / "evolve" / "tournament" / "iterate to improve" → self-improve
+- "ccg" / "codex+gemini" / "tri-model" → ccg
 - "make this a skill" / "skillify" → skillify
 - "save this insight" / "learn this" / "extract this learning" → learner
 - "deslop" / "anti-slop" / "AI slop" / "clean up bloat" → ai-slop-cleaner
