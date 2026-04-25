@@ -45,10 +45,9 @@ No silent partial completions. No "should work". Evidence or keep going.
 2. **Pick next criterion**: Select the highest-priority unmet criterion.
 
 3. **Implement**: Delegate to appropriate agents.
-   - Simple work → executor (sonnet)
-   - Complex work → executor (model=opus)
-   - Investigation needed → debugger
-   - Run independent tasks in parallel
+   - Code work → executor (default opus 4.7)
+   - Investigation / non-deterministic bug → tracer (hypotheses) → debugger (fix)
+   - Run independent tasks in parallel; use `run_in_background: true` for long builds
 
 4. **Verify**: For each acceptance criterion:
    - Run the specific check (test, build, manual verification)

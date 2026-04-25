@@ -9,3 +9,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Athena runtime state (mode state, plans, multi-review snapshots, continuous-overnight workdirs)
+.athena/
