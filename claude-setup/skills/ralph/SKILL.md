@@ -25,11 +25,14 @@ No silent partial completions. No "should work". Evidence or keep going.
 
 <Steps>
 1. **Setup** (first iteration only):
-   a. Break the task into discrete acceptance criteria
-   b. Write criteria to `.athena/state/ralph.json`:
+
+   a. **Plan-path detection**: if the task input is a path string (input has no whitespace, matches `^[^ ]+\.md$` after trimming surrounding whitespace, the file exists, AND the file contains a section heading matching `## Acceptance Criteria` or `### Acceptance Criteria`), READ the plan file and lift acceptance criteria directly from that section. Each `- [ ] <description>` line becomes one criterion. Skip step 1.b's decomposition. This is the path used when ralplan auto-handoffs under continuous-overnight autonomy — the consensus plan is the contract, not a re-decomposition target. If the regex matches but the file lacks the heading, FAIL LOUDLY: log "plan-path detected but no Acceptance Criteria section found" to ralph.json `notes` field and fall through to step 1.b (do NOT silently treat the literal path as the task description).
+
+   b. **Otherwise — decompose**: break the task into discrete acceptance criteria.
+
+   c. Write criteria to `.athena/state/ralph.json`. Single-file mode: liveness signal is **file presence** (no `attention` field) — uniform with autopilot, opposite of dir-based modes (which use `state.attention`). Cancel deletes the file:
       ```json
       {
-        "active": true,
         "task": "<original task>",
         "iteration": 1,
         "max_iterations": 10,
@@ -40,7 +43,7 @@ No silent partial completions. No "should work". Evidence or keep going.
         "started_at": "<ISO timestamp>"
       }
       ```
-   c. Criteria must be specific and testable — NOT "implementation is complete"
+   d. Criteria must be specific and testable — NOT "implementation is complete"
 
 2. **Pick next criterion**: Select the highest-priority unmet criterion.
 
@@ -48,13 +51,14 @@ No silent partial completions. No "should work". Evidence or keep going.
    - Code work → executor (default opus 4.7)
    - Investigation / non-deterministic bug → tracer (hypotheses) → debugger (fix)
    - Run independent tasks in parallel; use `run_in_background: true` for long builds
-   - Cleanup smell detected after iteration (duplicates, dead code, needless wrappers, weak coverage) → invoke `/athena:ai-slop-cleaner` on the iteration's changed files (standard mode, NOT `--review`). Return to step 4 verify after cleanup completes.
 
 4. **Verify**: For each acceptance criterion:
    - Run the specific check (test, build, manual verification)
    - Show fresh output as evidence
    - If met → mark `passes: true` in ralph.json
    - If not → continue working, do NOT mark complete
+
+4.5. **Cleanup pass (post-Verify)**: If cleanup smell observed in iteration's changed files (duplicates, dead code, needless wrappers, weak coverage) → invoke `/athena:ai-slop-cleaner` on those files (standard mode, NOT `--review`). After cleanup, return to step 4 to re-verify regressions. Skip this step if no smell observed.
 
 5. **Check completion**:
    - All criteria `passes: true`? → proceed to Step 6

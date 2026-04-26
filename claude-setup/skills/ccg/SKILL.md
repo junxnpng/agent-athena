@@ -28,7 +28,7 @@ missing.
 
 <Do_Not_Use_When>
 - Single-perspective task — call the appropriate athena agent directly (executor / code-reviewer / etc.)
-- Codex AND Gemini CLIs both unavailable — falls back to Claude-only and noses up its own value
+- Codex AND Gemini CLIs both unavailable — ccg refuses on this case (no cross-validation possible); use a single-agent athena alternative directly (executor / code-reviewer / etc.)
 - Sensitive code that should not leave the local box (Codex/Gemini calls send prompt content to their respective providers)
 - Need quantitative analysis — use scientist or sciresearch (different rigor)
 </Do_Not_Use_When>

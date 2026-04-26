@@ -97,7 +97,10 @@ function checkContinuousOvernight(cwd) {
 
     let state;
     try { state = JSON.parse(readFileSync(stateFile, 'utf-8')); } catch { continue; }
-    if (!state.active && state.status !== 'blocked') continue;
+    // Read state.attention with state.active fallback (rename — see session-start.mjs).
+    // Surface running OR blocked sessions; quiet only cancelled/done.
+    const attn = state.attention ?? state.active;
+    if (!attn && state.status !== 'blocked') continue;
 
     const startedAt = state.started_at ? new Date(state.started_at) : null;
     const elapsedH = startedAt ? (Date.now() - startedAt.getTime()) / 3.6e6 : 0;

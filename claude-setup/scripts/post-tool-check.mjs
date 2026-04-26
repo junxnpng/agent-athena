@@ -112,10 +112,17 @@ async function main() {
     }
 
     // Athena plugin invariant: agent/skill consistency
-    // Triggers only when an agent .md or SKILL.md inside a Claude Code plugin is edited.
+    // Triggers when an agent .md / SKILL.md / CLAUDE.md inside a Claude Code plugin is edited.
+    // CLAUDE.md is included because it documents the skill catalog and routes — drift between
+    // CLAUDE.md mentions and skills/ dirs is exactly what the consistency checker now scans for.
     if (ext === '.md') {
       const pluginRoot = findPluginRoot(filePath);
-      if (pluginRoot && (filePath.includes(`${pluginRoot}/agents/`) || filePath.includes(`${pluginRoot}/skills/`))) {
+      if (
+        pluginRoot &&
+        (filePath.includes(`${pluginRoot}/agents/`) ||
+          filePath.includes(`${pluginRoot}/skills/`) ||
+          filePath === `${pluginRoot}/CLAUDE.md`)
+      ) {
         const { issues } = checkAgentSkillConsistency(pluginRoot);
         if (issues.length > 0) {
           const lines = issues.map((i) => `  ${i.location}: ${i.referenced} unresolved\n    fix: ${i.fix}`);

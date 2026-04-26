@@ -55,7 +55,8 @@ Ambiguity = `1 - Σ(score × weight)`.
 5. Initialize state at `.athena/deep-interview/<slug>/state.json`:
    ```json
    {
-     "active": true,
+     "attention": true,
+     "status": "running",
      "interview_id": "<slug>",
      "type": "greenfield|brownfield",
      "initial_idea": "<user input>",
@@ -67,6 +68,7 @@ Ambiguity = `1 - Σ(score × weight)`.
      "ontology_snapshots": []
    }
    ```
+   `status` is one of `running | done | cancelled`. `attention=true` while the interview loop is live; the Phase 5 handoff writes `attention=false, status=done` (cancel skill writes `attention=false, status=cancelled`).
 6. Announce to user: idea, project type, threshold, "current ambiguity 100% (haven't started)".
 
 ## Phase 2 — Interview Loop (until ambiguity ≤ threshold OR user exits)
@@ -90,6 +92,8 @@ b. **Ask via `AskUserQuestion`**
    {question}
    ```
    Provide contextual options + free-text.
+
+   **Autonomy bypass:** if any `.athena/continuous/<id>/state.json` exists with `state.attention === true`, SKIP the AskUserQuestion — deep-interview cannot run interactively under autonomy. Deterministic default = exit gracefully via the cancel-equivalent path: write `state.json` with `attention=false, status=cancelled` AND drop a `CANCELLED.md` in `.athena/deep-interview/<slug>/` with `reason: "autonomy-incompatible"` and the note "deep-interview requires user input; cannot run under continuous-overnight autonomy. Resume manually." Log decision to `.athena/continuous/<id>/decisions.md`. (Why `cancelled`, not `blocked`: deep-interview's enum is `running | done | cancelled` — `blocked` is reserved for continuous-overnight's circuit/rate-limit class. This is a refusal-to-compose, semantically a user-equivalent cancellation forced by the autonomy contract.) The autonomy-correct alternative is for the caller to invoke the architect agent directly with the initial_idea — that path is owned by the caller, not this skill.
 
 c. **Score ambiguity** (use opus, temperature 0.1 for consistency)
    For each dimension: score (0.0–1.0), one-sentence justification, gap (if score < 0.9).
@@ -140,7 +144,7 @@ Track in `state.challenge_modes_used`.
 
 When ambiguity ≤ threshold (or hard cap / early exit):
 
-Generate spec using opus. Save to `.athena/specs/deep-interview-<slug>.md`:
+Delegate spec synthesis to the **architect** agent (opus by default per CLAUDE.md `<model_routing>`). Save to `.athena/specs/deep-interview-<slug>.md`:
 
 ```markdown
 # Deep Interview Spec: <title>
@@ -186,7 +190,9 @@ Generate spec using opus. Save to `.athena/specs/deep-interview-<slug>.md`:
 
 ## Phase 5 — Execution Bridge
 
-`AskUserQuestion`: "Spec ready (ambiguity {score}%). How to proceed?"
+**Autonomy bypass:** if `.athena/continuous/*/state.json` exists with `state.attention === true` (running continuous-overnight envelope), SKIP the `AskUserQuestion` below. Deterministic default: option 1 (ralplan → autopilot, with `spec_path` passed). Invoke ralplan with the prompt prefixed by the literal sentinel `[from=autopilot]` so ralplan's caller-detection routes consensus output to autopilot (not the ralph default). Concretely: `Skill(skill="athena:ralplan", args="[from=autopilot] <spec_path>")`. Log decision to the parent continuous-overnight `decisions.md`. Reason: autonomy mandates "never ask the user"; option 1 is the recommended path so the deterministic substitution matches the documented best choice — and the sentinel is required to avoid silent degradation to ralph (per ralplan/SKILL.md caller-detection rule).
+
+Otherwise (interactive mode), `AskUserQuestion`: "Spec ready (ambiguity {score}%). How to proceed?"
 
 Options:
 1. **ralplan → autopilot** (recommended) — consensus refine + execute. Spec replaces ralplan's task input; consensus plan replaces autopilot Phase 0+1.
@@ -195,7 +201,9 @@ Options:
 4. **continuous-overnight** — autonomous overnight with spec as task.
 5. **Refine further** — back to Phase 2.
 
-On selection: invoke chosen Skill explicitly. NEVER implement inline — deep-interview is a requirements lane.
+On selection (manual or autonomy-default): invoke chosen Skill explicitly. NEVER implement inline — deep-interview is a requirements lane.
+
+**Completion state write** (mandatory before handoff): atomically update `.athena/deep-interview/<slug>/state.json` to set `attention: false` and `status: done`. The session-start surfacing filter only re-surfaces sessions where `attention === true`, so without this write a completed interview re-surfaces forever. The cancel skill writes `attention: false, status: cancelled` for the user-driven path; this Phase 5 path writes `attention: false, status: done` for the natural-completion path.
 
 </Steps>
 

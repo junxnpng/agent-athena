@@ -7,12 +7,11 @@ argument-hint: "<target file(s) or scope> [--review]"
 [AI-SLOP-CLEANER ACTIVATED]
 
 <Purpose>
-Clean AI-generated code slop in a bounded, regression-safe way. Code that
-"works but feels bloated, repetitive, weakly tested, or over-abstracted"
-gets a deletion-first pass — behavior preserved by tests, scope locked
-to the requested files, no drive-by redesigns. `--review` is a separate
-reviewer-only pass over already-drafted cleanup work (writer/reviewer
-separation).
+Bounded, regression-safe cleanup of AI-generated code slop. Deletion-first.
+Tests preserve behavior; scope is locked to the named files; no drive-by
+redesigns. `--review` runs an outside reviewer over already-drafted
+cleanup work (writer/reviewer separation — same context must NOT both
+write and self-approve high-impact removals).
 </Purpose>
 
 <Use_When>

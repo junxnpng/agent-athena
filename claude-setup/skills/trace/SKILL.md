@@ -84,6 +84,8 @@ Down-rank hypotheses that depend mostly on lower tiers when stronger contradicto
    > 3. <hypothesis 3>
    > Confirm and start, or adjust hypotheses?
 
+   **Autonomy bypass:** if any `.athena/continuous/<id>/state.json` exists with `state.attention === true`, SKIP the AskUserQuestion. Deterministic default = accept the proposed 3 lanes as generated (the default partition Code-path / Config / Measurement covers the common cases; the rebuttal round at step 6 catches mis-partitions). Log decision to `.athena/continuous/<id>/decisions.md`.
+
 4. **Spawn 3 tracer lanes in PARALLEL** (single message, 3 Task calls):
    ```
    Task(

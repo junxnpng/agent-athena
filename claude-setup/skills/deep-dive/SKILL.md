@@ -46,7 +46,8 @@ questions. Result: a spec where every requirement is traceable to evidence.
 4. Initialize state at `.athena/deep-dive/<slug>/state.json`:
    ```json
    {
-     "active": true,
+     "attention": true,
+     "status": "running",
      "current_phase": "lane-confirmation",
      "slug": "<slug>",
      "initial_idea": "<user input>",
@@ -57,6 +58,7 @@ questions. Result: a spec where every requirement is traceable to evidence.
      "codebase_context": null
    }
    ```
+   `status` is one of `running | done | cancelled`. Cancel skill writes `attention=false, status=cancelled`; Phase 5 handoff writes `attention=false, status=done`.
 
 ## Phase 2 — Lane Confirmation (1 user touch)
 
@@ -72,6 +74,8 @@ questions. Result: a spec where every requirement is traceable to evidence.
 > 3. {hypothesis_3}
 
 Options: Confirm and start trace | Adjust hypotheses (user provides alternatives).
+
+**Autonomy bypass:** if any `.athena/continuous/<id>/state.json` exists with `state.attention === true`, SKIP the AskUserQuestion. Deterministic default = accept the proposed 3 lanes as generated. Log decision to `.athena/continuous/<id>/decisions.md`.
 
 After confirmation: `state.current_phase = "trace-executing"`.
 
@@ -161,7 +165,7 @@ Given this root cause, what should we do about it?
 ```
 
 **Override 2 — codebase_context replacement**:
-Skip deep-interview's Phase 1 brownfield explore step. Set `codebase_context = full trace synthesis` (in `<trace-context>` delimiters). The trace already mapped relevant areas with evidence — re-exploring is redundant.
+Skip deep-interview's brownfield exploration step (the `Initialize` section's brownfield-detect-and-map step). Set `codebase_context = full trace synthesis` (in `<trace-context>` delimiters). The trace already mapped relevant areas with evidence — re-exploring is redundant.
 
 **Override 3 — initial question queue**:
 Inject the per-lane critical unknowns as the first 1–3 questions BEFORE normal Socratic ambiguity-driven questioning resumes:
@@ -178,7 +182,7 @@ Ask these FIRST, then continue with normal weakest-dimension targeting.
 - Override 2: STILL inject trace synthesis — even inconclusive findings provide structural context
 - Override 3: Inject ALL per-lane critical unknowns (more open questions are useful when trace is uncertain)
 
-**Spec generation** at deep-interview Phase 4 — same format as deep-interview spec PLUS one section:
+**Spec generation** uses deep-interview's `Crystallize Spec` step — same format as deep-interview spec PLUS one section:
 
 ```markdown
 ## Trace Findings
@@ -189,7 +193,9 @@ Save spec to `.athena/specs/deep-dive-<slug>.md`. Update state: `spec_path`, `cu
 
 ## Phase 5 — Execution Bridge
 
-Same as deep-interview Phase 5. `AskUserQuestion` with options:
+**Autonomy bypass:** if `.athena/continuous/*/state.json` exists with `state.attention === true` (running continuous-overnight envelope), SKIP the `AskUserQuestion` below. Deterministic default: option 1 (ralplan → autopilot, with `spec_path` passed). Invoke ralplan with the prompt prefixed by the literal sentinel `[from=autopilot]` so ralplan's caller-detection routes consensus output to autopilot (not the ralph default). Concretely: `Skill(skill="athena:ralplan", args="[from=autopilot] <spec_path>")`. Log decision to the parent continuous-overnight `decisions.md`. Reason: deep-dive's autonomy chain (Phase 2 lane bypass already applied) must terminate at an executing skill, not a user prompt — and the sentinel is required so the chain reaches autopilot, not silently downgrading to ralph.
+
+Otherwise: same as deep-interview's `Execution Bridge`. `AskUserQuestion` with options:
 1. **ralplan → autopilot** (recommended)
 2. **autopilot directly**
 3. **ralph**
@@ -197,6 +203,8 @@ Same as deep-interview Phase 5. `AskUserQuestion` with options:
 5. **Refine further** (back to Phase 4)
 
 Pass `spec_path` explicitly to chosen Skill. NEVER implement inline.
+
+**Completion state write** (mandatory before handoff): atomically update `.athena/deep-dive/<slug>/state.json` to set `attention: false`, `status: done`, AND `current_phase: "done"`. The session-start surfacing filter treats `attention === true` as the canonical "this loop is live" signal — without `attention: false` a completed deep-dive re-surfaces forever. The status field must also reach a terminal value (`done`) so future tooling that switches on `status` doesn't see a stuck `running`. The cancel skill writes `attention: false, status: cancelled`; this Phase 5 path is the natural-completion equivalent (`status: done`).
 
 </Steps>
 

@@ -35,30 +35,47 @@ artifact directories (`.athena/<mode>/<timestamp>/`). These are not loops —
 once started, they fan out and write outputs. If the artifact dir exists
 it's evidence, not state. cancel does NOT touch them.
 
+`ralplan` runs a bounded re-review loop (≤5 iterations) within a single
+invocation — there is no persistent state.json to flip. To abort an in-progress
+ralplan run, end the session (Ctrl-C / kill the tmux pane). Saved plan
+artifacts under `.athena/plans/` remain as evidence.
+
+## Process-kill caveat
+
+cancel marks state files but does NOT kill background processes (e.g.,
+benchmark commands spawned by self-improve, long builds spawned by ralph).
+After cancel, `kill` orphaned PIDs manually if needed, or rely on tmux/shell
+session shutdown to reap them.
+
 ## What It Does
 
 ### 1. Detect active loop modes
 
 For each loop mode listed above, check whether the state file indicates an
-active session:
+active session. Single-file modes signal liveness via file existence; dir-based
+modes use `state.attention === true` regardless of `status` (so a blocked
+continuous-overnight that left `attention=true` for morning surfacing is still
+cancellable):
 
 ```
-Read .athena/state/autopilot.json — active if exists with active=true
-Read .athena/state/ralph.json     — active if exists with active=true
-List .athena/continuous/*/state.json   — active if state.active && status=running
-List .athena/deep-interview/*/state.json — active if state.active
-List .athena/deep-dive/*/state.json      — active if state.active
-List .athena/self-improve/*/state/loop.json — active if loop.active && status=running
+Read .athena/state/autopilot.json — active if file EXISTS (single-file, no `attention` field; presence = live)
+Read .athena/state/ralph.json     — active if file EXISTS (single-file, no `attention` field; presence = live)
+List .athena/continuous/*/state.json   — active if state.attention === true (any status; blocked sessions ARE cancellable)
+List .athena/deep-interview/*/state.json — active if state.attention === true
+List .athena/deep-dive/*/state.json      — active if state.attention === true
+List .athena/self-improve/*/state/loop.json — active if loop.attention === true (any status; blocked is cancellable)
 ```
 
 ### 2. Cancel each active mode
 
 **Single-file modes (autopilot, ralph):**
-- Remove the state file
-- Report cancellation with phase / iteration info if available
+- **READ the state file FIRST** — extract phase / iteration / criteria-count for the message. Required ordering: read → format message → delete file. Reading after delete yields `undefined/undefined` in messages.
+- Then remove the state file (`rm .athena/state/<mode>.json`).
+- Report cancellation with the values captured above.
 
 **Dir-based modes (continuous-overnight, deep-interview, deep-dive, self-improve):**
-- Set `status=cancelled` (or `blocked` for continuous-overnight) in the state JSON via atomic write (temp file + rename)
+- Set BOTH `status: cancelled` AND `attention: false` in the state JSON via atomic write (temp file + rename). Uniform across all dir-based loop modes — `cancelled` is distinct from `blocked` (which means "rate-limit / 3x failure / infra block, exit gracefully") and from `done` (graceful completion).
+- The `attention: false` write is REQUIRED — the session-start surfacing filter only re-surfaces sessions where `state.attention === true`. Without `attention=false`, a cancelled session re-surfaces forever.
 - Write a `CANCELLED.md` in the mode's directory with:
   - reason: "user-cancelled"
   - timestamp
@@ -77,7 +94,7 @@ List .athena/self-improve/*/state/loop.json — active if loop.active && status=
 |------|---------|
 | autopilot | "Autopilot cancelled at phase: {phase}." |
 | ralph | "Ralph cancelled. {N}/{total} criteria completed." |
-| continuous-overnight | "Continuous-overnight {id} marked blocked at iteration {N}. Artifacts at .athena/continuous/{id}/ preserved." |
+| continuous-overnight | "Continuous-overnight {id} cancelled at iteration {N}. Artifacts at .athena/continuous/{id}/ preserved." |
 | deep-interview | "Deep-interview {slug} cancelled at round {N} (ambiguity {score}%). Transcript at .athena/deep-interview/{slug}/ preserved." |
 | deep-dive | "Deep-dive {slug} cancelled at phase {phase}. Trace + interview artifacts preserved." |
 | self-improve | "Self-improve {slug} cancelled at iteration {N}. All rounds preserved at .athena/self-improve/{slug}/." |

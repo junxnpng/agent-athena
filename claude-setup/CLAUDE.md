@@ -112,6 +112,19 @@ Keyword triggers:
 - "make this a skill" / "skillify" → skillify
 - "save this insight" / "learn this" / "extract this learning" → learner
 - "deslop" / "anti-slop" / "AI slop" / "clean up bloat" → ai-slop-cleaner
+
+**Stop/cancel precedence (resolves ambiguity between ralph "don't stop" triggers and cancel "stop" triggers):**
+A loop mode counts as live (for routing purposes) when:
+- Single-file modes (autopilot, ralph): `.athena/state/autopilot.json` or `.athena/state/ralph.json` EXISTS (these schemas have no `attention` field — file presence is the liveness signal; cancel deletes them).
+- Dir-based modes (continuous-overnight, deep-interview, deep-dive, self-improve): the corresponding `.athena/<mode>/*/state.json` (or `state/loop.json` for self-improve) exists AND has `state.attention === true`.
+
+When at least one loop mode is active by these rules, the bare-verb utterances `stop` / `cancel` / `abort` / `end` route to the cancel skill regardless of surrounding phrasing. Only the explicit ralph-positive phrases `don't stop` / `keep going` / `finish this` / `must complete` keep ralph active.
+
+"Bare verb" disambiguation: a sentence whose primary verb is `stop`/`cancel`/`abort`/`end` and whose object is the loop or absent (e.g., "stop", "stop the loop", "cancel this", "abort"). Phrasal usages where the verb is followed by a non-loop direct object or complement (e.g., "stop overthinking", "cancel that idea", "abort mission [unrelated]") are NOT routed to cancel — the user is using English idiom, not commanding the loop.
+
+When ambiguous in interactive mode: ask the user (one short clarification — "Do you want to cancel the active loop, or is this just an English phrase?"). When ambiguous **inside an active continuous-overnight session** (autonomy mode): default to NO routing — treat as plain English, do NOT trigger cancel. Reason: autonomy mandates "never ask the user", and accidentally cancelling an overnight loop on a stray English phrase is more harmful than missing a genuine cancel intent (the user can re-cancel explicitly).
+
+When NO loop-mode state file is active, "stop"/"cancel"/etc. are normal English verbs (no skill routing).
 </skills>
 
 <execution_protocols>
@@ -121,7 +134,7 @@ Keyword triggers:
 - Never self-approve: authoring and review are separate passes.
 - For AI/research work: scientist for data, researcher for survey, multi-review for paper/code review.
 - Completion requires: build pass + tests pass + no type errors + no debug artifacts + verifier evidence.
-- **Ralplan pre-execution gate**: before invoking ralph / autopilot / continuous-overnight, check the prompt for concrete anchors (file path, symbol name, issue#, code block, numbered steps, acceptance criteria). If NO anchor is present AND the prompt is ≤15 effective words, use `AskUserQuestion` to ask the user whether to run `/athena:ralplan` first. Bypass with `force:` or `!` prefix on the original call. Inside an active continuous-overnight session (autonomy mode): skip the `AskUserQuestion` and route silently to ralplan — the autonomy envelope owns the decision and must NOT prompt the user.
+- **Ralplan pre-execution gate**: before invoking ralph / autopilot / continuous-overnight, check the prompt for concrete anchors (file path, symbol name, issue#, code block, numbered steps, acceptance criteria). If NO anchor is present AND the prompt is ≤15 effective words (definition: whitespace-separated tokens after stripping fenced code blocks, inline backticked code, and markdown link URLs), use `AskUserQuestion` to ask the user whether to run `/athena:ralplan` first. Bypass with `force:` or `!` prefix on the original call. Inside an active continuous-overnight session (autonomy mode): skip the `AskUserQuestion` and route silently to ralplan. ralplan's own autonomy auto-handoff (step 7 of `skills/ralplan/SKILL.md`) takes over from there — after consensus, ralplan auto-invokes ralph (or autopilot if originally called from autopilot) without `--interactive`, so the autonomy envelope terminates at an executing skill, never at "plan saved, awaiting approval".
 </execution_protocols>
 
 <review_philosophy>

@@ -56,8 +56,8 @@ All runtime state lives under `.athena/continuous/<id>/`:
 ```json
 {
   "id": "<id, e.g. 2026-04-25-overnight-lr-sweep>",
-  "active": true,
-  "status": "running | blocked | done",
+  "attention": true,
+  "status": "running | blocked | done | cancelled",
   "task": "<original user task verbatim>",
   "started_at": "<ISO>",
   "last_action_at": "<ISO>",
@@ -108,19 +108,19 @@ All runtime state lives under `.athena/continuous/<id>/`:
    e. **Decision logging:** every non-trivial choice (which agent, which sub-approach, which alternative was rejected) must append a line to `decisions.md` in the format from `<Policy_Envelope>` rule 2.
 
    f. **Failure handling:**
-      - Rate-limit error from any agent → write BLOCKED.md, set `status=blocked`, exit. (Rule 3.)
-      - Same hypothesis attempted 3x without success → write BLOCKED.md with hypothesis text + last 3 evidence paths, set `status=blocked`, exit. (Rule 4.)
-      - Disk full / missing required file → write BLOCKED.md, exit.
+      - Rate-limit error from any agent → write BLOCKED.md, set `status=blocked`, **leave `attention=true`**, exit. (Rule 3.) (`attention=true` on blocked is intentional: session-start.mjs surfaces active sessions and routes blocked ones to the BLOCKED notice for morning review. Setting `attention=false` here would silently hide the failure.)
+      - Same hypothesis attempted 3x without success → write BLOCKED.md with hypothesis text + last 3 evidence paths, set `status=blocked`, leave `attention=true`, exit. (Rule 4.)
+      - Disk full / missing required file → write BLOCKED.md, set `status=blocked`, leave `attention=true`, exit.
 
    g. Increment `iteration`, update `last_action_at`. Loop.
 
 4. **Hypothesis exhaustion** (all hypotheses tried)
    - If any succeeded with criterion met → step 5 (done).
-   - If all failed → write BLOCKED.md noting "all hypotheses exhausted, none met criteria", exit.
+   - If all failed → write BLOCKED.md noting "all hypotheses exhausted, none met criteria", set `status=blocked`, leave `attention=true`, exit.
    - DO NOT generate new hypotheses autonomously — that is the user's call next morning.
 
 5. **Graceful done**
-   - Set `state.status=done`, `state.active=false`.
+   - Set `state.status=done`, `state.attention=false`.
    - Write a `SUMMARY.md` at `.athena/continuous/<id>/SUMMARY.md` covering:
      - Hypotheses tried + outcomes
      - Key decisions (link to decisions.md)
@@ -162,7 +162,7 @@ When writing `BLOCKED.md`, use this template so morning review is fast:
 - ALWAYS use `run_in_background: true` for long agent calls so wall-time tracking is accurate.
 - ALWAYS write to `state.json` atomically (temp file + rename) to avoid mid-write corruption on crash.
 - ALWAYS reference an evidence file path in `decisions.md` — never claim success without artifact.
-- Status transitions are one-way: `running → (blocked | done)`. No resurrection inside one session.
+- Status transitions are one-way: `running → (blocked | done | cancelled)`. No resurrection inside one session. `cancelled` is reserved for the cancel skill (user-driven exit) and always co-occurs with `attention=false`.
 </Rules>
 
 <Final_Checklist>

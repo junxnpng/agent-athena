@@ -47,6 +47,8 @@ confirmation:
 
 If user declines: abort. Do NOT proceed without explicit consent.
 Once confirmed, persist `trust_confirmed: true` in state and skip on resume.
+
+**Autonomy bypass:** if any `.athena/continuous/<id>/state.json` exists with `state.attention === true` (continuous-overnight is in flight), SKIP the AskUserQuestion. Pick deterministic defaults: target repo path = current cwd; benchmark command = read from `.athena/self-improve/<slug>/config/settings.json` if pre-existing, else BLOCK and write BLOCKED.md (no autonomous benchmark-command guess — unsafe). Sealed files default = the benchmark file path itself. Log the autonomy decision to `.athena/continuous/<id>/decisions.md` with format from CLAUDE.md `<autonomy_for_overnight>`. Persist `trust_confirmed: true, trust_source: "autonomy-envelope"` in state.
 </Trust_Gate>
 
 <State_Layout>
@@ -74,8 +76,8 @@ All runtime state under `.athena/self-improve/<topic-slug>/`:
 `loop.json` schema:
 ```json
 {
-  "active": true,
-  "status": "running | blocked | done",
+  "attention": true,
+  "status": "running | blocked | done | cancelled",
   "iteration": <int>,
   "best_score": <number>,
   "baseline_score": <number>,
@@ -106,7 +108,11 @@ Run continuously until a stop condition fires (Step 9). NEVER ask the user mid-l
 Remove any `worktrees/round_*` dirs from prior interrupted runs. Run `git worktree prune`. Idempotent.
 
 ### Step 2 — Stop check
-Read `loop.json`. If `status` is `user_stopped` or external cancel: write BLOCKED.md (reason: user-cancelled), exit gracefully.
+Read `loop.json`. Exit immediately on ANY of:
+- `status === 'cancelled'` OR `attention === false` — user cancelled. Do NOT write BLOCKED.md (cancel skill already wrote CANCELLED.md).
+- `status === 'blocked'` — prior iteration's block-class write (circuit-breaker / rate-limit / infra) OR a process-restart that resumed after a crash. Do NOT re-enter the loop. Block-class is a halt state, not a transient — exit so morning user triages BLOCKED.md.
+
+`cancelled` and `blocked` are distinct status values: `cancelled` = user-driven exit via cancel skill; `blocked` = circuit breaker / rate-limit / infra block. Both must short-circuit Step 2.
 
 ### Step 3 — Research (delegated to researcher)
 Spawn **researcher** (opus) with goal + last K iterations' history. Output: research brief naming likely improvement directions, prior-art references, and gotchas. Save to `state/research_briefs/round-<N>.md`.
@@ -160,23 +166,34 @@ Failure → mark variant failed, do not abort the round.
 3. Append all candidate scores to `tracking/raw_data.json`.
 
 ### Step 9 — Stop conditions
-Evaluate ALL — if ANY true, exit:
-| Condition | Trigger |
-|-----------|---------|
-| User stop | `status == user_stopped` |
-| Target reached | `best_score` meets `target_value` (respecting direction) |
-| Plateau | `plateau_count >= plateau_window` (default window=3) |
-| Max iterations | `iteration >= max_iterations` (default 20) |
-| Circuit breaker | `circuit_count >= circuit_breaker_threshold` (default 5) |
+Evaluate ALL — if ANY true, exit. Each condition is classified as **natural-completion**, **block-class**, or **user-cancel** — terminal-state writes differ per class:
+
+| Condition | Class | Trigger | Terminal write |
+|-----------|-------|---------|----------------|
+| User cancel | user-cancel | `status === 'cancelled'` or `attention === false` (cancel skill wrote both atomically) | none — cancel skill already wrote authoritative state |
+| Target reached | natural-completion | `best_score` meets `target_value` (respecting direction) | `attention: false, status: done` |
+| Plateau | natural-completion | `plateau_count >= plateau_window` (default window=3) | `attention: false, status: done` |
+| Max iterations | natural-completion | `iteration >= max_iterations` (default 20) | `attention: false, status: done` |
+| Circuit breaker | **block-class** | `circuit_count >= circuit_breaker_threshold` (default 5) | `attention: true, status: blocked` + `BLOCKED.md` |
+| Rate-limit / infra | block-class | (per failure-handling rules) | `attention: true, status: blocked` + `BLOCKED.md` |
+
+Circuit breaker is block-class (not natural) because it indicates the loop hit a failure wall, not that it found a satisfactory result. Morning user must decide: refine search space, lower target, or abandon.
 
 If none fire → Step 1 of next iteration.
 
 ## Completion
 
-When loop exits:
-1. Set `loop.status = done`, write `SUMMARY.md` with: status, iterations run, best vs baseline, improvement %.
-2. NEVER auto-PR. Print: "Run `gh pr create --head improve/<slug> --base <target>` manually if you want to ship."
-3. Preserve all artifacts under `.athena/self-improve/<slug>/` for review.
+**Natural-completion path (Target reached / Plateau / Max iterations):**
+1. Atomically write `loop.json` with `status: done` AND `attention: false`. Both fields are required — `attention: false` removes the session from session-start surfacing (otherwise a completed self-improve persists as a RUNNING zombie); `status: done` is the terminal status. Uniform with continuous-overnight's `attention: false, status: done` pattern.
+2. Write `SUMMARY.md` with: status, iterations run, best vs baseline, improvement %.
+3. NEVER auto-PR. Print: "Run `gh pr create --head improve/<slug> --base <target>` manually if you want to ship."
+4. Preserve all artifacts under `.athena/self-improve/<slug>/` for review.
+
+**Block-class path (Circuit breaker / rate-limit / infra):**
+1. **Re-read `loop.json` immediately before the terminal write** (race-safe). If `status === 'cancelled'` OR `attention === false`, the cancel skill won the race — exit without writing BLOCKED.md or overwriting state. Cancel's terminal write is authoritative.
+2. Otherwise: write `BLOCKED.md`, set `status: blocked`, **leave `attention: true`** (consistent with continuous-overnight blocked-path: blocked sessions keep attention=true so session-start surfaces them via the BLOCKED notice). Do NOT write `status: done` — that misclassifies a failure as success.
+
+**User-cancel path:** cancel skill already wrote `attention: false, status: cancelled`. Do NOT overwrite — cancel's terminal write is authoritative.
 
 </Steps>
 

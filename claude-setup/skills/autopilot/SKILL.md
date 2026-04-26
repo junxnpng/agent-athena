@@ -22,13 +22,15 @@ spec → plan → implement → QA → validate. Produces working, verified code
 </Do_Not_Use_When>
 
 <Steps>
-1. **Phase 0 — Expansion**: Turn the idea into a detailed spec
+**Plan-path short-circuit (applies before Phase 0):** if the input is a path string (matches `^[^ ]+\.md$`, file exists, AND contains a `## Acceptance Criteria` or `### Acceptance Criteria` heading), the spec is considered already produced (by ralplan, deep-interview, or deep-dive). SKIP Phase 0 and Phase 1 entirely — read the plan and proceed directly to Phase 2 with its acceptance criteria. The `Acceptance Criteria` heading is the canonical signal — uniform with ralph's plan-path detection — so a README with `## Plan` does NOT short-circuit. If the regex matches but the heading is absent, the input is treated as ambiguous and falls through to Phase 0 with a logged note (do NOT silently re-decompose the path string itself). This prevents ralplan→autopilot ping-pong: ralplan's consensus plan is the contract, autopilot must NOT re-decompose it.
+
+1. **Phase 0 — Expansion** (only if no plan-path supplied): Turn the idea into a detailed spec
    - Use architect (opus) to extract requirements and create technical spec
    - Use critic (opus) to challenge assumptions and find gaps
    - Output: clear requirements with acceptance criteria
    - If input is vague (no files, functions, or concrete anchors): ask for clarification first
 
-2. **Phase 1 — Planning**: Create an implementation plan
+2. **Phase 1 — Planning** (only if no plan-path supplied): Create an implementation plan
    - Use planner (opus) to decompose into ordered steps
    - Use critic (opus) to validate the plan
    - Identify parallel opportunities and risks

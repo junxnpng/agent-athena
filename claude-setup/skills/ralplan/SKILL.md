@@ -45,6 +45,8 @@ The gate FIRES (redirects to ralplan) when:
 - Prompt is ≤15 effective words, AND
 - No concrete anchor matched
 
+**"Effective words" definition:** whitespace-separated tokens after stripping (a) fenced code blocks (```...```), (b) inline backticked code (`...`), and (c) markdown link URLs (the `(http...)` portion of `[text](url)` links — the visible link text still counts). Counts the tokens a human reader would describe as "words in the request" — not URL noise or code.
+
 Bypass: prefix the execution call with `force:` or `!`.
 </Pre_Execution_Gate>
 
@@ -60,7 +62,18 @@ Bypass: prefix the execution call with `force:` or `!`.
      - Viable Options (≥2) with bounded pros/cons each
      - If only one option remains, explicit invalidation rationale for alternatives
    {if --deliberate: also include pre-mortem (3 failure scenarios) + expanded test plan (unit/integration/e2e/observability)}
-   Then the plan body with file references, sequenced steps, and testable acceptance criteria.
+
+   Then the plan body. The plan body MUST include a section with the LITERAL heading
+   `## Acceptance Criteria` (case-sensitive, exactly two `#`, no trailing punctuation).
+   Under that heading, list each criterion as a checkbox bullet:
+     - [ ] <runnable test command, specific scenario, or verifiable acceptance condition>
+   Each bullet must be testable on its own (a command or scenario, not "code is good").
+
+   This format is contractual: ralph's plan-path detection (ralph/SKILL.md Step 1.a) and
+   autopilot's plan-path short-circuit (autopilot/SKILL.md pre-Phase-0 block) both look
+   for this exact heading + bullet pattern. Any other heading text or bullet style will
+   silently fall through to re-decomposition, defeating the consensus contract.
+
    Save to .athena/plans/ralplan-<slug>.md
    ```
 
@@ -69,6 +82,8 @@ Bypass: prefix the execution call with `force:` or `!`.
    - Proceed to architect review
    - Request changes (revise + redo Planner pass)
    - Skip review (terminal: output current plan)
+
+   **Autonomy bypass:** if any `.athena/continuous/<id>/state.json` exists with `state.attention === true`, treat as `--interactive=false` regardless of flag — SKIP this user check and proceed to architect review (step 3). Log decision to `.athena/continuous/<id>/decisions.md`.
 
 3. **Architect review** — sequential, AWAIT before step 4
    Delegate to **architect** (opus). Architect must produce:
@@ -114,6 +129,21 @@ Bypass: prefix the execution call with `force:` or `!`.
    - Reject (abandon, save plan to .athena/plans/ for later)
 
    On approval: invoke the chosen Skill explicitly. NEVER implement directly — ralplan is a planning lane.
+
+   **Autonomy auto-handoff:** if any `.athena/continuous/<id>/state.json` exists with `state.attention === true`, SKIP the AskUserQuestion. After consensus (step 6 ADR present + critic APPROVE), immediately route to a downstream execution skill with the saved plan path.
+
+   **Caller detection (explicit-sentinel only — no heuristic substring match):** ralplan does NOT inspect the prompt for natural-language signatures (those are too easy to false-positive on, e.g. a user prompt that mentions "autopilot Phase 0 expansion" by name). Routing is determined ONLY by an explicit sentinel at the START of the prompt:
+
+   - If the prompt starts with the literal token `[from=autopilot]` (whitespace allowed before/after) → invoke `/athena:autopilot` with the plan path. Autopilot's plan-path short-circuit (see autopilot/SKILL.md `<Steps>` opening note) skips its Phase 0/1, so no double-planning. Autopilot is responsible for prepending this sentinel when delegating to ralplan.
+   - Otherwise (no sentinel, or different sentinel) → invoke `/athena:ralph` with the plan path. Ralph's plan-path detection (Step 1.a) reads acceptance criteria directly from the plan, so the consensus output is preserved.
+
+   - Pass plan path explicitly: e.g. `Skill(skill="athena:ralph", args="<plan path>")`
+   - Do NOT pass `--interactive` to the downstream skill.
+   - Log handoff decision (chosen target + reason) to `.athena/continuous/<id>/decisions.md`.
+
+   **Default safety:** ralph is the documented default — it is sequential and evidence-locked, and it cannot re-invoke ralplan (no ping-pong risk). Autopilot routing is opt-in via the `[from=autopilot]` sentinel only.
+
+   This closes the autonomy dead-end: a continuous-overnight session that hits the ralplan gate must terminate at an executing skill, never at "plan saved, awaiting approval".
 
 </Steps>
 
