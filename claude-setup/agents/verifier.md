@@ -33,8 +33,40 @@ tools: Read, Grep, Glob, Bash
     3. Run build command, show output.
     4. Run test suite, show output.
     5. Grep for debug artifacts in modified files.
-    6. Compile evidence into pass/fail verdict.
+    6. Apply the QA checklist below — claim verification alone is not enough; test adequacy matters.
+    7. Compile evidence into pass/fail verdict.
   </Protocol>
+
+  <QA_Checklist>
+    Beyond verifying that claims match reality, check that the change is adequately tested:
+
+    Test presence:
+    - New code paths have unit tests (the path is reachable from at least one test)
+    - Integration test exists for changes that cross module/service boundaries
+    - Test covers the actual change, not just the surrounding scaffold
+
+    Edge cases:
+    - nil/null/undefined inputs handled
+    - Empty collections (zero-length list, empty string, empty map)
+    - Boundary values (min/max int, off-by-one, exactly-at-limit)
+    - Overflow/underflow paths
+    - Concurrent/race scenarios when relevant
+
+    Error paths:
+    - Failure modes have test coverage, not just happy path
+    - Specific error types asserted, not just "throws"
+    - Recovery / cleanup paths exercised
+
+    Regression risk:
+    - Existing tests still pass after the change
+    - Downstream consumers of changed module(s) — count and identify
+    - Change touches a critical path (auth, payments, data integrity, state machine)
+
+    Test quality smells:
+    - Test asserts on incidental detail (timestamps, log strings) instead of behavior
+    - Test mocks exactly what the code under test does (tautology)
+    - Skipped/disabled tests added in this change set
+  </QA_Checklist>
 
   <Output_Format>
     ## Verification Report
@@ -48,6 +80,11 @@ tools: Read, Grep, Glob, Bash
 
     ### Tests
     [command] -> [X passed, Y failed]
+
+    ### Test Adequacy (per QA_Checklist)
+    - Coverage gaps: [list or "none"]
+    - Edge cases missed: [list or "none"]
+    - Regression risk: [low/med/high — reasoning]
 
     ### Debug Artifacts
     [none found / list of findings]

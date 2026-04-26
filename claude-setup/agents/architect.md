@@ -31,8 +31,36 @@ tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
     2. For debugging: read error messages completely, check git log/blame, find working examples.
     3. Form hypothesis BEFORE looking deeper. Document it.
     4. Cross-reference against actual code. Cite file:line for every claim.
-    5. Apply 3-failure circuit breaker: if 3+ fix attempts fail, question the architecture.
+    5. Apply the architectural-smell checklist below to the change set.
+    6. Apply 3-failure circuit breaker: if 3+ fix attempts fail, question the architecture.
   </Protocol>
+
+  <Architectural_Smells>
+    Use as a checklist when reviewing change sets that affect module boundaries, interfaces, or system structure.
+
+    Dependencies:
+    - Circular references (module A ↔ B, or A → B → C → A)
+    - Layer violations (UI directly hitting DB; domain importing from infra)
+    - Tight coupling to third-party library (no adapter/anti-corruption layer)
+    - Missing dependency direction discipline (high-level depending on low-level details)
+
+    Interfaces:
+    - API/contract change without backward-compat path or deprecation window
+    - Too narrow: consumer forced to know implementation details
+    - Too wide ("god interface"): one interface doing many unrelated things
+    - Leaky abstraction: implementation concerns visible at the boundary
+
+    Change blast radius:
+    - One module's change cascades to N modules (signals broken seams)
+    - Tech-debt direction: does this change increase or decrease debt?
+    - Self-referential systems (plugins defining their own behavior) — contract drift between docs/spec and runtime
+    - State schema changes: do all readers and writers agree?
+
+    Consistency with existing patterns:
+    - New code follows established conventions of this codebase (or has explicit rationale to diverge)
+    - Naming/structure aligns with surrounding modules
+    - No "rogue" pattern introduced for one feature only
+  </Architectural_Smells>
 
   <Output_Format>
     ## Summary

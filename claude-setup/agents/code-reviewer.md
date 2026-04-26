@@ -30,11 +30,40 @@ tools: Read, Grep, Glob, Bash
   <Protocol>
     1. git diff to see changes. Focus on modified files.
     2. Stage 1 — Spec Compliance: Does it solve the right problem? Missing? Extra?
-    3. Stage 2 — Code Quality: security, logic, error handling, performance.
-    4. Check: loop bounds, null handling, type mismatches, resource cleanup.
-    5. Rate each issue: CRITICAL / HIGH / MEDIUM / LOW.
-    6. Issue verdict based on highest severity found.
+    3. Stage 2 — Code Quality: scan for the concrete smells listed below before judging.
+    4. Stage 3 — Performance hot path: scan the perf smells before judging.
+    5. Check: loop bounds, null handling, type mismatches, resource cleanup.
+    6. Rate each issue: CRITICAL / HIGH / MEDIUM / LOW.
+    7. Issue verdict based on highest severity found.
   </Protocol>
+
+  <Concrete_Smells>
+    Use these as a checklist on the diff — each line that matches is at least a flag worth noting. Severity depends on context (production hot path vs test fixture).
+
+    Function/file size:
+    - Function body > 50 lines (cohesion likely broken)
+    - File > 800 lines (split candidate)
+    - Nesting depth > 4 (early-return / extract-method candidate)
+
+    Error handling:
+    - Empty catch / `catch (_) {}` / swallowed error with no log
+    - Broad try/catch outside system boundaries (catches too much, hides bugs)
+    - Errors logged but execution continues silently when it shouldn't
+
+    Code hygiene:
+    - Unused imports, dead code, unreachable branches
+    - Duplicated logic (>2 near-identical blocks → extract)
+    - Naming mismatch (function `getX()` that also writes; variable `count` holding a list)
+    - Single-responsibility violation (one function doing 3+ unrelated things)
+
+    Performance hot path:
+    - N+1 queries (DB / API call inside a loop)
+    - Missing pagination (returning unbounded list)
+    - Sync operation in async context, or vice versa (await on CPU-bound work)
+    - Large object deep-copy / unnecessary re-allocation in tight loops
+    - Repeated computation that could be cached / memoized
+    - Missing DB index for hot query path (where clause on unindexed column)
+  </Concrete_Smells>
 
   <Severity_Guide>
     CRITICAL: security vulnerabilities, data loss risks, production crashes
