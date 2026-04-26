@@ -175,6 +175,11 @@ When `continuous-overnight` is active (state file at `.athena/continuous/<id>/st
 - Decision format: `[YYYY-MM-DD HH:MM] DECISION: chose X over Y/Z. Reason: ... Confidence: low/med/high. Verifiable next morning by: ...`
 - Truly blocked (disk full, missing required file): write `BLOCKED.md`, set state.status=blocked, exit gracefully.
 - Same hypothesis fails 3x → switch hypothesis, do not retry indefinitely.
+
+**Two-layer trust boundary** (the rules above are SKILL-level — the LLM follows them):
+- The HARNESS-level tool-permission system (Bash/Write/Edit/Task prompts) is independent of these rules and CANNOT be bypassed by the autonomy envelope. If a tool requires user approval and the user is asleep, the loop silently hangs at that prompt.
+- Pre-flight setup is required: launch with `claude --dangerously-skip-permissions` OR enable `bypass-permissions` mode (Shift+Tab) BEFORE invoking continuous-overnight. See `skills/continuous-overnight/SKILL.md` `<Pre_Flight>` for the full checklist (permission mode + long-lived shell + plugin verification + sanity checks).
+- If the loop reports unexpected halts in the morning that aren't BLOCKED.md, suspect harness-level permission prompts. Check `~/.claude/settings.json` permissions and the launch flags.
 </autonomy_for_overnight>
 
 <language_rules>

@@ -39,7 +39,103 @@ Summary of the binding rules:
 4. **Block on hypothesis failure ≥3x.** Do NOT auto-switch hypotheses without sign-off.
    Write `BLOCKED.md` with the failed hypothesis + last 3 evidence snippets, exit.
 5. **Hard caps:** Max wall time (default 8h) and max iterations (default 20). Whichever hits first → graceful done.
+
+**Important — two-layer trust boundary:** rules 1–5 are SKILL-LEVEL contracts the LLM follows. They do NOT bypass Claude Code's HARNESS-LEVEL tool-permission system. If `Bash`/`Write`/`Edit`/`Task`/etc. require a permission prompt, the harness will block waiting for user approval — silently, while the user is asleep. The autonomy envelope **assumes** tool permissions are pre-granted. See `<Pre_Flight>` below for the required setup.
 </Policy_Envelope>
+
+<Pre_Flight>
+Required setup BEFORE invoking this skill — without these, the loop will silently
+hang on tool-permission prompts during the night.
+
+### 1. Tool-permission mode (pick ONE)
+
+**Option A (recommended for true overnight) — bypass-permissions mode:**
+Press `Shift+Tab` in the active Claude Code session until the mode indicator at the
+bottom shows `bypass-permissions`. Three modes cycle:
+- `plan` (no execution)
+- `accept-edits` (Write/Edit auto-approved, Bash still prompts)
+- `bypass-permissions` (everything auto-approved) ← required for overnight
+
+This persists for the duration of the Claude Code session. Re-enabling per session.
+
+**Option B — CLI flag at launch:**
+```sh
+claude --dangerously-skip-permissions
+```
+Same effect as bypass-permissions mode, set at process start. Required if
+launching headlessly (e.g. via tmux + `claude -p`).
+
+**Option C — narrow allow-list in `~/.claude/settings.json`:**
+For users uncomfortable with full bypass, allow only the tools the loop needs:
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Write",
+      "Edit",
+      "Read",
+      "Glob",
+      "Grep",
+      "Agent",
+      "Skill",
+      "ToolSearch",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList"
+    ]
+  }
+}
+```
+`Bash(*)` is broad — replace with specific commands (`Bash(git:*)`, `Bash(node:*)`)
+if you want tighter scope.
+
+### 2. Long-lived shell
+
+Claude Code session must survive the night. Network blip / lid-close / terminal
+quit kills the loop. Use `tmux` or `screen`:
+
+```sh
+# Launch in detached tmux session
+tmux new-session -d -s overnight 'claude --dangerously-skip-permissions -p "/athena:continuous-overnight <task>"'
+
+# Re-attach in the morning
+tmux attach -t overnight
+```
+
+For the `--dangerously-skip-permissions` to take effect headlessly, it MUST be
+on the launch command — `Shift+Tab` only works in interactive mode and won't
+help an already-launched headless session.
+
+### 3. Sanity verify before launch
+
+```sh
+# Confirm Node.js for hooks
+node -v   # must be >= 20
+
+# Confirm athena plugin enabled
+grep -A1 'enabledPlugins' ~/.claude/settings.json   # should show athena@athena-local: true
+
+# Confirm working dir state
+git status   # advisory — overnight loops on dirty trees mix changes
+```
+
+### 4. Optional but useful
+
+- Set `OVERNIGHT_TASK` budget caps in the prompt: `--max-hours=N --max-iter=N`.
+- Note any external service quotas (OpenAI/Anthropic rate limits, GitHub Actions minutes) — the loop blocks on rate-limit but doesn't pre-check quotas.
+- Plan a morning review window — the loop produces `SUMMARY.md` or `BLOCKED.md`; both need human eyes.
+
+### What happens if Pre-flight is skipped
+
+| Skipped step | Failure mode |
+|---|---|
+| Permission mode | Loop hangs at first Bash/Write call. No error, just silent wait. Wakes user up. |
+| tmux/long-lived shell | SIGHUP on terminal close → process dies mid-iteration → state.json left as `running` → next session-start surfaces zombie. |
+| Node.js 20+ | Hooks fail to load → consistency check + session-start surfacing skipped. |
+| athena plugin enabled | `/athena:` skill invocations not recognized; the entire skill stack is unreachable. |
+
+</Pre_Flight>
 
 <State_Layout>
 All runtime state lives under `.athena/continuous/<id>/`:
@@ -175,15 +271,27 @@ When writing `BLOCKED.md`, use this template so morning review is fast:
 </Final_Checklist>
 
 <Runner_Note>
-This skill assumes the user launches Claude Code in a long-lived shell (e.g. tmux session)
-before invoking. The skill itself does not spawn a tmux wrapper — that is intentionally
-out-of-scope to keep the plugin pure. Recommended launch:
+This skill assumes the user has completed the `<Pre_Flight>` setup above
+(permission mode + long-lived shell + plugin verification). The skill itself does
+not spawn a tmux wrapper or set permission flags — those are out-of-scope to keep
+the plugin pure.
+
+Quick reference for the typical "launch and walk away" path:
 
 ```sh
-tmux new-session -d -s overnight 'claude -p "/athena:continuous-overnight <task>"'
+tmux new-session -d -s overnight \
+  'claude --dangerously-skip-permissions -p "/athena:continuous-overnight <task>"'
+
+# Morning:
+tmux attach -t overnight
+cat .athena/continuous/*/SUMMARY.md   # or BLOCKED.md
 ```
 
-A separate runner helper may be added later if launching becomes a friction point.
+If you launched WITHOUT `--dangerously-skip-permissions` and the loop hangs
+mid-night on a permission prompt: that is the documented failure mode in
+`<Pre_Flight>` step 1 — the autonomy envelope is a SKILL-level contract and
+does not bypass Claude Code's harness-level permission gating. Re-launch with
+the flag.
 </Runner_Note>
 
 Original task:
