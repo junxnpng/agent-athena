@@ -28,7 +28,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 
 ## 작업 규칙 (이 repo를 고칠 때)
 - 코드는 Python 3.9 stdlib만. `from __future__ import annotations` 필수, `X | None` 런타임 문법 금지. 외부 의존성 추가 금지.
-- macOS에 `timeout` 바이너리가 없다 — 타임아웃은 Python subprocess + 프로세스 그룹 kill로.
+- **macOS와 Ubuntu 둘 다에서 돈다.** 셸은 `#!/bin/sh` POSIX(dash 호환)만. BSD/GNU가 갈리는 명령(`sed -i` `readlink -f` `realpath` `timeout` `date -d/-v` `stat -c/-f`)과 bashism 금지 — `scripts/portable-lint`가 거부한다. 타임아웃은 Python 프로세스 그룹 kill. subprocess는 `encoding="utf-8"` 명시.
 - 컴포넌트를 추가하면 `ASSUMPTIONS.md`에 "가정 + 유효 모델 급" 한 줄을 같이 적는다. 스킬·도구 추가 시 I7 재검사.
 - 스킬 frontmatter는 `name`, `description` 2키만(Codex 이식성). 에이전트가 자기 스킬을 만들지 않는다.
 - 날짜를 식별자로 쓰지 않는다. 계획에 세부 구현을 쓰지 않는다. 쓰기 작업을 병렬화하지 않는다.

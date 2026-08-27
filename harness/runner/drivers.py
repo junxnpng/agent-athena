@@ -14,7 +14,6 @@ import json
 import os
 import queue as _queue
 import re
-import shutil
 import subprocess
 import threading
 import time
@@ -168,12 +167,13 @@ def _ingest(run: ModelRun, ctx: TaskContext, line: bytes) -> None:
 
 def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: Path) -> ModelRun:
     run = ModelRun(ok=False, stream_path=str(stream_path))
-    if not shutil.which("claude"):
-        run.error = "claude CLI를 찾을 수 없다"
+    exe = H.find_claude()
+    if not exe:
+        run.error = "claude CLI를 찾을 수 없다 (PATH, ~/.local/bin, /usr/local/bin)"
         return run
     drv = ctx.domain.driver
     args = [
-        "claude", "-p", prompt,
+        exe, "-p", prompt,
         "--output-format", "stream-json", "--verbose", "--include-hook-events",  # 훅 거부도 관측 기록에 남긴다
         "--plugin-dir", str(H.HARNESS_ROOT),
         "--max-turns", str(int(drv.get("max_turns") or 120)),

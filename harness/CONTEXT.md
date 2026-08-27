@@ -46,4 +46,5 @@
 - **2026-08-27 · P9는 훅이 아니라 스트림** — 파일별 편집 횟수는 `claude -p --output-format stream-json`의 `tool_use`를 러너가 밖에서 세어 얻는다. post-tool 훅으로 세면 관측이 대상 세션 안에서 돈다 (I9). 그래서 v0에 `post-tool` 훅이 없다.
 - **2026-08-27 · macOS에 `timeout`이 없다** — 모든 타임아웃은 Python `subprocess` + 프로세스 그룹 kill로 구현. 셸에서 `timeout` 명령을 쓰지 않는다. `claude --print`는 stdin을 기다리므로 `stdin=DEVNULL` 필수 (KnockAtena 프로토타입에서 실측).
 - **2026-08-27 · P3·P8 일부를 Phase 1에 당김** — 빌드 순서상 Phase 4지만, 쓰기 범위 거부(I6)와 최대 시도 초과 격리 없이는 무인 루프가 안전하지 않다. 멱등 키(P3 본체)와 병리 종합(P9)은 Phase 4 그대로.
+- **2026-08-27 · macOS + Ubuntu 동시 지원** — 셸 파일은 dash 호환 POSIX sh 만(`scripts/portable-lint` 가 bashism·BSD/GNU 분기 명령을 거부), git ≥ 2.25(`init -b` 금지, 테스트는 `symbolic-ref`), stdio·subprocess 는 UTF-8 명시(`LANG=C` 서버), `claude` 는 PATH + `~/.local/bin` 등에서 탐색, 부기 파일 이름은 대소문자 무시 비교(macOS FS). 이 세션엔 컨테이너가 없어 Ubuntu 실기는 미검증 — `dash` + `shellcheck` 로 대체 검증했다. **Ubuntu 첫 밤 전에 `scripts/check` 부터.**
 - **2026-08-27 · 플랜의 `id`는 러너가 쓴다** — 손으로 쓴 `plan.json`에는 `id`를 넣지 않는다. `runner/queue load`(또는 `night`)가 로그 ∪ 계획의 최댓값+1로 발급해 파일에 써 넣는다. 사람이 `id`를 적으면 형식·중복만 검사하고 그대로 쓴다 (I1은 *모델*이 계산하지 않는다는 뜻이다).

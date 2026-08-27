@@ -13,19 +13,18 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "runner"))
 import harnesslib as H  # noqa: E402
+from _util import git_init  # noqa: E402
 
 NIGHT = str(ROOT / "runner" / "night")
 FAKE = "python3 %s" % (HERE / "fake_model.py")
 
 
 def sh(*args, cwd=None, env=None, check=True):
-    return subprocess.run(list(args), cwd=cwd, env=env, capture_output=True, text=True, check=check)
+    return subprocess.run(list(args), cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", check=check)
 
 
 def make_repo(tmp: Path, verify_ok=True, tasks=None):
-    sh("git", "init", "-q", "-b", "main", str(tmp))
-    sh("git", "-C", str(tmp), "config", "user.email", "t@t")
-    sh("git", "-C", str(tmp), "config", "user.name", "t")
+    git_init(tmp)
     (tmp / "calc.py").write_text("def add(a, b):\n    return a + b\n")
     (tmp / "test_calc.py").write_text("import calc\n\ndef test_add():\n    assert calc.add(1, 2) == 3\n")
     h = tmp / ".harness"

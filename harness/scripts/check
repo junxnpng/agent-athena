@@ -32,5 +32,24 @@ assert not extra, "frontmatter 는 name, description 2키만: %s" % extra
 PY
 done
 
+python3 scripts/portable-lint || fail "portable-lint (macOS/Ubuntu 양쪽에서 깨지는 구문)"
+
+SH_FILES="hooks/run-hook scripts/check templates/harness-dir/verify templates/harness-dir/init.sh"
+if command -v dash >/dev/null 2>&1; then
+  for f in $SH_FILES; do dash -n "$f" || fail "dash -n $f (Ubuntu /bin/sh 문법)"; done
+  dash templates/harness-dir/verify >/dev/null || fail "templates verify 가 dash 에서 실패"
+  dash templates/harness-dir/init.sh || fail "templates init.sh 가 dash 에서 실패"
+  export HARNESS_TEST_SH=dash
+  echo "check: dash 있음 — 훅을 dash 로 실행해 테스트한다"
+else
+  echo "check: dash 없음 — Ubuntu /bin/sh 재현 생략 (macOS: brew install dash)"
+fi
+if command -v shellcheck >/dev/null 2>&1; then
+  # shellcheck disable=SC2086  # SH_FILES 는 의도적 단어 분리
+  shellcheck -s sh $SH_FILES || fail "shellcheck -s sh"
+else
+  echo "check: shellcheck 없음 — 생략 (brew install shellcheck / apt install shellcheck)"
+fi
+
 python3 -m unittest discover -s tests -q
 echo "check: ok"

@@ -2,16 +2,22 @@
 # run-hook <name> — 훅 진입점. hook JSON은 stdin으로 그대로 흘려보낸다.
 # 확장자가 없는 이유: Claude Code의 Windows 자동 감지가 ".sh"가 든 명령 앞에 bash를 붙인다 (superpowers run-hook.cmd 주석).
 # 하네스별 설정(Claude Code hooks.json, Codex)은 전부 이 파일을 가리키고 로직은 한 번만 쓴다 (spec §8).
+# POSIX sh 만 쓴다 — macOS /bin/sh(bash 3.2) 와 Ubuntu /bin/sh(dash) 둘 다에서 돌아야 한다. scripts/portable-lint 가 검사한다.
 HERE=$(cd "$(dirname "$0")" && pwd)
 NAME=$1
 if [ -z "$NAME" ] || [ ! -f "$HERE/$NAME" ]; then
-  echo "run-hook: unknown hook '$NAME'" >&2
+  printf 'run-hook: unknown hook %s\n' "$NAME" >&2
   exit 1
 fi
-if command -v python3 >/dev/null 2>&1; then PY=python3
-elif command -v python >/dev/null 2>&1; then PY=python
-else
-  echo "run-hook: python3 not found; harness hooks disabled" >&2
+PY=
+for c in python3 python; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1; then
+    PY=$c
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  printf 'run-hook: python >= 3.8 not found; harness hooks disabled\n' >&2
   exit 1
 fi
 exec "$PY" "$HERE/$NAME"

@@ -15,8 +15,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -36,6 +38,36 @@ DOOM_EDIT_THRESHOLD = 8
 
 class HarnessError(Exception):
     """계약 위반 / preflight 실패. 메시지는 사람이 읽는다."""
+
+
+# ────────────────────────────────────────────────────────────── 플랫폼 (macOS + Ubuntu)
+
+def ensure_utf8_stdio() -> None:
+    """LANG=C 인 Ubuntu 서버에서 한글 출력이 UnicodeEncodeError 로 죽지 않게. 진입점과 훅이 첫 줄에서 부른다."""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
+CLAUDE_CANDIDATES = (".local/bin/claude", ".claude/local/claude", ".npm-global/bin/claude")
+
+
+def find_claude() -> Optional[str]:
+    """claude CLI 경로. PATH → 흔한 설치 위치 (macOS / Ubuntu 공통). 비대화형 셸(nohup, at)에서 PATH 가 짧아도 찾는다."""
+    found = shutil.which("claude")
+    if found:
+        return found
+    home = Path.home()
+    for rel in CLAUDE_CANDIDATES:
+        cand = home / rel
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    for cand in (Path("/usr/local/bin/claude"), Path("/opt/homebrew/bin/claude")):
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
 
 
 # ────────────────────────────────────────────────────────────── time
@@ -688,13 +720,13 @@ class Git:
         self.root = Path(root)
 
     def run(self, *args: str, check: bool = True) -> str:
-        p = subprocess.run(["git", "-C", str(self.root), *args], capture_output=True, text=True)
+        p = subprocess.run(["git", "-C", str(self.root), *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
         if check and p.returncode != 0:
             raise HarnessError("git %s: %s" % (" ".join(args), (p.stderr or p.stdout).strip()))
         return p.stdout.strip()
 
     def is_repo(self) -> bool:
-        p = subprocess.run(["git", "-C", str(self.root), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+        p = subprocess.run(["git", "-C", str(self.root), "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         return p.returncode == 0 and Path(p.stdout.strip()).resolve() == self.root.resolve()
 
     def is_clean(self) -> bool:

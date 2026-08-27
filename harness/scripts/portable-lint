@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""portable-lint — macOS(BSD 도구, bash-3.2 sh)와 Ubuntu(GNU 도구, dash sh) 어느 한쪽에서 깨지는 구문을 거부한다.
+
+"포터블하게 써라"를 md에 적는 대신 여기서 실패시킨다 (파일 종류가 강제력을 정한다). scripts/check 가 부른다.
+검사 대상:
+  - 셸: #!/bin/sh 셔뱅 파일 · *.sh  (hooks/ scripts/ templates/ runner/)
+  - Python: *.py · python 셔뱅 파일 (runner/ hooks/ tests/ scripts/)
+  - hooks.json 의 command 문자열
+"""
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SCAN_DIRS = ("hooks", "scripts", "templates", "runner", "tests")
+
+SHELL_RULES = [
+    (r"^#!/bin/bash|^#!/usr/bin/env bash", "셸 파일은 #!/bin/sh (dash 호환) 만"),
+    (r"\bsed\s+-i\b", "sed -i 는 BSD/GNU 문법이 다르다 — python 으로 편집하거나 임시파일 + mv"),
+    (r"\breadlink\s+-f\b", "readlink -f 는 macOS 12 이전에 없다 — $(cd dir && pwd)"),
+    (r"(^|[|;&(\s])realpath\b", "realpath 는 macOS 13 이전에 없다"),
+    (r"(^|[|;&(\s])timeout\s", "timeout 명령은 macOS 에 없다 — Python subprocess 타임아웃"),
+    (r"\bdate\s+-[dv]\b", "date -d(GNU) / -v(BSD) 는 서로 없다"),
+    (r"\bstat\s+-[cf]\b", "stat -c(GNU) / -f(BSD) 는 서로 없다"),
+    (r"\bgrep\s+-P\b", "grep -P 는 macOS grep 에 없다"),
+    (r"\bxargs\s+-d\b", "xargs -d 는 BSD xargs 에 없다"),
+    (r"\becho\s+-[ne]\b", "echo -n / -e 는 sh 마다 다르다 — printf"),
+    (r"\[\[", "[[ ]] 는 bashism — dash 에 없다"),
+    (r"(^|[|;&\s])source\s", "source 는 bashism — . 을 쓴다"),
+    (r"\$'", "$'...' 는 bashism"),
+    (r"\bmktemp\s+-t\b", "mktemp -t 는 BSD/GNU 의미가 다르다"),
+    (r"^\s*function\s+\w+", "function 키워드는 bashism"),
+    (r"\bdeclare\b|\btypeset\b|\blocal\s+-", "declare / typeset 은 bashism"),
+    (r"<<<|&>|\|&", "<<< &> |& 는 bashism"),
+    (r"\$\{[^}]*(//|\^\^|,,|:[0-9])", "${var//} ${var^^} ${var:0:1} 는 bashism"),
+    (r"\bpushd\b|\bpopd\b", "pushd / popd 는 bashism"),
+    (r"\bread\s+-[pa]\b", "read -p / -a 는 bashism"),
+    (r"\$RANDOM|\$\{?BASH", "$RANDOM / $BASH_* 는 bashism"),
+    (r"\bset\s+-o\s+pipefail\b", "pipefail 은 dash 에 없다"),
+]
+PY_RULES = [
+    (r"\bgit\b[^\n]*\binit\b[^\n]*(\s-b\s|--initial-branch)", "git init -b 는 git 2.28+ — Ubuntu 20.04(2.25) 에서 실패. symbolic-ref HEAD 로"),
+    (r"^\s*match\s+[^=:]*:\s*$", "match 문은 Python 3.10+ (macOS CLT 는 3.9)"),
+    (r"\bzoneinfo\b", "zoneinfo 는 tzdata 없는 최소 Ubuntu 에서 실패 — datetime.now().astimezone()"),
+    (r"text=True(?![^\n]*encoding=)", "subprocess text=True 는 로케일 인코딩을 따른다 (LANG=C 서버) — encoding='utf-8' 명시"),
+    (r"\bremoveprefix\(|\bremovesuffix\(", "str.removeprefix 는 3.9+ — 3.8 호환이 필요하면 슬라이스"),
+    (r"\bos\.set_blocking\b|\bfcntl\b|\bselect\.epoll\b", "리눅스/맥 전용 IO 프리미티브 — subprocess + 스레드"),
+]
+JSON_RULES = [
+    (r"\.sh\"", "hooks.json 명령에 .sh — Windows 자동감지 함정"),
+    (r"\bbash\b", "hooks.json 명령에 bash — sh 로"),
+]
+
+
+def strip_comments(text: str, kind: str) -> str:
+    out = []
+    for i, ln in enumerate(text.splitlines()):
+        if i == 0 and ln.startswith("#!"):
+            out.append(ln)
+            continue
+        # 문자열 안의 # 까지 잘라내는 단순 규칙 — 규칙 패턴이 구체적이라 오탐이 거의 없다
+        cut = ln.find("#")
+        while cut != -1 and ln[:cut].count('"') % 2 == 1:
+            cut = ln.find("#", cut + 1)
+        out.append(ln if cut == -1 else ln[:cut])
+    return "\n".join(out)
+
+
+def is_shell(p: Path) -> bool:
+    if p.suffix == ".sh":
+        return True
+    try:
+        first = p.open("rb").readline()
+    except OSError:
+        return False
+    return first.startswith(b"#!") and b"sh" in first and b"python" not in first
+
+
+def is_python(p: Path) -> bool:
+    if p.suffix == ".py":
+        return True
+    try:
+        first = p.open("rb").readline()
+    except OSError:
+        return False
+    return first.startswith(b"#!") and b"python" in first
+
+
+def check(text: str, rules, label: str, findings) -> None:
+    for pat, why in rules:
+        for m in re.finditer(pat, text, re.MULTILINE):
+            line = text.count("\n", 0, m.start()) + 1
+            findings.append("%s:%d: %s  [%s]" % (label, line, why, m.group(0).strip()[:40]))
+
+
+def main() -> int:
+    findings = []
+    for d in SCAN_DIRS:
+        base = ROOT / d
+        if not base.is_dir():
+            continue
+        for p in sorted(base.rglob("*")):
+            if not p.is_file() or "__pycache__" in p.parts or p.name == "portable-lint":
+                continue  # 자기 규칙 문자열은 검사하지 않는다
+            rel = str(p.relative_to(ROOT))
+            if p.name == "hooks.json":
+                for entry in json.loads(p.read_text(encoding="utf-8")).get("hooks", {}).values():
+                    for grp in entry:
+                        for h in grp.get("hooks", []):
+                            check(h.get("command", ""), JSON_RULES, rel, findings)
+            elif is_shell(p):
+                check(strip_comments(p.read_text(encoding="utf-8", errors="replace"), "sh"), SHELL_RULES, rel, findings)
+            elif is_python(p):
+                check(strip_comments(p.read_text(encoding="utf-8", errors="replace"), "py"), PY_RULES, rel, findings)
+    for f in findings:
+        print("portable-lint: " + f, file=sys.stderr)
+    if findings:
+        return 1
+    print("portable-lint: ok")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

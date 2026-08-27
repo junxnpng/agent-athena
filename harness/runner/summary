@@ -14,6 +14,7 @@ import harnesslib as H  # noqa: E402
 
 
 def main() -> int:
+    H.ensure_utf8_stdio()
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=".")
     ap.add_argument("--night", default=None)

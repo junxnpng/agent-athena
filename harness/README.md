@@ -4,7 +4,11 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 사양 `docs/spec-v0.md` · 상주 지침 `CLAUDE.md` · 어휘 `CONTEXT.md` · 가정 `ASSUMPTIONS.md` · 거절 기록 `.out-of-scope/`
 
 ## 요구사항
-python3 3.9+ (stdlib만) · git · `claude` CLI 2.1+ · macOS / Linux
+- **macOS 13+ 또는 Ubuntu 22.04+** (Ubuntu 20.04 는 python 3.8 / git 2.25 — 미검증)
+- python3 ≥ 3.9 (stdlib만) · git ≥ 2.25 · `claude` CLI 2.1+ (`PATH` 또는 `~/.local/bin`)
+- `/bin/sh` 는 POSIX 만 쓴다 — macOS(bash 3.2 sh 모드)와 Ubuntu(dash) 둘 다. `scripts/portable-lint` 가 갈리는 구문을 거부하고,
+  `dash`·`shellcheck` 가 깔려 있으면 `scripts/check` 가 훅을 dash 로 실제 실행해 본다 (macOS: `brew install dash shellcheck`)
+- 대상 repo 의 `.harness/verify` / `init.sh` 도 같은 규칙으로 쓴다 (템플릿이 그렇게 되어 있다)
 
 ## 첫 밤 (spec 부록 체크리스트)
 1. 대상 repo 하나를 고른다 — 작고 검증기가 명확한 것. 작업 트리가 clean이어야 한다

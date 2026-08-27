@@ -11,15 +11,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RUN_HOOK = str(ROOT / "hooks" / "run-hook")
+# HARNESS_TEST_SH=dash 이면 run-hook 을 그 셸로 실행한다 — Ubuntu /bin/sh(dash) 재현. scripts/check 가 dash 가 있으면 켠다.
+SH = [os.environ["HARNESS_TEST_SH"]] if os.environ.get("HARNESS_TEST_SH") else []
 sys.path.insert(0, str(ROOT / "runner"))
 import harnesslib as H  # noqa: E402
+from _util import git_init  # noqa: E402
 
 
 class HookTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
-        subprocess.run(["git", "init", "-q", "-b", "main", str(self.root)], check=True)
+        git_init(self.root)
         h = self.root / ".harness"
         h.mkdir()
         (h / "domain.json").write_text(json.dumps({"write_scope": ["src", "docs/notes.md"]}))
@@ -41,7 +44,7 @@ class HookTests(unittest.TestCase):
             env["HARNESS_NIGHT"] = "night-001"
         env.update(env_extra)
         payload = dict({"cwd": str(self.root), "session_id": "s"}, **payload)
-        p = subprocess.run([RUN_HOOK, name], input=json.dumps(payload), capture_output=True, text=True, env=env)
+        p = subprocess.run(SH + [RUN_HOOK, name], input=json.dumps(payload), capture_output=True, text=True, encoding="utf-8", env=env)
         self.assertEqual(p.returncode, 0, p.stderr)
         return json.loads(p.stdout) if p.stdout.strip() else None
 
@@ -56,10 +59,10 @@ class HookTests(unittest.TestCase):
 
     def test_inert_outside_harness_repo(self):
         with tempfile.TemporaryDirectory() as other:
-            p = subprocess.run([RUN_HOOK, "pre-tool"], input=json.dumps({"cwd": other, "tool_name": "Bash", "tool_input": {"command": "git push"}}),
-                               capture_output=True, text=True)
+            p = subprocess.run(SH + [RUN_HOOK, "pre-tool"], input=json.dumps({"cwd": other, "tool_name": "Bash", "tool_input": {"command": "git push"}}),
+                               capture_output=True, text=True, encoding="utf-8")
             self.assertEqual((p.returncode, p.stdout), (0, ""))
-            p = subprocess.run([RUN_HOOK, "session-start"], input=json.dumps({"cwd": other}), capture_output=True, text=True)
+            p = subprocess.run(SH + [RUN_HOOK, "session-start"], input=json.dumps({"cwd": other}), capture_output=True, text=True, encoding="utf-8")
             self.assertEqual((p.returncode, p.stdout), (0, ""))
 
     def test_commit_push_denied_in_both_modes(self):

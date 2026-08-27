@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "runner"))
 import harnesslib as H  # noqa: E402
+from _util import git_init  # noqa: E402
 
 
 def task(id, title="t", verify="true", est=10, deps=(), prio=0, origin="plan"):
@@ -153,9 +154,7 @@ class GitTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.git = H.Git(self.root)
-        subprocess.run(["git", "init", "-q", "-b", "main", str(self.root)], check=True)
-        subprocess.run(["git", "-C", str(self.root), "config", "user.email", "t@t"], check=True)
-        subprocess.run(["git", "-C", str(self.root), "config", "user.name", "t"], check=True)
+        git_init(self.root)
         (self.root / "a.txt").write_text("v1\n")
         (self.root / ".harness").mkdir()
         (self.root / ".harness" / ".gitignore").write_text("sessions/\n")

@@ -17,6 +17,7 @@ import harnesslib as H  # noqa: E402
 
 
 def main() -> int:
+    H.ensure_utf8_stdio()
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["status", "next", "load"])
     ap.add_argument("--repo", default=".")

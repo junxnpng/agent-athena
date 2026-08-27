@@ -62,7 +62,7 @@ def check_path(path_str: str, repo: H.Repo, domain: H.Domain, cwd: Path, runner_
         if rel_s.startswith(H.HDIR_NAME + "/sessions/"):
             return None
         name = rel_s[len(H.HDIR_NAME) + 1:]
-        if name in H.BOOKKEEPING_OUTPUTS:
+        if name.lower() in {b.lower() for b in H.BOOKKEEPING_OUTPUTS}:  # macOS 는 대소문자 무시 FS
             return "부기 파일 %s 은 러너 소유다 — 읽기만" % name
         if runner_mode:
             return ".harness/%s 는 러너 모드에서 읽기 전용이다 (I1, I8)" % name
@@ -80,7 +80,7 @@ def check_path(path_str: str, repo: H.Repo, domain: H.Domain, cwd: Path, runner_
 def check_bash(cmd: str, runner_mode: bool) -> Optional[str]:
     rules = ALWAYS_DENY + (RUNNER_DENY if runner_mode else [])
     for pat, reason in rules:
-        if re.search(pat, cmd, re.MULTILINE):
+        if re.search(pat, cmd, re.MULTILINE | re.IGNORECASE):  # macOS 대소문자 무시 FS: summary.md == SUMMARY.md
             return reason
     return None
 
@@ -101,8 +101,9 @@ def budget_message() -> Optional[str]:
 
 
 def main() -> int:
+    H.ensure_utf8_stdio()
     try:
-        data = json.load(sys.stdin)
+        data = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))
     except (ValueError, OSError):
         return 0
     cwd = Path(data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
