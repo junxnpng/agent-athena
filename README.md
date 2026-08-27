@@ -38,5 +38,5 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 | `scripts/check` | 하네스 자가 검증 (테스트 + CLAUDE.md 60줄 + 훅·플러그인 JSON) |
 
 ## 대화형으로 훅 쓰기
-`claude --plugin-dir /path/to/harness` — `.harness/`가 있는 repo에서만 훅이 켜진다 (다른 repo에서는 무해).
+`claude --plugin-dir /path/to/agent-athena` — `.harness/`가 있는 repo에서만 훅이 켜진다 (다른 repo에서는 무해).
 전역 설치와 러너를 같이 쓰지 않는다 — 훅이 두 번 뜬다.

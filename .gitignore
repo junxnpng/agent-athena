@@ -1,18 +1,13 @@
-# Reference clones (not part of this repo)
-oh-my-claudecode/
+# Python
+__pycache__/
+*.pyc
 
-# OS
+# OS / editor
 .DS_Store
 Thumbs.db
-
-# Editor
 *.swp
 *.swo
 *~
 
-# Athena runtime state (mode state, plans, multi-review snapshots, continuous-overnight workdirs)
-.athena/
-
-# Python
-__pycache__/
-*.pyc
+# Claude Code per-project local state (permissions) — 커밋하지 않는다
+.claude/
