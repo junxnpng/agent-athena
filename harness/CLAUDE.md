@@ -14,7 +14,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 - `runner/harnesslib.py` 공용 부기(로그 fold·상태 파생·P2 정책·검증기·git·SUMMARY) · `runner/drivers.py` 모델 드라이버(claude/fake)
 - `hooks/run-hook` 진입점 → `session-start`(P4) · `pre-tool`(쓰기 중재·trifecta·예산). 확장자 없음 — Windows 자동감지 회피
 - `tests/` 단위+e2e 테스트 · `scripts/check` 자가 검증(테스트 + 이 파일 60줄 제한 + 훅/플러그인 JSON)
-- `templates/harness-dir/` 대상 repo `.harness/` 골격 · `docs/` 사양 · `.out-of-scope/` 거절 기록 · `ASSUMPTIONS.md` 가정 · `CONTEXT.md` 어휘
+- `templates/harness-dir/` 대상 repo `.harness/` 골격 · `docs/` 사양 · `.out-of-scope/` 거절 기록 · `findings/` 실패 기록 · `ASSUMPTIONS.md` 가정 · `CONTEXT.md` 어휘
 - 대상 repo: `<repo>/.harness/{spec.md, verify, init.sh, domain.json, plan.json, log.jsonl, SUMMARY.md, BLOCKED.md}` — git 추적
 
 ## 불변식 (위반 시 실행 거부 — 코드가 검사한다)
@@ -33,4 +33,5 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 - 스킬 frontmatter는 `name`, `description` 2키만(Codex 이식성). 에이전트가 자기 스킬을 만들지 않는다.
 - 날짜를 식별자로 쓰지 않는다. 계획에 세부 구현을 쓰지 않는다. 쓰기 작업을 병렬화하지 않는다.
 - 범위 밖 요청은 `.out-of-scope/`에 파일로 남긴다(요청 / 이유 / 탈출구 / 과거 요청). 어휘 충돌은 `CONTEXT.md` 해소 기록에.
-- 끝내기 전에 `scripts/check`를 돌린다. 사용자 검토용 산출물(SUMMARY·보고서)은 한글.
+- 끝내기 전에 `scripts/check`를 돌린다 — **파이프 뒤에 두지 않는다**(`check | tail`은 exit code를 가린다). 파일로 받아 `$?`로 게이트.
+- 밤이 하네스의 구멍을 드러내면 `findings/NNN-*.md`에 남긴다(발견/증상/피해/원인/해소/재발 방지/가정 변경). 사용자 검토용 산출물(SUMMARY·보고서)은 한글.
