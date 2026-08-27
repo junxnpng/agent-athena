@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""queue — 큐 상태 / 다음 선택 / ID 발급+검증 (P2, P1). 상태는 전부 log.jsonl에서 파생한다 (I3).
+
+  runner/queue status [--repo .] [--json]
+  runner/queue next   [--repo .] [--json] [--remaining-minutes N]
+  runner/queue load   [--repo .]            # id 없는 작업에 발급 + 계획 검증 + plan.json 갱신
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harnesslib as H  # noqa: E402
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=["status", "next", "load"])
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--remaining-minutes", type=float, default=None)
+    a = ap.parse_args()
+    repo = H.Repo(Path(a.repo).resolve())
+    domain = H.load_domain(repo)
+    meta, tasks = H.load_plan(repo)
+    events = H.read_log(repo.log)
+
+    if a.cmd == "load":
+        new = H.assign_ids(tasks, events)
+        errors = H.validate_plan(tasks, domain)
+        if errors:
+            print("계획 반려:\n - " + "\n - ".join(errors), file=sys.stderr)
+            return 1
+        if new:
+            H.save_plan(repo, meta, tasks)
+        print("발급: %s" % (", ".join(t.id for t in new) if new else "(없음 — 모두 id 있음)"))
+        print("검증 통과: %d개 작업" % len(tasks))
+        return 0
+
+    states = H.derive_states(events, tasks)
+    now_dt = H.now()
+    if a.cmd == "next":
+        t = H.select_next(tasks, states, domain, now_dt, a.remaining_minutes)
+        if t is None:
+            print("null" if a.json else "(자격 있는 작업 없음)")
+            return 0
+        print(json.dumps(t.to_json(), ensure_ascii=False) if a.json else "%s %s (priority %d, %d분)" % (t.id, t.title, t.priority, t.estimate_minutes))
+        return 0
+
+    order = {t.id: i + 1 for i, t in enumerate(H.rank(tasks, states, domain, now_dt))}
+    rows = []
+    for t in tasks:
+        st = states.get(t.id) or H.TaskState(id=str(t.id))
+        rows.append({"id": t.id, "state": st.state, "attempts": st.attempts, "failures": st.failures,
+                     "priority": t.priority, "estimate": t.estimate_minutes, "waited_min": round(H.waited_minutes(st, now_dt)),
+                     "order": order.get(t.id), "origin": t.origin, "title": t.title})
+    if a.json:
+        print(json.dumps(rows, ensure_ascii=False, indent=1))
+        return 0
+    print("%-9s %-8s %3s %3s %4s %4s %7s %5s  %s" % ("id", "state", "att", "fail", "prio", "est", "waited", "next", "title"))
+    for r in rows:
+        print("%-9s %-8s %3d %3d %4d %4d %6dm %5s  %s" % (r["id"] or "-", r["state"], r["attempts"], r["failures"], r["priority"],
+                                                        r["estimate"], r["waited_min"], r["order"] or "-", r["title"]))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except H.HarnessError as e:
+        print("queue: %s" % e, file=sys.stderr)
+        sys.exit(2)

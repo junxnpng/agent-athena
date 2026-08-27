@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""night — 밤 하나를 실행한다 (진입점). 부기만 한다. 내용은 드라이버(모델)가 한다.
+
+흐름 (spec §3, §4):
+  preflight(계약 5개·clean·계획 검증) → 기점 브랜치 → night-NNN 발급(P1) → 부트스트랩(계약 ③)
+  → 스모크(P4-4; 실패 시 복구 작업) → 계획 로드+ID 발급 → 루프[선택(P2) → 드라이버 → 판정(P6) → 커밋 | 되돌리기]
+  → 예산(P5)/큐 소진 시 종료 → SUMMARY.md/BLOCKED.md (P10)
+
+사용:
+  runner/night --repo <path> [--hours 8] [--max-tasks N] [--driver claude|fake] [--model M] [--dry-run] [--no-bootstrap]
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import signal
+import sys
+import time
+from datetime import timedelta
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harnesslib as H  # noqa: E402
+import drivers as D  # noqa: E402
+
+GITIGNORE_BODY = "# 러너 작업 파일 (스트림·패치·락). 커밋하지 않는다. 로그는 log.jsonl에 있다.\nsessions/\n"
+
+
+class Interrupted(Exception):
+    pass
+
+
+def say(msg: str) -> None:
+    print("[%s] %s" % (time.strftime("%H:%M:%S"), msg), flush=True)
+
+
+# ────────────────────────────────────────────────────────────── preflight
+
+def preflight(repo: H.Repo, domain: H.Domain, driver_name: str) -> Tuple[H.Git, List[H.Task]]:
+    if not repo.root.is_dir():
+        raise H.HarnessError("repo 경로가 없다: %s" % repo.root)
+    git = H.Git(repo.root)
+    if not git.is_repo():
+        raise H.HarnessError("%s 는 git 저장소 루트가 아니다" % repo.root)
+    missing = H.contract_missing(repo)
+    if missing:
+        raise H.HarnessError("계약 파일 없음: %s → `runner/init --repo %s`" % (", ".join(missing), repo.root))
+    for label, cmd, path in (("verify", domain.verify_cmd, repo.verify), ("init.sh", domain.bootstrap_cmd, repo.init)):
+        if cmd == ".harness/%s" % label and not os.access(path, os.X_OK):
+            raise H.HarnessError("%s 에 실행 권한이 없다 → chmod +x %s" % (path, path))
+    if driver_name not in D.KNOWN_DRIVERS:
+        raise H.HarnessError("모르는 드라이버: %s" % driver_name)
+    if driver_name == "claude" and not shutil.which("claude"):
+        raise H.HarnessError("claude CLI를 찾을 수 없다 (PATH)")
+    if driver_name == "fake" and not (os.environ.get("HARNESS_FAKE_MODEL") or domain.driver.get("fake_cmd")):
+        raise H.HarnessError("fake 드라이버는 HARNESS_FAKE_MODEL 이 필요하다")
+    _, tasks = H.load_plan(repo)
+    errors = H.validate_plan(tasks, domain)
+    if errors:
+        raise H.HarnessError("계획 반려 (접수 게이트):\n - " + "\n - ".join(errors))
+    if not git.is_clean():
+        raise H.HarnessError("작업 트리가 clean이 아니다. 커밋하거나 stash한 뒤 다시 (사람 작업과 밤 작업을 섞지 않는다)")
+    lock = repo.sessions / "lock"
+    if lock.exists():
+        try:
+            pid = int(lock.read_text().split()[0])
+        except (ValueError, IndexError):
+            pid = 0
+        if pid and _alive(pid):
+            raise H.HarnessError("다른 밤이 돌고 있다 (pid %d). 끝나길 기다리거나 %s 를 지운다" % (pid, lock))
+        lock.unlink()
+    return git, tasks
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def resolve_base(git: H.Git) -> Tuple[str, str]:
+    """(기점 ref, 설명). CONTEXT.md '밤 브랜치 기점' 규칙."""
+    nights = git.night_branches()
+    if not nights:
+        return "HEAD", "첫 밤"
+    latest = nights[-1][1]
+    if git.is_ancestor(latest, "HEAD"):
+        return "HEAD", "%s 는 HEAD에 포함됨" % latest
+    if git.is_ancestor("HEAD", latest):
+        return latest, "%s 미병합 — 거기서 잇는다" % latest
+    raise H.HarnessError("HEAD 와 %s 가 분기했다. 병합하거나 리베이스한 뒤 다시 (로그가 git에 있어 기점이 틀리면 ID가 충돌한다)" % latest)
+
+
+# ────────────────────────────────────────────────────────────── night
+
+def run_night(args: argparse.Namespace) -> int:
+    repo = H.Repo(Path(args.repo).resolve())
+    domain = H.load_domain(repo)
+    if args.model:
+        domain.raw["driver"]["model"] = args.model
+    driver_name = args.driver or str(domain.driver.get("name") or "claude")
+    hours = float(args.hours) if args.hours is not None else domain.hours
+    git, tasks = preflight(repo, domain, driver_name)
+
+    if args.dry_run:
+        events = H.read_log(repo.log)
+        new_ids = {t.id for t in H.assign_ids(tasks, events)}  # 메모리에서만 발급 — 파일은 건드리지 않는다
+        states = H.derive_states(events, tasks)
+        order = H.rank(tasks, states, domain, remaining_minutes=hours * 60)
+        base, note = resolve_base(git)
+        print("dry-run · 다음 밤 %s · 기점 %s (%s) · 예산 %.1fh · 드라이버 %s · (*: 밤 시작에 발급될 id)" % (
+            H.next_id("night", events), base, note, hours, driver_name))
+        for i, t in enumerate(order, 1):
+            st = states.get(t.id) or H.TaskState(id=str(t.id))
+            print("%2d. %s%s %s (priority %d, %d분, 실패 %d)" % (i, t.id, "*" if t.id in new_ids else "", t.title, t.priority, t.estimate_minutes, st.failures))
+        if not order:
+            print("(자격 있는 작업 없음)")
+        return 0
+
+    base, note = resolve_base(git)
+    if base != "HEAD":
+        git.checkout(base)
+    events = H.read_log(repo.log)
+    night_id = H.next_id("night", events)
+    branch = H.NIGHT_BRANCH_PREFIX + night_id
+    if git.branch_exists(branch):
+        raise H.HarnessError("브랜치 %s 가 이미 있다 (로그와 브랜치가 어긋남). 지우거나 병합한 뒤 다시" % branch)
+    git.create_branch(branch, "HEAD")
+    say("%s 시작 · 기점 %s (%s) · 브랜치 %s · 예산 %.1fh · 드라이버 %s" % (night_id, git.head(), note, branch, hours, driver_name))
+
+    if not repo.gitignore.exists():
+        repo.gitignore.write_text(GITIGNORE_BODY, encoding="utf-8")
+    sessions_dir = repo.sessions / night_id
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    lock = repo.sessions / "lock"
+    lock.write_text("%d %s\n" % (os.getpid(), H.iso(H.now())), encoding="utf-8")
+
+    start = H.now()
+    deadline = start + timedelta(hours=hours)
+    log = repo.log
+    ended_reason = "interrupted"
+    in_flight: Optional[Tuple[H.Task, int]] = None
+    spec_text = repo.spec.read_text(encoding="utf-8") if repo.spec.exists() else ""
+
+    def sig(signum, frame):  # noqa: ANN001
+        raise Interrupted()
+
+    signal.signal(signal.SIGINT, sig)
+    signal.signal(signal.SIGTERM, sig)
+
+    try:
+        H.append_event(log, "night_started", night=night_id, branch=branch, base=git.head(), base_note=note,
+                       budget_minutes=int(hours * 60), deadline=H.iso(deadline), driver=driver_name,
+                       model=domain.driver.get("model"), leaf_max_minutes=domain.leaf_max, max_attempts=domain.max_attempts)
+
+        # 지난 밤이 판정 없이 죽었으면 닫는다 (append-only로 — 지우지 않는다)
+        states = H.derive_states(H.read_log(log), tasks)
+        for st in H.dangling_started(states):
+            H.append_event(log, "task_failed", night=night_id, task=st.id, attempt=st.attempts, stage="interrupted",
+                           reason="이전 밤(%s)이 판정 없이 끝남" % (st.last_night or "?"))
+            if st.failures + 1 >= domain.max_attempts:
+                H.append_event(log, "task_blocked", night=night_id, task=st.id, attempts=st.attempts,
+                               reason="%d회 연속 검증 실패" % (st.failures + 1))
+            say("%s: 이전 밤 미판정 시도를 실패로 닫음" % st.id)
+
+        # 계약 ③ 부트스트랩
+        if not args.no_bootstrap:
+            code, out, secs, to = H.run_shell(domain.bootstrap_cmd, repo.root, domain.bootstrap_timeout)
+            H.append_event(log, "bootstrap", night=night_id, ok=(code == 0 and not to), exit=code, seconds=round(secs, 1),
+                           timed_out=to, tail=H.tail(out, 1500))
+            say("부트스트랩 %s (%s, %.1fs)" % ("ok" if code == 0 and not to else "실패", domain.bootstrap_cmd, secs))
+            if code != 0 or to:
+                ended_reason = "bootstrap_failed"
+                raise Interrupted()
+
+        # P4-4 스모크 — 밤에 한 번. 실패하면 복구 작업이 다른 모든 작업에 앞선다
+        smoke = H.run_verify(repo, domain.verify_cmd, domain.smoke_timeout)
+        H.append_event(log, "smoke", night=night_id, ok=smoke.ok, exit=smoke.exit, seconds=round(smoke.seconds, 1),
+                       timed_out=smoke.timed_out, tail=smoke.tail, cmd=smoke.cmd)
+        say("스모크 %s (%s, %.1fs)" % ("ok" if smoke.ok else "실패 → 복구 작업 발급", smoke.cmd, smoke.seconds))
+
+        meta, tasks = H.load_plan(repo)
+        events = H.read_log(log)
+        states = H.derive_states(events, tasks)
+        pending_repair = [t for t in tasks if t.origin == "repair" and states[t.id].state not in ("passed", "blocked")] if all(t.id for t in tasks) else []
+        plan_changed = False
+        if not smoke.ok and not pending_repair:
+            fail_tail = "\n".join(smoke.tail.splitlines()[-40:])
+            tasks.append(H.Task(
+                id=None, title="verify 복구 (밤 시작 스모크 실패)",
+                goal="`%s` 가 밤 시작에 실패했다 (%s). 원인을 찾아 통과시켜라. 검증기를 약화시키거나 테스트를 지우지 말 것.\n\n실패 출력:\n```\n%s\n```" % (smoke.cmd, smoke.reason, fail_tail),
+                verify=domain.verify_cmd, estimate_minutes=domain.leaf_min, priority=10 ** 6, origin="repair",
+            ))
+            plan_changed = True
+        elif smoke.ok and pending_repair:
+            for t in pending_repair:
+                H.append_event(log, "task_passed", night=night_id, task=t.id, attempt=states[t.id].attempts,
+                               commit=git.head(), note="스모크 통과로 해소")
+        new = H.assign_ids(tasks, events)
+        if new or plan_changed:
+            H.save_plan(repo, meta, tasks)
+            plan_changed = True
+        states = H.derive_states(events, tasks)
+        for t in tasks:
+            if t.id and not states[t.id].enqueued_at:
+                H.append_event(log, "task_enqueued", night=night_id, task=t.id, title=t.title, origin=t.origin,
+                               priority=t.priority, estimate_minutes=t.estimate_minutes)
+        sha = git.commit_all("[harness %s] bookkeeping (plan ids, gitignore)" % night_id)
+        if sha:
+            say("부기 커밋 %s" % sha)
+
+        # ── 루프
+        tasks_run = 0
+        while True:
+            now_dt = H.now()
+            remaining = (deadline - now_dt).total_seconds() / 60.0
+            if remaining < domain.leaf_min:
+                ended_reason = "budget"
+                break
+            if args.max_tasks and tasks_run >= args.max_tasks:
+                ended_reason = "max_tasks"
+                break
+            events = H.read_log(log)
+            states = H.derive_states(events, tasks)
+            task = H.select_next(tasks, states, domain, now_dt, remaining)
+            if task is None:
+                ended_reason = "budget" if H.eligible(tasks, states, domain) else "queue_empty"
+                break
+            st = states[task.id]
+            attempt = st.attempts + 1
+            timeout_min = min(float(domain.leaf_max), remaining)
+            in_flight = (task, attempt)
+            H.append_event(log, "task_started", night=night_id, task=task.id, attempt=attempt, title=task.title,
+                           origin=task.origin, timeout_minutes=round(timeout_min, 1))
+            say("%s 시도 %d/%d → %s (상한 %d분, 남은 예산 %s) · %s" % (
+                task.id, attempt, domain.max_attempts, driver_name, int(timeout_min), H.fmt_duration(remaining * 60), task.title))
+            ctx = D.TaskContext(repo=repo, domain=domain, night_id=night_id, task=task, state=st, attempt=attempt,
+                                timeout_minutes=timeout_min, deadline_epoch=deadline.timestamp(), spec_text=spec_text)
+            stream_path = sessions_dir / ("%s.%d.stream.jsonl" % (task.id, attempt))
+            run = D.run_task(ctx, driver_name, stream_path)
+            tasks_run += 1
+            H.append_event(log, "model_done", night=night_id, task=task.id, attempt=attempt, ok=run.ok, timed_out=run.timed_out,
+                           seconds=round(run.seconds, 1), turns=run.turns, cost_usd=round(run.cost_usd, 4),
+                           edits=run.edits or None, tool_counts=run.tool_counts or None, denials=run.denials or None,
+                           self_report=run.self_report or None, error=run.error or None,
+                           result_tail=H.tail(run.result_text, 1500), stream=repo.rel(stream_path))
+            say("  모델 %s · %s · %d턴 · $%.2f · 자기보고 %s%s" % (
+                "ok" if run.ok else "오류", H.fmt_duration(run.seconds), run.turns, run.cost_usd, run.self_report or "-",
+                (" · " + run.error) if run.error else ""))
+
+            # P6 판정 — 모델 결과와 무관하게 검증기가 정한다
+            leaf = H.run_verify(repo, task.verify, domain.verify_timeout)
+            H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="leaf", ok=leaf.ok, exit=leaf.exit,
+                           seconds=round(leaf.seconds, 1), timed_out=leaf.timed_out, metric=leaf.metric, tail=leaf.tail, cmd=leaf.cmd)
+            glob: Optional[H.VerifyResult] = None
+            if leaf.ok and task.verify_cmd != domain.verify_cmd:
+                glob = H.run_verify(repo, domain.verify_cmd, domain.verify_timeout)
+                H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="global", ok=glob.ok, exit=glob.exit,
+                               seconds=round(glob.seconds, 1), timed_out=glob.timed_out, tail=glob.tail, cmd=glob.cmd)
+            passed = leaf.ok and (glob is None or glob.ok)
+            if passed:
+                sha = git.commit_all("[harness %s %s] %s" % (night_id, task.id, task.title))
+                H.append_event(log, "task_passed", night=night_id, task=task.id, attempt=attempt, commit=sha)
+                say("  검증 통과 (leaf %.1fs%s) → 커밋 %s" % (leaf.seconds, (", global %.1fs" % glob.seconds) if glob else "", sha or "(변경 없음)"))
+            else:
+                stage = "leaf" if not leaf.ok else "global"
+                vr = leaf if not leaf.ok else glob
+                assert vr is not None
+                patch_path = sessions_dir / ("%s.%d.patch" % (task.id, attempt))
+                had_patch = git.save_patch(patch_path)
+                git.revert_worktree()
+                reason = "%s verify %s" % (stage, vr.reason or "실패")
+                if run.timed_out:
+                    reason = "모델 시간 초과; " + reason
+                elif run.error:
+                    reason = "드라이버 오류; " + reason
+                H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage=stage, reason=reason,
+                               exit=vr.exit, tail=vr.tail, patch=repo.rel(patch_path) if had_patch else None)
+                failures = st.failures + 1
+                say("  검증 실패 (%s) → 되돌림%s · 실패 %d/%d" % (reason, ", 패치 보존" if had_patch else "", failures, domain.max_attempts))
+                if failures >= domain.max_attempts:
+                    H.append_event(log, "task_blocked", night=night_id, task=task.id, attempts=attempt, reason="%d회 연속 검증 실패" % failures)
+                    say("  %s 막힘 → BLOCKED" % task.id)
+                    if task.origin == "repair":
+                        ended_reason = "smoke_unrepairable"
+                        break
+            in_flight = None
+    except Interrupted:
+        if in_flight:
+            task, attempt = in_flight
+            try:
+                git.save_patch(sessions_dir / ("%s.%d.patch" % (task.id, attempt)))
+                git.revert_worktree()
+            except H.HarnessError as e:
+                say("되돌리기 실패: %s" % e)
+            H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage="interrupted", reason="러너 중단")
+            say("%s 시도 %d 중단 → 실패로 기록" % (task.id, attempt))
+        if ended_reason not in ("bootstrap_failed",):
+            ended_reason = "interrupted"
+    finally:
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        events = H.read_log(log)
+        ne = H.events_for_night(events, night_id)
+        counts = {k: sum(1 for e in ne if e.get("event") == k) for k in ("task_passed", "task_failed", "task_blocked")}
+        H.append_event(log, "night_ended", night=night_id, reason=ended_reason, passed=counts["task_passed"],
+                       failed=counts["task_failed"], blocked=counts["task_blocked"],
+                       cost_usd=round(sum(float(e.get("cost_usd") or 0) for e in ne if e.get("event") == "model_done"), 4))
+        try:
+            summary, blocked = H.write_morning_outputs(repo, night_id, domain)
+            sha = git.commit_all("[harness %s] summary" % night_id)
+            say("%s 종료 (%s) · 완료 %d / 실패 %d / 막힘 %d · SUMMARY %s%s" % (
+                night_id, ended_reason, counts["task_passed"], counts["task_failed"], counts["task_blocked"], summary,
+                (" · 커밋 %s" % sha) if sha else ""))
+        except H.HarnessError as e:
+            say("SUMMARY 생성 실패: %s" % e)
+        try:
+            lock.unlink()
+        except FileNotFoundError:
+            pass
+    return 0 if ended_reason in ("budget", "queue_empty", "max_tasks") else 3
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="밤 하나 실행")
+    ap.add_argument("--repo", default=".", help="대상 repo 루트 (.harness/ 가 있는 곳)")
+    ap.add_argument("--hours", type=float, default=None, help="예산 (기본: domain.json budget.hours)")
+    ap.add_argument("--max-tasks", type=int, default=0, help="시도 수 상한 (감독 실행용)")
+    ap.add_argument("--driver", choices=list(D.KNOWN_DRIVERS), default=None)
+    ap.add_argument("--model", default=None, help="claude 드라이버 모델 (예: sonnet)")
+    ap.add_argument("--dry-run", action="store_true", help="preflight + 선택 순서만 출력")
+    ap.add_argument("--no-bootstrap", action="store_true", help="init.sh 건너뜀")
+    args = ap.parse_args()
+    try:
+        return run_night(args)
+    except H.HarnessError as e:
+        print("night: %s" % e, file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

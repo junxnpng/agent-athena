@@ -1,0 +1,8 @@
+{
+  "name": "harness",
+  "version": "0.1.0",
+  "description": "도메인 무의존 밤샘 하네스 레이어 — P4 세션 시작 5단계 + 쓰기 중재/trifecta 훅. 러너는 runner/night.",
+  "author": {
+    "name": "jun"
+  }
+}

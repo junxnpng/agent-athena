@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""decompose — 사양 → 계획 (P7). v0 절단: 자동 분해는 Phase 3. 지금은 손으로 쓴 plan.json 의 접수 게이트만 있다.
+
+  runner/decompose --check [--repo .]     # 계획 검증: 검증기 필수(I5) · 리프 5~30분 · 의존성 · 순환 · id 형식
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harnesslib as H  # noqa: E402
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--check", action="store_true")
+    a = ap.parse_args()
+    if not a.check:
+        print("decompose: 자동 분해(P7)는 Phase 3 이다. 지금은 .harness/plan.json 을 손으로 쓰고 `--check` 로 검증한다.\n"
+              "  리프 = 검증기를 한 번 돌릴 수 있는 최소 덩어리, 5~30분, 세부 구현은 쓰지 않는다.", file=sys.stderr)
+        return 2
+    repo = H.Repo(Path(a.repo).resolve())
+    domain = H.load_domain(repo)
+    _, tasks = H.load_plan(repo)
+    errors = H.validate_plan(tasks, domain)
+    warnings = ["%s: 제목이 '(예시)'로 시작한다 — 템플릿 그대로다" % (t.id or "#%d" % i) for i, t in enumerate(tasks) if t.title.startswith("(예시)")]
+    for w in warnings:
+        print("경고: " + w)
+    if errors:
+        print("계획 반려:\n - " + "\n - ".join(errors), file=sys.stderr)
+        return 1
+    total = sum(t.estimate_minutes for t in tasks)
+    print("통과: 작업 %d개, 추정 합계 %d분 (%.1fh)" % (len(tasks), total, total / 60.0))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except H.HarnessError as e:
+        print("decompose: %s" % e, file=sys.stderr)
+        sys.exit(2)

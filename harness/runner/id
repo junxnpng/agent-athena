@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""id — ID 발급 (P1). 로그 ∪ 계획의 최댓값 + 1. 모델은 이 명령을 부르지 않는다 — 러너가 부른다.
+
+  runner/id next night|task [--repo .]
+  runner/id last night|task [--repo .]
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harnesslib as H  # noqa: E402
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=["next", "last"])
+    ap.add_argument("kind", choices=["night", "task"])
+    ap.add_argument("--repo", default=".")
+    a = ap.parse_args()
+    repo = H.Repo(Path(a.repo).resolve())
+    events = H.read_log(repo.log)
+    tasks = H.load_plan(repo)[1] if repo.plan.exists() else []
+    if a.cmd == "next":
+        print(H.next_id(a.kind, events, tasks))
+    else:
+        n = H.max_id(a.kind, events, tasks)
+        print("%s-%03d" % (a.kind, n) if n else "(없음)")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except H.HarnessError as e:
+        print("id: %s" % e, file=sys.stderr)
+        sys.exit(2)

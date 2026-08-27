@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "source": "manual",
+  "_doc": "리프 = 검증기를 한 번 돌릴 수 있는 최소 덩어리. 5~30분. 세부 구현은 쓰지 않는다. id 는 쓰지 않는다 (러너가 발급). depends_on 은 '#인덱스' 또는 발급된 id.",
+  "tasks": [
+    {
+      "title": "(예시) 첫 리프 — 제목을 바꿔라",
+      "goal": "무엇이 되면 끝인지 한두 문장. 어떻게는 쓰지 않는다.",
+      "verify": ".harness/verify",
+      "estimate_minutes": 15,
+      "priority": 1
+    },
+    {
+      "title": "(예시) 둘째 리프 — 첫 리프에 의존",
+      "goal": "이 작업만의 검증기를 적는다 (예: python3 -m pytest tests/test_x.py -q).",
+      "verify": "python3 -c \"print('replace me')\"",
+      "estimate_minutes": 10,
+      "priority": 0,
+      "depends_on": ["#0"]
+    }
+  ]
+}

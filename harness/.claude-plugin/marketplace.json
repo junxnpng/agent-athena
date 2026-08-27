@@ -1,0 +1,15 @@
+{
+  "name": "harness-local",
+  "owner": {
+    "name": "jun"
+  },
+  "plugins": [
+    {
+      "name": "harness",
+      "source": "./",
+      "description": "도메인 무의존 밤샘 하네스 레이어 (훅 전용 — 러너는 --plugin-dir 로 세션 한정 주입한다)",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}

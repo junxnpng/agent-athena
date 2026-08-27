@@ -12,3 +12,7 @@ Thumbs.db
 
 # Athena runtime state (mode state, plans, multi-review snapshots, continuous-overnight workdirs)
 .athena/
+
+# Python
+__pycache__/
+*.pyc

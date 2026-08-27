@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""session-start — P4 세션 시작 5단계를 훅이 강제한다. 모델 판단에 맡기지 않는다 (spec §4).
+
+  1 작업 디렉토리  2 log.jsonl 마지막 항목 + 최근 커밋  3 최우선 미완 작업 (P2가 결정)
+  4 e2e 스모크 (러너 모드에서는 밤 시작에 러너가 돌린 결과를 로그에서 보여준다)  5 기존 문제 먼저
+
+.harness/ 가 없는 repo에서는 아무것도 하지 않는다 — 다른 repo에 플러그인이 있어도 무해.
+출력: {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ...}}
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "runner"))
+import harnesslib as H  # noqa: E402
+
+LOG_LINES = 8
+
+
+def fmt_event(e: dict) -> str:
+    keep = {k: v for k, v in e.items() if k in ("task", "attempt", "stage", "reason", "ok", "commit", "exit") and v is not None}
+    return "%s %s %s" % (e.get("ts", "?")[5:16], e.get("event", "?"), " ".join("%s=%s" % kv for kv in keep.items()))
+
+
+def build(cwd: Path) -> str:
+    repo = H.find_repo(cwd)
+    if repo is None:
+        return ""
+    runner_mode = bool(os.environ.get("HARNESS_NIGHT"))
+    git = H.Git(repo.root)
+    lines = ["[harness] 세션 시작 5단계 (P4 — 훅이 강제한다. 건너뛰지 않는다)"]
+    branch = git.run("rev-parse", "--abbrev-ref", "HEAD", check=False) or "?"
+    lines.append("1. 작업 디렉토리: %s (.harness/ 있음) · 브랜치 %s%s" % (repo.root, branch, " · 러너 모드 %s" % os.environ["HARNESS_NIGHT"] if runner_mode else ""))
+
+    events = H.read_log(repo.log)
+    lines.append("2. 최근 로그 (.harness/log.jsonl 마지막 %d줄%s):" % (LOG_LINES, "" if events else " — 비어 있음"))
+    lines += ["   - " + fmt_event(e) for e in events[-LOG_LINES:]]
+    commits = git.log_oneline(5)
+    if commits:
+        lines.append("   최근 커밋:")
+        lines += ["   - " + c for c in commits.splitlines()]
+
+    try:
+        domain = H.load_domain(repo)
+        _, tasks = H.load_plan(repo)
+        plan_err = H.validate_plan(tasks, domain)
+    except H.HarnessError as e:
+        domain, tasks, plan_err = H.Domain({}), [], [str(e)]
+    states = H.derive_states(events, tasks)
+    tid = os.environ.get("HARNESS_TASK_ID")
+    current = next((t for t in tasks if t.id == tid), None) if tid else None
+    if current is None and not plan_err:
+        current = H.select_next(tasks, states, domain)
+    if current:
+        st = states.get(current.id) or H.TaskState(id=str(current.id))
+        lines.append("3. 현재 작업 (P2가 결정 — 직접 고르지 않는다): %s %s · 시도 %d/%d · 검증기 `%s`%s" % (
+            current.id, current.title, st.attempts + (0 if runner_mode else 1), domain.max_attempts, current.verify_cmd,
+            "" if runner_mode else " · (대화형: 러너가 돌리면 이 작업이 먼저 선택된다)"))
+    else:
+        lines.append("3. 현재 작업: 없음 — %s" % ("; ".join(plan_err) if plan_err else "자격 있는 작업이 없다 (계획을 채우거나 BLOCKED.md 확인)"))
+
+    if runner_mode:
+        smoke = next((e for e in reversed(events) if e.get("event") == "smoke" and e.get("night") == os.environ["HARNESS_NIGHT"]), None)
+        if smoke:
+            lines.append("4. 스모크 (밤 시작에 러너가 실행, `%s`): %s (exit %s, %ss)" % (
+                smoke.get("cmd"), "ok" if smoke.get("ok") else "실패", smoke.get("exit"), smoke.get("seconds")))
+        else:
+            lines.append("4. 스모크: 로그에 없음")
+        last_pass = next((e for e in reversed(events) if e.get("event") == "task_passed"), None)
+        if last_pass:
+            lines.append("   마지막 green 커밋: %s (%s)" % (last_pass.get("commit"), last_pass.get("task")))
+    else:
+        vr = H.run_verify(repo, domain.verify_cmd, min(domain.smoke_timeout, 540))
+        last = [ln for ln in vr.tail.splitlines() if ln.strip()][-3:]
+        lines.append("4. 스모크 `%s`: %s (exit %s, %.1fs)%s" % (vr.cmd, "ok" if vr.ok else "실패 — " + vr.reason, vr.exit, vr.seconds,
+                                                          ("\n   " + "\n   ".join(last)) if (last and not vr.ok) else ""))
+    lines.append("5. 기존 문제(4가 실패면 그것, 로그의 failed/blocked)를 먼저 해결한 뒤 새 작업을 시작한다.")
+    lines.append("규칙: .harness/ 부기 파일 쓰기 금지 · git commit/push 금지 · ID·카운터 계산 금지 · 판정은 검증기가 한다 (당신의 done 아님).")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    try:
+        data = json.load(sys.stdin)
+    except (ValueError, OSError):
+        data = {}
+    cwd = Path(data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+    try:
+        ctx = build(cwd)
+    except Exception as e:  # 훅이 세션을 죽이면 안 된다
+        print("session-start: %s" % e, file=sys.stderr)
+        return 1
+    if ctx:
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ctx}}, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

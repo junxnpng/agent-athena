@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""summary — SUMMARY.md / BLOCKED.md 재생성 (P10). 입력은 log.jsonl + plan.json 뿐.
+
+  runner/summary [--repo .] [--night night-NNN] [--stdout]
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harnesslib as H  # noqa: E402
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--night", default=None)
+    ap.add_argument("--stdout", action="store_true", help="파일을 쓰지 않고 SUMMARY를 출력")
+    a = ap.parse_args()
+    repo = H.Repo(Path(a.repo).resolve())
+    events = H.read_log(repo.log)
+    night = a.night or H.latest_night_id(events)
+    if not night:
+        print("summary: 로그에 밤이 없다", file=sys.stderr)
+        return 1
+    if a.stdout:
+        domain = H.load_domain(repo)
+        _, tasks = H.load_plan(repo)
+        print(H.render_summary(H.collect_night(events, tasks, domain, night)))
+        return 0
+    s, b = H.write_morning_outputs(repo, night)
+    print("%s\n%s" % (s, b))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except H.HarnessError as e:
+        print("summary: %s" % e, file=sys.stderr)
+        sys.exit(2)

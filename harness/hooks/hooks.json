@@ -1,0 +1,29 @@
+{
+  "description": "harness — P4 세션 시작 5단계 (session-start) + P3-lite 쓰기 중재 / I7 trifecta / P5 예산 (pre-tool). .harness/ 가 있는 repo에서만 켜진다.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook\" session-start",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook\" pre-tool",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

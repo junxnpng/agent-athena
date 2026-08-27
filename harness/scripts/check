@@ -1,0 +1,36 @@
+#!/bin/sh
+# check — 하네스 자가 검증. 끝내기 전에 돌린다 (CLAUDE.md 작업 규칙).
+#   테스트(단위 + fake 드라이버 e2e) · CLAUDE.md 60줄 제한 · 훅/플러그인/템플릿 JSON · 스킬 frontmatter 2키 · 실행 권한
+set -e
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+cd "$ROOT"
+fail() { echo "check: $1" >&2; exit 1; }
+
+n=$(wc -l < CLAUDE.md | tr -d ' ')
+[ "$n" -le 60 ] || fail "CLAUDE.md 가 ${n}줄 (60줄 초과)"
+[ -L AGENTS.md ] || fail "AGENTS.md 가 심볼릭 링크가 아니다"
+
+for f in hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.json templates/harness-dir/domain.json templates/harness-dir/plan.json; do
+  python3 -m json.tool "$f" >/dev/null || fail "$f JSON 오류"
+done
+grep -q '\.sh"' hooks/hooks.json && fail "hooks.json 명령에 .sh 가 들어 있다 (Windows 자동감지 함정)"
+
+for f in runner/night runner/queue runner/id runner/summary runner/init runner/decompose hooks/run-hook hooks/session-start hooks/pre-tool templates/harness-dir/verify templates/harness-dir/init.sh scripts/check; do
+  [ -x "$f" ] || fail "$f 에 실행 권한이 없다"
+done
+
+for s in skills/*/SKILL.md; do
+  [ -e "$s" ] || continue
+  python3 - "$s" <<'PY' || fail "$s frontmatter"
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+assert m, "frontmatter 없음"
+keys = [ln.split(":", 1)[0].strip() for ln in m.group(1).splitlines() if ln.strip() and not ln.startswith(" ")]
+extra = sorted(set(keys) - {"name", "description"})
+assert not extra, "frontmatter 는 name, description 2키만: %s" % extra
+PY
+done
+
+python3 -m unittest discover -s tests -q
+echo "check: ok"

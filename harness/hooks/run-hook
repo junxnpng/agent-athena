@@ -1,0 +1,17 @@
+#!/bin/sh
+# run-hook <name> — 훅 진입점. hook JSON은 stdin으로 그대로 흘려보낸다.
+# 확장자가 없는 이유: Claude Code의 Windows 자동 감지가 ".sh"가 든 명령 앞에 bash를 붙인다 (superpowers run-hook.cmd 주석).
+# 하네스별 설정(Claude Code hooks.json, Codex)은 전부 이 파일을 가리키고 로직은 한 번만 쓴다 (spec §8).
+HERE=$(cd "$(dirname "$0")" && pwd)
+NAME=$1
+if [ -z "$NAME" ] || [ ! -f "$HERE/$NAME" ]; then
+  echo "run-hook: unknown hook '$NAME'" >&2
+  exit 1
+fi
+if command -v python3 >/dev/null 2>&1; then PY=python3
+elif command -v python >/dev/null 2>&1; then PY=python
+else
+  echo "run-hook: python3 not found; harness hooks disabled" >&2
+  exit 1
+fi
+exec "$PY" "$HERE/$NAME"
