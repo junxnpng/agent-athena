@@ -11,3 +11,6 @@ Thumbs.db
 
 # Claude Code per-project local state (permissions) — 커밋하지 않는다
 .claude/
+
+# athena 잔여 상태 (플러그인은 폐기됐지만 옛 세션이 만든 디렉토리가 남을 수 있다)
+.athena/
