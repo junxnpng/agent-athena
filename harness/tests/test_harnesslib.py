@@ -117,6 +117,22 @@ class SelectTests(unittest.TestCase):
         self.assertEqual([t.id for t in H.eligible(tasks, st, self.domain)], ["task-002"])
 
 
+class ScopeTests(unittest.TestCase):
+    def test_bash_write_targets(self):
+        self.assertEqual(H.bash_write_targets("cat > tests/x.py <<'EOF'\nprint(1)\nEOF"), ["tests/x.py"])
+        self.assertEqual(H.bash_write_targets("python -m pytest -q 2>&1 | tee out.log"), ["out.log"])
+        self.assertEqual(H.bash_write_targets("echo hi > /dev/null; ls 2>&1 >&2"), [])
+        self.assertEqual(H.bash_write_targets("cp a.py b/c.py && mv d e && touch f.txt"), ["b/c.py", "e", "f.txt"])
+        self.assertEqual(H.bash_write_targets("sed -i '' 's/a/b/' src/m.py"), ["src/m.py"])
+        self.assertEqual(H.bash_write_targets("grep -c '>' file.txt"), [])
+
+    def test_scope_violations(self):
+        d = H.Domain({"write_scope": ["tests"]})
+        changed = ["tests/t.py", "src/x.py", ".harness/log.jsonl", ".harness/plan.json", ".harness/sessions/n/x", "evil.py"]
+        self.assertEqual(H.scope_violations(d, changed), ["src/x.py", ".harness/plan.json", "evil.py"])
+        self.assertEqual(H.scope_violations(H.Domain({}), changed), [".harness/plan.json"])
+
+
 class VerifyTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -180,6 +196,16 @@ class GitTests(unittest.TestCase):
         self.assertFalse((self.root / "new.txt").exists())
         self.assertEqual((self.root / ".harness" / "log.jsonl").read_text().count("\n"), 2)
         self.assertTrue(patch.exists())
+
+    def test_changed_paths_includes_untracked_and_renames(self):
+        (self.root / "a.txt").write_text("v2\n")
+        (self.root / "new.txt").write_text("n\n")
+        with (self.root / ".harness" / "log.jsonl").open("a") as f:
+            f.write('{"event":"y"}\n')
+        self.assertEqual(sorted(self.git.changed_paths()), [".harness/log.jsonl", "a.txt", "new.txt"])
+        self.git.run("mv", "a.txt", "renamed.txt")
+        self.assertIn("renamed.txt", self.git.changed_paths())
+        self.assertNotIn("a.txt", self.git.changed_paths())
 
     def test_night_branches_and_ancestry(self):
         self.assertEqual(self.git.night_branches(), [])

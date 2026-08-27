@@ -256,34 +256,46 @@ def run_night(args: argparse.Namespace) -> int:
                 "ok" if run.ok else "오류", H.fmt_duration(run.seconds), run.turns, run.cost_usd, run.self_report or "-",
                 (" · " + run.error) if run.error else ""))
 
-            # P6 판정 — 모델 결과와 무관하게 검증기가 정한다
-            leaf = H.run_verify(repo, task.verify, domain.verify_timeout)
-            H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="leaf", ok=leaf.ok, exit=leaf.exit,
-                           seconds=round(leaf.seconds, 1), timed_out=leaf.timed_out, metric=leaf.metric, tail=leaf.tail, cmd=leaf.cmd)
+            # I6 쓰기 범위 — 도구와 무관하게 git 이 본 변경으로 최종 판정한다. 위반이면 검증기도 돌리지 않는다
+            violations = H.scope_violations(domain, git.changed_paths())
+            leaf: Optional[H.VerifyResult] = None
             glob: Optional[H.VerifyResult] = None
-            if leaf.ok and task.verify_cmd != domain.verify_cmd:
-                glob = H.run_verify(repo, domain.verify_cmd, domain.verify_timeout)
-                H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="global", ok=glob.ok, exit=glob.exit,
-                               seconds=round(glob.seconds, 1), timed_out=glob.timed_out, tail=glob.tail, cmd=glob.cmd)
-            passed = leaf.ok and (glob is None or glob.ok)
+            if violations:
+                H.append_event(log, "scope_violation", night=night_id, task=task.id, attempt=attempt, paths=violations)
+            else:
+                # P6 판정 — 모델 결과와 무관하게 검증기가 정한다
+                leaf = H.run_verify(repo, task.verify, domain.verify_timeout)
+                H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="leaf", ok=leaf.ok, exit=leaf.exit,
+                               seconds=round(leaf.seconds, 1), timed_out=leaf.timed_out, metric=leaf.metric, tail=leaf.tail, cmd=leaf.cmd)
+                if leaf.ok and task.verify_cmd != domain.verify_cmd:
+                    glob = H.run_verify(repo, domain.verify_cmd, domain.verify_timeout)
+                    H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="global", ok=glob.ok, exit=glob.exit,
+                                   seconds=round(glob.seconds, 1), timed_out=glob.timed_out, tail=glob.tail, cmd=glob.cmd)
+            passed = leaf is not None and leaf.ok and (glob is None or glob.ok)
             if passed:
                 sha = git.commit_all("[harness %s %s] %s" % (night_id, task.id, task.title))
                 H.append_event(log, "task_passed", night=night_id, task=task.id, attempt=attempt, commit=sha)
                 say("  검증 통과 (leaf %.1fs%s) → 커밋 %s" % (leaf.seconds, (", global %.1fs" % glob.seconds) if glob else "", sha or "(변경 없음)"))
             else:
-                stage = "leaf" if not leaf.ok else "global"
-                vr = leaf if not leaf.ok else glob
-                assert vr is not None
+                if violations:
+                    stage = "scope"
+                    reason = "쓰기 범위 밖: " + ", ".join(violations[:5]) + (" 외 %d개" % (len(violations) - 5) if len(violations) > 5 else "")
+                    vr_exit, vr_tail = None, ""
+                else:
+                    stage = "leaf" if not leaf.ok else "global"
+                    vr = leaf if not leaf.ok else glob
+                    assert vr is not None
+                    reason = "%s verify %s" % (stage, vr.reason or "실패")
+                    vr_exit, vr_tail = vr.exit, vr.tail
                 patch_path = sessions_dir / ("%s.%d.patch" % (task.id, attempt))
                 had_patch = git.save_patch(patch_path)
                 git.revert_worktree()
-                reason = "%s verify %s" % (stage, vr.reason or "실패")
                 if run.timed_out:
                     reason = "모델 시간 초과; " + reason
                 elif run.error:
                     reason = "드라이버 오류; " + reason
                 H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage=stage, reason=reason,
-                               exit=vr.exit, tail=vr.tail, patch=repo.rel(patch_path) if had_patch else None)
+                               exit=vr_exit, tail=vr_tail, patch=repo.rel(patch_path) if had_patch else None)
                 failures = st.failures + 1
                 say("  검증 실패 (%s) → 되돌림%s · 실패 %d/%d" % (reason, ", 패치 보존" if had_patch else "", failures, domain.max_attempts))
                 if failures >= domain.max_attempts:

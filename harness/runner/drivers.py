@@ -148,11 +148,14 @@ def _ingest(run: ModelRun, ctx: TaskContext, line: bytes) -> None:
                 continue
             name = str(c.get("name") or "?")
             run.tool_counts[name] = run.tool_counts.get(name, 0) + 1
+            inp = c.get("input") or {}
             if name in WRITE_TOOLS:
-                inp = c.get("input") or {}
-                fp = inp.get("file_path") or inp.get("notebook_path") or "?"
-                fp = ctx.repo.rel(fp)
+                fp = ctx.repo.rel(inp.get("file_path") or inp.get("notebook_path") or "?")
                 run.edits[fp] = run.edits.get(fp, 0) + 1
+            elif name == "Bash":  # heredoc / 리다이렉션 쓰기도 센다 (첫 밤 실측: 모델은 파일을 전부 Bash 로 썼다)
+                for t in H.bash_write_targets(str(inp.get("command") or "")):
+                    fp = ctx.repo.rel(t if os.path.isabs(t) else os.path.join(str(ctx.repo.root), t))
+                    run.edits[fp] = run.edits.get(fp, 0) + 1
     elif t == "result":
         run.saw_result = True
         run.turns = int(ev.get("num_turns") or 0)

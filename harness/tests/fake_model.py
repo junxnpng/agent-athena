@@ -32,6 +32,10 @@ elif "[break-global]" in title:
     (root / "test_calc.py").write_text((root / "test_calc.py").read_text() + "\n\ndef test_broken():\n    assert False\n")
     print("EDIT wanted.txt")
     print("EDIT test_calc.py")
+elif "[out-of-scope]" in title:
+    # 쓰기 범위 밖에 파일을 만든다 (heredoc 흉내) — 러너가 git status 로 잡아야 한다
+    (root / "evil.py").write_text("print('evil')\n")
+    print("EDIT evil.py")
 elif "복구" in title or "[repair]" in title:
     (root / "FIXED").write_text("fixed\n")
     print("EDIT FIXED")

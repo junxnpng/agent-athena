@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional, Tuple
@@ -56,6 +57,9 @@ def check_path(path_str: str, repo: H.Repo, domain: H.Domain, cwd: Path, runner_
     try:
         rel = p.relative_to(root)
     except ValueError:
+        for tmp in {Path(tempfile.gettempdir()).resolve(), Path("/tmp").resolve()}:
+            if tmp == p or tmp in p.parents:
+                return None  # repo 밖이어도 임시 디렉토리의 스크래치 출력은 범위 위반이 아니다
         return "repo 밖 쓰기 (%s) — 쓰기는 %s 안에서만 (I6)" % (p, root)
     rel_s = rel.as_posix()
     if rel_s == H.HDIR_NAME or rel_s.startswith(H.HDIR_NAME + "/"):
@@ -121,7 +125,14 @@ def main() -> int:
     if tool in WRITE_TOOLS:
         reason = check_path(str(inp.get("file_path") or inp.get("notebook_path") or ""), repo, domain, cwd, runner_mode)
     elif tool == "Bash":
-        reason = check_bash(str(inp.get("command") or ""), runner_mode)
+        cmd = str(inp.get("command") or "")
+        reason = check_bash(cmd, runner_mode)
+        if not reason:  # heredoc · 리다이렉션 · sed -i · cp/mv 의 쓰기 대상도 범위 검사 (휴리스틱; 최종 판정은 러너)
+            for t in H.bash_write_targets(cmd):
+                r = check_path(t, repo, domain, cwd, runner_mode)
+                if r:
+                    reason = "Bash 쓰기 대상 %s: %s" % (t, r)
+                    break
     if reason:
         deny(reason)
         return 0

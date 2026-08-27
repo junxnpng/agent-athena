@@ -23,7 +23,7 @@ def sh(*args, cwd=None, env=None, check=True):
     return subprocess.run(list(args), cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", check=check)
 
 
-def make_repo(tmp: Path, verify_ok=True, tasks=None):
+def make_repo(tmp: Path, verify_ok=True, tasks=None, domain=None):
     git_init(tmp)
     (tmp / "calc.py").write_text("def add(a, b):\n    return a + b\n")
     (tmp / "test_calc.py").write_text("import calc\n\ndef test_add():\n    assert calc.add(1, 2) == 3\n")
@@ -37,7 +37,7 @@ def make_repo(tmp: Path, verify_ok=True, tasks=None):
     (h / "init.sh").write_text("#!/bin/sh\nexit 0\n")
     os.chmod(h / "verify", 0o755)
     os.chmod(h / "init.sh", 0o755)
-    (h / "domain.json").write_text(json.dumps({"budget": {"hours": 0.5, "max_attempts": 3}, "driver": {"name": "fake"}}))
+    (h / "domain.json").write_text(json.dumps(dict({"budget": {"hours": 0.5, "max_attempts": 3}, "driver": {"name": "fake"}}, **(domain or {}))))
     (h / "plan.json").write_text(json.dumps({"version": 1, "tasks": tasks or []}, ensure_ascii=False, indent=1))
     sh("git", "-C", str(tmp), "add", "-A")
     sh("git", "-C", str(tmp), "commit", "-q", "-m", "init")
@@ -133,6 +133,20 @@ class NightE2E(unittest.TestCase):
         self.assertEqual(st["task-001"].state, "passed")
         started = [e["task"] for e in events if e["event"] == "task_started"]
         self.assertEqual(started, ["task-002", "task-001"])
+
+    def test_scope_violation_is_judged_by_runner(self):
+        make_repo(self.root, tasks=[{"title": "[out-of-scope] 범위 밖 쓰기", "goal": "x", "verify": "true", "estimate_minutes": 5}],
+                  domain={"write_scope": ["tests"]})
+        p = self.night("--max-tasks", "1")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        events = H.read_log(H.Repo(self.root).log)
+        failed = [e for e in events if e["event"] == "task_failed"]
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0]["stage"], "scope")
+        self.assertIn("evil.py", failed[0]["reason"])
+        self.assertEqual([e for e in events if e["event"] == "scope_violation"][0]["paths"], ["evil.py"])
+        self.assertFalse((self.root / "evil.py").exists())
+        self.assertNotIn("verify", [e["event"] for e in events if e.get("task") == "task-001"])  # 범위 위반이면 검증기도 안 돈다
 
     def test_preflight_rejections(self):
         make_repo(self.root, tasks=[{"title": "no verifier", "goal": "g", "estimate_minutes": 10}])

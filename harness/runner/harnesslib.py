@@ -285,6 +285,52 @@ def contract_missing(repo: Repo) -> List[str]:
     return [name for name in CONTRACT_FILES if not (repo.hdir / name).exists()]
 
 
+# ────────────────────────────────────────────────────────────── I6 쓰기 범위
+
+_REDIRECT_RE = re.compile(r"(?:(?<![<>&])>>?|\btee\b(?:\s+-[a-z]+)*)\s*[\"']?([^\s\"'<>|;&()`]+)")
+_SED_I_RE = re.compile(r"\bsed\s+-i(?:\s*'')?\s+(?:-e\s+)?(?:'[^']*'|\"[^\"]*\"|\S+)\s+([^\s|;&]+)")
+_CP_MV_RE = re.compile(r"\b(?:cp|mv)\s+(?:-\S+\s+)*\S+\s+([^\s|;&]+)")
+_TOUCH_RE = re.compile(r"\b(?:touch|mkdir(?:\s+-p)?)\s+([^\s|;&]+)")
+
+
+def bash_write_targets(cmd: str) -> List[str]:
+    """Bash 명령에서 쓰기 대상 경로를 휴리스틱으로 뽑는다 (> >> tee · sed -i · cp/mv 목적지 · touch/mkdir).
+
+    완전하지 않다 — 훅의 조기 거부와 P9 편집 카운터용. 최종 판정은 러너가 git status 로 한다 (scope_violations).
+    첫 밤 실측: bypass 모드의 모델은 파일을 전부 `cat > f <<EOF` 로 써서 Write/Edit 경로 검사가 아무것도 못 봤다.
+    """
+    out: List[str] = []
+    for m in _REDIRECT_RE.finditer(cmd):
+        t = m.group(1)
+        if t.startswith("&") or t in ("/dev/null", "/dev/stdout", "/dev/stderr"):
+            continue
+        out.append(t)
+    for rx in (_SED_I_RE, _CP_MV_RE, _TOUCH_RE):
+        out.extend(m.group(1) for m in rx.finditer(cmd))
+    return out
+
+
+def scope_violations(domain: Domain, changed_paths: Sequence[str]) -> List[str]:
+    """I6 최종 판정 — git 이 본 변경 경로(repo 상대) 중 쓰기 범위 밖. 도구와 무관하다 (heredoc, python open() 포함).
+
+    .harness/log.jsonl 은 러너 자신이 시도 중에 쓰므로 제외, .harness/sessions/ 는 작업 공간. 나머지 .harness/* 는 위반.
+    """
+    scopes = [s.strip("/") for s in domain.write_scope]
+    bad: List[str] = []
+    for raw in changed_paths:
+        p = raw.strip("/")
+        if p == HDIR_NAME + "/log.jsonl" or p.startswith(HDIR_NAME + "/sessions/"):
+            continue
+        if p == HDIR_NAME or p.startswith(HDIR_NAME + "/"):
+            bad.append(p)
+            continue
+        if "." in scopes:
+            continue
+        if not any(p == s or p.startswith(s + "/") for s in scopes):
+            bad.append(p)
+    return bad
+
+
 # ────────────────────────────────────────────────────────────── log.jsonl (I2 append-only)
 
 def read_log(path: Path) -> List[Dict[str, Any]]:
@@ -787,6 +833,26 @@ class Git:
         self.run("checkout", "-q", "--", ".", EXCLUDE_HDIR)
         self.run("clean", "-fdq", "--", ".", EXCLUDE_HDIR)
 
+    def changed_paths(self) -> List[str]:
+        """작업 트리의 변경 경로 (추적 변경 + 미추적, ignore 제외). 이름 변경은 새 경로만."""
+        # run() 은 stdout 을 strip 하므로 쓰지 않는다 — porcelain 첫 항목의 선행 공백(' M path')이 잘린다
+        p = subprocess.run(["git", "-C", str(self.root), "status", "--porcelain", "-z", "--untracked-files=all"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if p.returncode != 0:
+            raise HarnessError("git status: %s" % p.stderr.strip())
+        fields = p.stdout.split("\0")
+        paths: List[str] = []
+        i = 0
+        while i < len(fields):
+            f = fields[i]
+            i += 1
+            if len(f) < 4:
+                continue
+            paths.append(f[3:])
+            if f[0] in ("R", "C"):  # 다음 필드는 원래 경로
+                i += 1
+        return paths
+
     def log_oneline(self, n: int = 5) -> str:
         return self.run("log", "--oneline", "-n", str(n), check=False)
 
@@ -832,6 +898,9 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
             anomalies.append("훅 거부 %d회: %s (시도 %s)" % (int(e["denials"]), e["task"], e.get("attempt")))
         if e.get("error"):
             anomalies.append("드라이버 오류: %s — %s" % (e["task"], str(e["error"])[:120]))
+    for e in ne:
+        if e.get("event") == "scope_violation":
+            anomalies.append("쓰기 범위 위반: %s (시도 %s) — %s" % (e["task"], e.get("attempt"), ", ".join(e.get("paths") or [])[:120]))
     smoke = next((e for e in ne if e.get("event") == "smoke"), None)
     if smoke and not smoke.get("ok"):
         anomalies.append("밤 시작 스모크 실패 (복구 작업 발급)")

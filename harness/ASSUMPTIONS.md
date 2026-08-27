@@ -12,7 +12,7 @@
 | P1 ID 발급 | 모델이 카운터를 세면 어긋난다 (라벨 795곳 오염 실측) | Claude 5 · B | `runner/harnesslib.py: next_id` |
 | P2 아사 방지 | 점수 기반 선택은 낮은 점수 항목을 영원히 굶긴다 | 개인 경험 · **D** | `harnesslib.py: select_next` |
 | P2 도메인 점수 | 동률일 때 모델 판단보다 결정론적 순서가 재현성이 높다 | Claude 5 · C | `harnesslib.py: domain_rank` |
-| P3-lite 쓰기 범위 거부 | 모델이 repo 밖·부기 파일을 건드릴 수 있다 | Claude 5 · B | `hooks/pre-tool` |
+| P3-lite 쓰기 범위 (I6) | 모델이 repo 밖·부기 파일을 건드릴 수 있다. 훅은 조기 거부(휴리스틱 — Write/Edit 경로 + Bash 리다이렉션), **러너가 git status 로 최종 판정**(도구 무관, 완전). 첫 밤 실측: 모델은 파일을 전부 heredoc 으로 썼다 | Claude 5 · B | `hooks/pre-tool`, `harnesslib.py: scope_violations`, `runner/night` |
 | P4 밤 시작 5단계 | 모델이 기존 상태를 확인하지 않고 새 작업을 시작한다 | Claude 5 · B | `runner/night`, `hooks/session-start` |
 | P4-4 스모크 | 깨진 트리 위에 쌓는 것을 모델이 감지하지 못한다 | Claude 5 · B | `runner/night` (밤 시작 1회) |
 | P5 예산 집행 | 모델은 남은 시간을 모른다 / 무시한다 | 구조적(모델 무관) · A | `runner/night` deadline, `hooks/pre-tool` |

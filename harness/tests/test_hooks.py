@@ -92,7 +92,14 @@ class HookTests(unittest.TestCase):
         self.assertIsNone(self.write(str(self.root / "docs" / "notes.md")))
         self.assertEqual(self.write(str(self.root / "lib" / "c.py")), "deny")
         self.assertEqual(self.write("/etc/passwd"), "deny")
-        self.assertEqual(self.write("../outside.txt"), "deny")
+        self.assertEqual(self.write(str(Path.home() / "harness-outside.txt")), "deny")  # repo 밖 + tmp 밖
+
+    def test_bash_write_targets_are_scope_checked(self):
+        self.assertIsNone(self.bash("cat > src/a.py <<'EOF'\nx\nEOF"))
+        self.assertEqual(self.bash("echo x > lib/b.py"), "deny")
+        self.assertEqual(self.bash("python3 gen.py | tee lib/c.txt", runner=True), "deny")
+        self.assertIsNone(self.bash("python3 -m pytest -q > /tmp/out.txt 2>&1"))
+        self.assertIsNone(self.bash("python3 -m pytest -q 2>&1 | tail -3"))
 
     def test_budget_message(self):
         out = self.hook("pre-tool", {"tool_name": "Bash", "tool_input": {"command": "ls"}}, runner=True, HARNESS_DEADLINE_EPOCH="1")
