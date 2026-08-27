@@ -80,6 +80,28 @@ class StateTests(unittest.TestCase):
         self.assertEqual([s.id for s in H.dangling_started(st)], ["task-002"])
 
 
+class InfraTests(unittest.TestCase):
+    def test_infra_failure_does_not_consume_attempts_and_unblock_resets(self):
+        t = [task("task-001")]
+        events = [ev("task_enqueued", task="task-001"),
+                  ev("task_started", task="task-001", attempt=1), ev("task_failed", task="task-001", attempt=1, stage="sleep", infra=True),
+                  ev("task_started", task="task-001", attempt=2), ev("task_failed", task="task-001", attempt=2, stage="leaf"),
+                  ev("task_started", task="task-001", attempt=3), ev("task_failed", task="task-001", attempt=3, stage="leaf"),
+                  ev("task_blocked", task="task-001", reason="x")]
+        st = H.derive_states(events, t)["task-001"]
+        self.assertEqual((st.attempts, st.failures, st.state), (3, 2, "blocked"))
+        events.append(ev("task_unblocked", task="task-001", reason="사람이 해제"))
+        st = H.derive_states(events, t)["task-001"]
+        self.assertEqual((st.state, st.failures, st.blocked_reason), ("pending", 0, None))
+        self.assertEqual([x.id for x in H.eligible(t, {"task-001": st}, H.Domain({}))], ["task-001"])
+
+    def test_error_line_prefers_error_looking_line(self):
+        self.assertEqual(H._error_line("\x1b[31mERROR: file or directory not found: tests/x.py\x1b[0m\ncollected 0 items\n0"),
+                         "ERROR: file or directory not found: tests/x.py")
+        self.assertEqual(H._error_line("all good\n3"), "3")
+        self.assertEqual(H._error_line(""), "(출력 없음)")
+
+
 class SelectTests(unittest.TestCase):
     def setUp(self):
         self.domain = H.Domain({"budget": {"starvation_minutes": 60, "max_attempts": 3}})
@@ -242,6 +264,26 @@ class SummaryTests(unittest.TestCase):
         blocked = H.render_blocked(events, tasks)
         self.assertIn("## task-002 two", blocked)
         self.assertIn("Error: boom", blocked)
+        self.assertIn("마지막 시도: exit 1 · `Error: boom`", text)
+
+    def test_anomalies_distinguish_slow_hang_and_sleep(self):
+        tasks = [task("task-001", "a"), task("task-002", "b"), task("task-003", "c")]
+        n = "night-009"
+        events = [
+            ev("night_started", night=n),
+            ev("model_done", night=n, task="task-001", attempt=1, timed_out=True, error="모델 시간 초과 (10분)", turns=8, cost_usd=0.5, rate_limit=0.67),
+            ev("model_done", night=n, task="task-002", attempt=1, timed_out=True, error="모델 시간 초과 (10분)", turns=0, cost_usd=0.0),
+            ev("model_done", night=n, task="task-003", attempt=1, timed_out=True, error="모델 시간 초과 (10분)", turns=0, slept_seconds=900),
+            ev("night_ended", night=n, reason="machine_slept"),
+        ]
+        c = H.collect_night(events, tasks, H.Domain({}), n)
+        a = "\n".join(c["anomalies"])
+        self.assertIn("모델 시간 초과: task-001 (시도 1, 8턴, $0.50) — 느림", a)
+        self.assertIn("task-002 (시도 1, 0턴, $0.00) — 0턴 = 무응답", a)
+        self.assertIn("머신 잠듦 15m00s: task-003", a)
+        self.assertIn("5시간 창 사용률 최대 67%", a)
+        self.assertEqual(a.count("드라이버 오류"), 0)  # 시간 초과와 중복 표기하지 않는다
+        self.assertIn("종료: 머신이 잠듦 (밤 중단)", H.render_summary(c))
 
 
 if __name__ == "__main__":

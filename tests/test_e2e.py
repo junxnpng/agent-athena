@@ -148,6 +148,36 @@ class NightE2E(unittest.TestCase):
         self.assertFalse((self.root / "evil.py").exists())
         self.assertNotIn("verify", [e["event"] for e in events if e.get("task") == "task-001"])  # 범위 위반이면 검증기도 안 돈다
 
+    def test_machine_sleep_ends_night_without_consuming_attempts(self):
+        make_repo(self.root, tasks=PLAN[:1])
+        self.env["HARNESS_FAKE_SLEPT"] = "300"
+        p = self.night(check=False)
+        self.assertEqual(p.returncode, 3, p.stdout + p.stderr)  # 정상 종료 사유가 아니다
+        events = H.read_log(H.Repo(self.root).log)
+        kinds = [e["event"] for e in events]
+        self.assertIn("sleep_detected", kinds)
+        self.assertEqual(events[-1]["reason"], "machine_slept")
+        failed = [e for e in events if e["event"] == "task_failed"]
+        self.assertEqual((failed[0]["stage"], failed[0].get("infra")), ("sleep", True))
+        _, tasks = H.load_plan(H.Repo(self.root))
+        st = H.derive_states(events, tasks)["task-001"]
+        self.assertEqual((st.state, st.attempts, st.failures), ("failed", 1, 0))  # 시도 횟수를 먹지 않는다
+        self.assertNotIn("def mul", (self.root / "calc.py").read_text())  # 되돌려졌다
+        summary = H.Repo(self.root).summary.read_text()
+        self.assertIn("머신이 잠듦 (밤 중단)", summary)
+        self.assertIn("머신 잠듦 5m00s: task-001", summary)
+
+    def test_queue_unblock(self):
+        make_repo(self.root, tasks=[PLAN[2]])  # hopeless → 3회 실패 → blocked
+        self.assertEqual(self.night().returncode, 0)
+        QUEUE = str(ROOT / "runner" / "queue")
+        p = sh("python3", QUEUE, "unblock", "task-001", "--reason", "테스트", "--repo", str(self.root), env=self.env, check=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rows = json.loads(sh("python3", QUEUE, "status", "--json", "--repo", str(self.root), env=self.env).stdout)
+        self.assertEqual((rows[0]["state"], rows[0]["failures"], rows[0]["attempts"]), ("pending", 0, 3))
+        p = sh("python3", QUEUE, "unblock", "task-001", "--repo", str(self.root), env=self.env, check=False)
+        self.assertEqual(p.returncode, 1)  # 이미 pending
+
     def test_preflight_rejections(self):
         make_repo(self.root, tasks=[{"title": "no verifier", "goal": "g", "estimate_minutes": 10}])
         p = self.night(check=False)

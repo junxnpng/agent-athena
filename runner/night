@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import harnesslib as H  # noqa: E402
 import drivers as D  # noqa: E402
 
+SLEEP_ABORT_SEC = 120  # 이보다 오래 잠들었으면 그 밤은 끝낸다 — 잠든 채로는 예산만 탄다 (findings/002)
 GITIGNORE_BODY = "# 러너 작업 파일 (스트림·패치·락). 커밋하지 않는다. 로그는 log.jsonl에 있다.\nsessions/\n"
 
 
@@ -219,6 +220,7 @@ def run_night(args: argparse.Namespace) -> int:
 
         # ── 루프
         tasks_run = 0
+        driver_fails = 0  # 연속 무응답(시간 초과 + 0턴) 횟수
         while True:
             now_dt = H.now()
             remaining = (deadline - now_dt).total_seconds() / 60.0
@@ -251,10 +253,36 @@ def run_night(args: argparse.Namespace) -> int:
                            seconds=round(run.seconds, 1), turns=run.turns, cost_usd=round(run.cost_usd, 4),
                            edits=run.edits or None, tool_counts=run.tool_counts or None, denials=run.denials or None,
                            self_report=run.self_report or None, error=run.error or None,
+                           slept_seconds=round(run.slept_seconds) if run.slept_seconds >= 30 else None,
+                           rate_limit=run.rate_limit_utilization,
                            result_tail=H.tail(run.result_text, 1500), stream=repo.rel(stream_path))
             say("  모델 %s · %s · %d턴 · $%.2f · 자기보고 %s%s" % (
                 "ok" if run.ok else "오류", H.fmt_duration(run.seconds), run.turns, run.cost_usd, run.self_report or "-",
                 (" · " + run.error) if run.error else ""))
+
+            # 인프라 실패 — 작업의 실패가 아니다: 시도 횟수를 먹지 않고, 계속해 봐야 소용없으면 밤을 끝낸다 (findings/002)
+            infra = None
+            if run.slept_seconds >= SLEEP_ABORT_SEC:
+                H.append_event(log, "sleep_detected", night=night_id, task=task.id, attempt=attempt, seconds=round(run.slept_seconds))
+                infra = ("sleep", "머신이 %s 잠듦 — 시도 무효 (caffeinate 는 유휴 잠자기만 막는다)" % H.fmt_duration(run.slept_seconds), "machine_slept")
+            elif run.timed_out and run.turns == 0:
+                driver_fails += 1
+                infra = ("driver", "드라이버 무응답 (시간 초과, 0턴)", "driver_unhealthy" if driver_fails >= 2 else None)
+            else:
+                driver_fails = 0
+            if infra:
+                stage, reason, end = infra
+                patch_path = sessions_dir / ("%s.%d.patch" % (task.id, attempt))
+                had_patch = git.save_patch(patch_path)
+                git.revert_worktree()
+                H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage=stage, reason=reason,
+                               infra=True, patch=repo.rel(patch_path) if had_patch else None)
+                say("  인프라 실패 (%s) → 되돌림, 시도 횟수 미산입%s" % (reason, " · 밤 종료" if end else ""))
+                in_flight = None
+                if end:
+                    ended_reason = end
+                    break
+                continue
 
             # I6 쓰기 범위 — 도구와 무관하게 git 이 본 변경으로 최종 판정한다. 위반이면 검증기도 돌리지 않는다
             violations = H.scope_violations(domain, git.changed_paths())

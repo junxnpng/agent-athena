@@ -46,6 +46,9 @@ class ModelRun:
     self_report: str = ""                                     # 모델의 RESULT: 자기 보고 — 판정이 아니다 (P6)
     saw_result: bool = False
     stream_path: Optional[str] = None
+    assistant_turns: int = 0                                  # 스트림에서 센 assistant 메시지 수 (result 가 없어도 안다)
+    slept_seconds: float = 0.0                                # 벽시계 − 단조시계 차이 = 머신이 잠든 시간 (findings/002)
+    rate_limit_utilization: Optional[float] = None            # 5시간 창 사용률 (rate_limit_event)
 
 
 @dataclass
@@ -142,7 +145,15 @@ def _ingest(run: ModelRun, ctx: TaskContext, line: bytes) -> None:
     if not isinstance(ev, dict):
         return
     t = ev.get("type")
-    if t == "assistant":
+    if t == "rate_limit_event":
+        info = ev.get("rate_limit_info") or {}
+        u = ((info.get("unifiedWindows") or {}).get("five_hour") or {}).get("utilization")
+        if u is None:
+            u = info.get("utilization")
+        if u is not None:
+            run.rate_limit_utilization = max(run.rate_limit_utilization or 0.0, float(u))
+    elif t == "assistant":
+        run.assistant_turns += 1
         for c in (ev.get("message") or {}).get("content") or []:
             if not isinstance(c, dict) or c.get("type") != "tool_use":
                 continue
@@ -192,6 +203,7 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
     timeout = ctx.timeout_minutes * 60.0
     stream_path.parent.mkdir(parents=True, exist_ok=True)
     start = time.time()
+    start_mono = time.monotonic()  # 잠든 시간은 세지 않는다 (macOS mach_absolute_time / Linux CLOCK_MONOTONIC)
     proc = subprocess.Popen(
         args, cwd=str(ctx.repo.root), stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, start_new_session=True,
@@ -214,7 +226,7 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
     try:
         with stream_path.open("ab") as out:
             while True:
-                left = timeout - (time.time() - start)
+                left = timeout - (time.monotonic() - start_mono)
                 if left <= 0:
                     run.timed_out = True
                     H.kill_group(proc)
@@ -238,6 +250,9 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
             proc.wait()
     run.exit = proc.returncode
     run.seconds = time.time() - start
+    run.slept_seconds = max(0.0, run.seconds - (time.monotonic() - start_mono))
+    if not run.saw_result:
+        run.turns = run.assistant_turns  # result 가 없어도 "0턴" 이 아니라 실제 진행을 보고한다 (findings/003)
     err = b"".join(stderr_buf).decode("utf-8", "replace").strip()
     if run.timed_out:
         run.error = "모델 시간 초과 (%d분)" % int(ctx.timeout_minutes)
@@ -270,6 +285,7 @@ def run_fake(ctx: TaskContext, prompt: str, stream_path: Path) -> ModelRun:
             run.edits[fp] = run.edits.get(fp, 0) + 1
     m = RESULT_RE.search(out)
     run.self_report = m.group(1).lower() if m else ""
+    run.slept_seconds = float(os.environ.get("HARNESS_FAKE_SLEPT") or 0)  # 테스트: 잠듦 흉내
     if to:
         run.error = "모델 시간 초과 (%d분)" % int(ctx.timeout_minutes)
     elif code != 0:

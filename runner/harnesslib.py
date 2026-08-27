@@ -568,10 +568,15 @@ def derive_states(events: Sequence[Dict[str, Any]], tasks: Sequence[Task]) -> Di
         elif e == "model_done":
             st.last_model = ev
         elif e == "task_failed":
-            st.failures += 1
+            if not ev.get("infra"):  # 머신 잠듦·드라이버 무응답은 작업의 실패가 아니다 — 시도 횟수를 먹지 않는다
+                st.failures += 1
             st.state = "failed"
             st.last_failure = ev
             st.failure_history.append(ev)
+        elif e == "task_unblocked":  # 사람이 푼다 (runner/queue unblock). 로그는 append-only 이므로 이벤트로 남긴다
+            st.state = "pending"
+            st.failures = 0
+            st.blocked_reason = None
         elif e == "task_passed":
             st.state = "passed"
             st.commit = ev.get("commit")
@@ -886,18 +891,28 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
     pending = [t for t in tasks if t.id and states[t.id].state == "pending"]
     cost = sum(float(e.get("cost_usd") or 0) for e in ne if e.get("event") == "model_done")
     anomalies: List[str] = []
+    slept_total = 0.0
     for e in ne:
         if e.get("event") != "model_done":
             continue
         for f, n in sorted((e.get("edits") or {}).items(), key=lambda kv: -kv[1]):
             if n >= DOOM_EDIT_THRESHOLD:
                 anomalies.append("doom loop 의심: %s 같은 파일 %d회 편집 (%s)" % (e["task"], n, f))
-        if e.get("timed_out"):
-            anomalies.append("모델 시간 초과: %s (시도 %s)" % (e["task"], e.get("attempt")))
+        turns = int(e.get("turns") or 0)
+        if e.get("slept_seconds"):
+            slept_total += float(e["slept_seconds"])
+            anomalies.append("머신 잠듦 %s: %s (시도 %s) — caffeinate 는 유휴 잠자기만 막는다. 뚜껑을 열어두거나 서버에서 돌린다" % (
+                fmt_duration(float(e["slept_seconds"])), e["task"], e.get("attempt")))
+        elif e.get("timed_out"):
+            anomalies.append("모델 시간 초과: %s (시도 %s, %d턴, $%.2f)%s" % (
+                e["task"], e.get("attempt"), turns, float(e.get("cost_usd") or 0), " — 0턴 = 무응답" if turns == 0 else " — 느림, 상한을 올리거나 작업을 쪼갠다"))
+        elif e.get("error"):
+            anomalies.append("드라이버 오류: %s (시도 %s) — %s" % (e["task"], e.get("attempt"), str(e["error"])[:120]))
         if e.get("denials"):
             anomalies.append("훅 거부 %d회: %s (시도 %s)" % (int(e["denials"]), e["task"], e.get("attempt")))
-        if e.get("error"):
-            anomalies.append("드라이버 오류: %s — %s" % (e["task"], str(e["error"])[:120]))
+    rl = max((float(e.get("rate_limit") or 0) for e in ne if e.get("event") == "model_done"), default=0.0)
+    if rl >= 0.5:
+        anomalies.append("5시간 창 사용률 최대 %d%% — 다음 밤 창이 겹치면 느려진다" % round(rl * 100))
     for e in ne:
         if e.get("event") == "scope_violation":
             anomalies.append("쓰기 범위 위반: %s (시도 %s) — %s" % (e["task"], e.get("attempt"), ", ".join(e.get("paths") or [])[:120]))
@@ -918,9 +933,19 @@ def _title(by_id: Dict[str, Task], tid: str) -> str:
     return t.title if t else "(계획에 없음)"
 
 
-def _last_line(text: Optional[str]) -> str:
-    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
-    return lines[-1][:160] if lines else "(출력 없음)"
+_ERROR_LINE = re.compile(r"error|traceback|assert|fail|exception|not found", re.IGNORECASE)
+
+
+def _error_line(text: Optional[str]) -> str:
+    """검증 출력에서 사람이 읽을 한 줄 — 오류처럼 보이는 첫 줄, 없으면 마지막 줄 (findings/003: '마지막 오류: 0')."""
+    lines = [re.sub(r"\x1b\[[0-9;]*m", "", ln).strip() for ln in (text or "").splitlines()]
+    lines = [ln for ln in lines if ln]
+    if not lines:
+        return "(출력 없음)"
+    for ln in lines:
+        if _ERROR_LINE.search(ln):
+            return ln[:160]
+    return lines[-1][:160]
 
 
 def render_summary(c: Dict[str, Any]) -> str:
@@ -930,7 +955,8 @@ def render_summary(c: Dict[str, Any]) -> str:
     dur = fmt_duration((parse_iso(e_ts) - parse_iso(s_ts)).total_seconds()) if s_ts and e_ts else "진행 중"
     by_id, states = c["by_id"], c["states"]
     reason = {"budget": "예산 소진", "queue_empty": "큐 비움", "max_tasks": "작업 수 상한", "interrupted": "중단됨",
-              "smoke_unrepairable": "스모크 복구 실패", "bootstrap_failed": "부트스트랩 실패"}.get(
+              "smoke_unrepairable": "스모크 복구 실패", "bootstrap_failed": "부트스트랩 실패",
+              "machine_slept": "머신이 잠듦 (밤 중단)", "driver_unhealthy": "드라이버 무응답 연속 (밤 중단)"}.get(
         (ended or {}).get("reason", ""), (ended or {}).get("reason", "진행 중"))
     branch = (started or {}).get("branch", "?")
     out = ["# %s · %s → %s (%s)" % (c["night"], fmt_clock(s_ts), fmt_clock(e_ts), dur), ""]
@@ -952,8 +978,8 @@ def render_summary(c: Dict[str, Any]) -> str:
         for e in c["blocked"]:
             st = states.get(e["task"])
             lf = st.last_failure if st else None
-            out.append("- %s %s — %s. 마지막 오류: `%s`" % (
-                e["task"], _title(by_id, e["task"]), e.get("reason", "?"), _last_line((lf or {}).get("tail"))))
+            out.append("- %s %s — %s. 마지막 시도: %s · `%s`" % (
+                e["task"], _title(by_id, e["task"]), e.get("reason", "?"), (lf or {}).get("reason", "?"), _error_line((lf or {}).get("tail"))))
     else:
         out.append("- (없음)")
     out += ["", "## 실패 (다음 밤 재시도)"]

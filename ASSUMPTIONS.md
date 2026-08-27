@@ -25,6 +25,8 @@
 | I7 trifecta 가드 | 프롬프트 인젝션을 모델이 스스로 막지 못한다 → 외부 통신 다리를 끊는다. **한계**: 직접 친 Bash 명령만 잡는다 — 모델이 쓴 스크립트 안의 네트워크 호출은 샌드박스 없이는 못 막는다 (실측: `git commit`·`curl` 직접 호출은 거부됨) | 구조적 · A | `hooks/pre-tool` (curl/wget/ssh…), `drivers.py` (WebFetch/WebSearch/MCP 차단) |
 | I9 스트림 관측 | (설계 제약) 훅으로 세면 관측이 대상을 바꾼다 | 개인 경험 · **D** | `runner/drivers.py` |
 | 밤 = 세션 계층 | 사람 부재 구간을 한 단위로 묶어야 인수인계가 된다 | 개인 경험 · **D** | `runner/night` |
+| 잠듦 감지 | 무인 실행의 전제 "머신이 깨어 있다"가 깨질 수 있다(뚜껑) — 막을 수 없으니 감지해 조기 종료 | 구조적 · A | `drivers.py` slept_seconds, `runner/night` SLEEP_ABORT_SEC |
+| 인프라 실패 분리 | 무응답·잠듦은 작업의 실패가 아니다 — 같은 카운터에 넣으면 무고한 작업이 막힌다 | 구조적 · A | `harnesslib.py: derive_states` (infra), `runner/queue unblock` |
 | 복구 작업 우선 | red 트리에서 모델은 "내 작업은 됐다"고 판단하고 넘어간다 | Claude 5 · B | `harnesslib.py: select_next` (repair 우선) |
 
 ## 지운 것

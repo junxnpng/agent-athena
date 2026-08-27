@@ -4,6 +4,7 @@
   runner/queue status [--repo .] [--json]
   runner/queue next   [--repo .] [--json] [--remaining-minutes N]
   runner/queue load   [--repo .]            # id 없는 작업에 발급 + 계획 검증 + plan.json 갱신
+  runner/queue unblock task-NNN --reason "..." [--repo .]   # 막힌 작업을 사람이 푼다 (task_unblocked 이벤트 append)
 """
 from __future__ import annotations
 
@@ -19,7 +20,9 @@ import harnesslib as H  # noqa: E402
 def main() -> int:
     H.ensure_utf8_stdio()
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["status", "next", "load"])
+    ap.add_argument("cmd", choices=["status", "next", "load", "unblock"])
+    ap.add_argument("task", nargs="?", help="unblock 대상 task-NNN")
+    ap.add_argument("--reason", default="")
     ap.add_argument("--repo", default=".")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--remaining-minutes", type=float, default=None)
@@ -43,6 +46,14 @@ def main() -> int:
 
     states = H.derive_states(events, tasks)
     now_dt = H.now()
+    if a.cmd == "unblock":
+        st = states.get(a.task or "")
+        if st is None or st.state != "blocked":
+            print("unblock: %s 는 blocked 상태가 아니다 (%s)" % (a.task, st.state if st else "없음"), file=sys.stderr)
+            return 1
+        H.append_event(repo.log, "task_unblocked", task=a.task, reason=a.reason or "사람이 해제", by="human")
+        print("%s 해제 — 다음 밤에 다시 자격을 얻는다 (실패 횟수 0)" % a.task)
+        return 0
     if a.cmd == "next":
         t = H.select_next(tasks, states, domain, now_dt, a.remaining_minutes)
         if t is None:
