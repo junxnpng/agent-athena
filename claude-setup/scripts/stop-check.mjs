@@ -132,9 +132,24 @@ function checkContinuousOvernight(cwd) {
   return lines.length > 0 ? lines.join('\n') : null;
 }
 
-function detectBuildCheck(cwd) {
+function pickPython() {
+  for (const c of ['python3', 'python']) {
+    try {
+      execFileSync(c, ['--version'], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 2000 });
+      return c;
+    } catch {}
+  }
+  return null;
+}
+
+function detectBuildCheck(cwd, changedFiles) {
   if (existsSync(join(cwd, 'pyproject.toml')) || existsSync(join(cwd, 'setup.py'))) {
-    return { type: 'python', cmd: 'python', args: ['-m', 'py_compile'] };
+    const py = pickPython();
+    if (!py) return null;
+    // Only syntax-check the .py files that changed; skip when no .py touched.
+    const pyFiles = (changedFiles || []).filter((f) => f.endsWith('.py') && existsSync(join(cwd, f)));
+    if (pyFiles.length === 0) return null;
+    return { type: 'python', cmd: py, args: ['-m', 'py_compile', ...pyFiles] };
   }
   if (existsSync(join(cwd, 'go.mod'))) {
     return { type: 'go', cmd: 'go', args: ['build', './...'] };
@@ -183,14 +198,14 @@ async function main() {
 
     // 3. Build check (only on normal stop with uncommitted changes; skip in autonomous mode to avoid prompting noise)
     if (stopReason === 'end_turn' && !overnightActive) {
-      const build = detectBuildCheck(cwd);
-      if (build && git.files.length > 0) {
+      const build = detectBuildCheck(cwd, git.files);
+      if (build) {
         const result = tryExec(build.cmd, build.args, cwd);
         if (!result.ok) {
           messages.push(`<build-check>
 [BUILD FAILED] (${build.type}: ${build.cmd} ${build.args.join(' ')})
 
-${result.out}
+${result.out || '(no stderr captured)'}
 
 Fix the build errors before concluding.
 </build-check>`);
@@ -198,12 +213,12 @@ Fix the build errors before concluding.
       }
     }
 
+    // Stop hooks do not have a hookSpecificOutput schema in Claude Code, so we
+    // surface informational messages via the top-level systemMessage field.
     if (messages.length > 0) {
       console.log(JSON.stringify({
         continue: true,
-        hookSpecificOutput: {
-          additionalContext: messages.join('\n')
-        }
+        systemMessage: messages.join('\n')
       }));
     } else {
       console.log(JSON.stringify({ continue: true, suppressOutput: true }));
