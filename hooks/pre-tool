@@ -28,11 +28,12 @@ PLAN = r"\.harness/(plan\.json|spec\.md|domain\.json|verify|init\.sh|\.gitignore
 WRITE_OPS = r"(>>?|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\btruncate\b)[^|;&]*"
 
 ALWAYS_DENY = [
-    (r"\bgit\s+(push|commit)\b", "commit/push 는 러너의 몫이다 (spec §6). 검증이 통과하면 러너가 커밋한다"),
     (WRITE_OPS + BOOK, "부기 파일(log.jsonl / SUMMARY.md / BLOCKED.md)은 러너 소유다 — 읽기만"),
     (r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*\s+(/|~|\$HOME)(\s|$|/\s)", "파괴적 삭제"),
 ]
 RUNNER_DENY = [
+    # commit/push 는 대화형에서는 막지 않는다 — 사람이 승인 루프에 있다 (S2, 2026-08-28 결정). 러너 모드는 부기의 근간이라 유지
+    (r"\bgit\s+(push|commit)\b", "commit/push 는 러너의 몫이다 (spec §6). 검증이 통과하면 러너가 커밋한다"),
     (r"(^|[|;&]\s*|\$\(\s*|`\s*)(curl|wget|ssh|scp|sftp|nc|ncat|telnet|rsync)\b", "네트워크 접근 금지 (I7). 필요한 것은 .harness/init.sh 의 몫"),
     (r"\b(pip3?|pipx|uv|npm|pnpm|yarn|brew|apt(-get)?|cargo|go)\s+(install|add|get|update|upgrade)\b", "패키지 설치는 부트스트랩(.harness/init.sh)의 몫 (I7)"),
     (r"\bgit\s+(fetch|pull|clone|remote)\b|(^|[|;&]\s*)gh\s", "네트워크 접근 금지 (I7)"),

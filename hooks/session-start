@@ -84,6 +84,13 @@ def build(cwd: Path) -> str:
 
 def main() -> int:
     H.ensure_utf8_stdio()
+    canary = os.environ.get("HARNESS_CANARY")
+    if canary:  # 러너가 지정한 카나리아 — 존재 = "플러그인 훅이 로드됐고 돌 수 있다"의 증명 (없으면 드라이버가 즉시 중단).
+        try:    # append: 줄 수 = 발화 횟수 — 전역 설치와 --plugin-dir 주입이 겹치면 2줄이 된다 (배송 결정의 이중 발화 감지)
+            with open(canary, "a", encoding="utf-8") as f:
+                f.write("%s pid=%d\n" % (H.iso(H.now()), os.getpid()))
+        except OSError as e:
+            print("session-start: 카나리아 쓰기 실패: %s" % e, file=sys.stderr)
     try:
         data = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))
     except (ValueError, OSError):

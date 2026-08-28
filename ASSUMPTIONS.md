@@ -28,6 +28,9 @@
 | 잠듦 감지 | 무인 실행의 전제 "머신이 깨어 있다"가 깨질 수 있다(뚜껑) — 막을 수 없으니 감지해 조기 종료 | 구조적 · A | `drivers.py` slept_seconds, `runner/night` SLEEP_ABORT_SEC |
 | 인프라 실패 분리 | 무응답·잠듦은 작업의 실패가 아니다 — 같은 카운터에 넣으면 무고한 작업이 막힌다 | 구조적 · A | `harnesslib.py: derive_states` (infra), `runner/queue unblock` |
 | 복구 작업 우선 | red 트리에서 모델은 "내 작업은 됐다"고 판단하고 넘어간다 | Claude 5 · B | `harnesslib.py: select_next` (repair 우선) |
+| 훅 생존 카나리아 | 훅은 자기 부재를 알릴 수 없다 — `--plugin-dir` 주입이 조용히 실패하면 `--dangerously-skip-permissions`만 남아 무방비다 (I6·I7이 전부 훅에 걸려 있다). session-start가 카나리아 파일을 쓰고, 드라이버가 첫 assistant 이벤트에서 존재를 확인 — 없으면 즉시 중단 (`hooks_dead`) | 구조적 · A | `hooks/session-start`, `drivers.py: run_claude`, `runner/night` |
+| G2 계획 DAG 렌더 | 모델이 그린 다이어그램은 자기 평가가 섞인다 — 러너가 plan.json+상태에서 결정론적으로 mermaid 렌더 (P10과 같은 원리) | 구조적 · A | `harnesslib.py: render_plan_dag` |
+| 비용 상한 기본값 | 모델은 자기 비용을 모르고, null 상한은 상한이 아니다 (night-002: 55분에 5시간 창 67% 실측). 시도당 `driver.max_budget_usd` · 밤당 `budget.max_night_usd` · 창 사용률 `budget.rate_limit_stop` 삼중 기본값 — 해제는 명시적 null 로만 | 구조적 · A | `harnesslib.py: DOMAIN_DEFAULTS`, `runner/night` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)

@@ -49,6 +49,8 @@ class ModelRun:
     assistant_turns: int = 0                                  # 스트림에서 센 assistant 메시지 수 (result 가 없어도 안다)
     slept_seconds: float = 0.0                                # 벽시계 − 단조시계 차이 = 머신이 잠든 시간 (findings/002)
     rate_limit_utilization: Optional[float] = None            # 5시간 창 사용률 (rate_limit_event)
+    hooks_dead: bool = False                                  # 카나리아 부재 — 플러그인 훅이 로드되지 않은 세션 (즉시 중단)
+    hook_fires: int = 0                                       # 카나리아 줄 수 = session-start 발화 횟수 (2+ = 이중 발화)
 
 
 @dataclass
@@ -202,6 +204,10 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
     env = build_env(ctx)
     timeout = ctx.timeout_minutes * 60.0
     stream_path.parent.mkdir(parents=True, exist_ok=True)
+    canary = stream_path.with_suffix(".canary")  # session-start 훅이 쓴다 — 존재 = 플러그인 훅 생존 증명
+    canary.unlink(missing_ok=True)               # 이전 시도의 파일이 생존으로 위장하면 안 된다
+    env["HARNESS_CANARY"] = str(canary)
+    canary_checked = False
     start = time.time()
     start_mono = time.monotonic()  # 잠든 시간은 세지 않는다 (macOS mach_absolute_time / Linux CLOCK_MONOTONIC)
     proc = subprocess.Popen(
@@ -221,8 +227,9 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
         assert proc.stderr is not None
         stderr_buf.append(proc.stderr.read())
 
-    threading.Thread(target=pump_out, daemon=True).start()
-    threading.Thread(target=pump_err, daemon=True).start()
+    pumps = [threading.Thread(target=pump_out, daemon=True), threading.Thread(target=pump_err, daemon=True)]
+    for th in pumps:
+        th.start()
     try:
         with stream_path.open("ab") as out:
             while True:
@@ -239,6 +246,18 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
                     break
                 out.write(ln)
                 _ingest(run, ctx, ln)
+                if not canary_checked and (run.assistant_turns or run.saw_result):
+                    # 모델이 말하기 시작했다 = SessionStart 훅은 이미 끝났어야 한다. 없으면 훅 없이 도는 중 — 무방비
+                    canary_checked = True
+                    if not canary.exists():
+                        run.hooks_dead = True
+                        run.error = "훅 카나리아 없음 — 플러그인 훅이 로드되지 않았다 (쓰기 중재·trifecta 가드 부재), 즉시 중단"
+                        H.kill_group(proc)
+                        break
+                    try:  # 줄 수 = 발화 횟수. 2 이상이면 전역 설치와 --plugin-dir 이 겹친 것 — 죽이지 않고 기록만 (훅은 살아 있다)
+                        run.hook_fires = max(1, len(canary.read_text(encoding="utf-8").splitlines()))
+                    except OSError:
+                        run.hook_fires = 1
     except BaseException:
         H.kill_group(proc)
         raise
@@ -248,6 +267,13 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
         except subprocess.TimeoutExpired:
             H.kill_group(proc)
             proc.wait()
+        for th in pumps:  # stderr 를 다 읽기 전에 stderr_buf 를 보면 빈 오류가 된다 (조기 종료 경로)
+            th.join(timeout=5)
+        for pipe in (proc.stdout, proc.stderr):
+            try:
+                pipe.close()
+            except OSError:
+                pass
     run.exit = proc.returncode
     run.seconds = time.time() - start
     run.slept_seconds = max(0.0, run.seconds - (time.monotonic() - start_mono))
@@ -279,13 +305,20 @@ def run_fake(ctx: TaskContext, prompt: str, stream_path: Path) -> ModelRun:
     stream_path.write_text(out, encoding="utf-8")
     run = ModelRun(ok=(code == 0 and not to), timed_out=to, exit=code, seconds=secs, turns=1,
                    result_text=H.tail(out, 1500), saw_result=True, stream_path=str(stream_path))
-    for ln in out.splitlines():  # 가짜 모델은 "EDIT <path>" 줄로 편집을 알린다 (P9 경로 테스트용)
+    for ln in out.splitlines():  # 가짜 모델은 "EDIT <path>" 줄로 편집을, "COST <usd>" 줄로 비용을 알린다
         if ln.startswith("EDIT "):
             fp = ln[5:].strip()
             run.edits[fp] = run.edits.get(fp, 0) + 1
+        elif ln.startswith("COST "):
+            try:
+                run.cost_usd = float(ln[5:].strip())
+            except ValueError:
+                pass
     m = RESULT_RE.search(out)
     run.self_report = m.group(1).lower() if m else ""
     run.slept_seconds = float(os.environ.get("HARNESS_FAKE_SLEPT") or 0)  # 테스트: 잠듦 흉내
+    if os.environ.get("HARNESS_FAKE_RATE"):                               # 테스트: 창 사용률 흉내
+        run.rate_limit_utilization = float(os.environ["HARNESS_FAKE_RATE"])
     if to:
         run.error = "모델 시간 초과 (%d분)" % int(ctx.timeout_minutes)
     elif code != 0:

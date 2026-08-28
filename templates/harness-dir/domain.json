@@ -11,9 +11,11 @@
     "leaf_min_minutes": 5,
     "leaf_max_minutes": 30,
     "max_attempts": 3,
-    "starvation_minutes": 1440
+    "starvation_minutes": 1440,
+    "max_night_usd": 20,
+    "rate_limit_stop": 0.85
   },
-  "_budget": "leaf_max = 작업당 모델 타임아웃. max_attempts 실패 시 blocked. starvation_minutes 보다 오래 기다린 작업은 무조건 먼저 (P2)",
-  "driver": {"name": "claude", "model": null, "effort": null, "max_turns": 120, "max_budget_usd": null},
-  "_driver": "name: claude | fake. model: sonnet/opus/... (null = CLI 기본). max_budget_usd: 시도당 비용 상한"
+  "_budget": "leaf_max = 작업당 모델 타임아웃. max_attempts 실패 시 blocked. starvation_minutes 보다 오래 기다린 작업은 무조건 먼저 (P2). max_night_usd = 밤 누적 비용 상한(USD) — null 상한은 상한이 아니다, 해제는 명시적 null 로만. rate_limit_stop = 5시간 창 사용률이 이 이상이면 밤 종료 (null = 해제)",
+  "driver": {"name": "claude", "model": null, "effort": null, "max_turns": 120, "max_budget_usd": 5},
+  "_driver": "name: claude | fake. model: sonnet/opus/... (null = CLI 기본). max_budget_usd: 시도당 비용 상한 (USD, null = 해제)"
 }

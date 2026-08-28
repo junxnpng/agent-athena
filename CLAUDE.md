@@ -24,7 +24,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 
 ## 커밋 정책 (전역 규칙의 유일한 예외)
 - 러너만 커밋한다. 단위 = 검증 통과. 브랜치 `harness/night-NNN`. **push 금지.** 메시지 접두어 `[harness night-NNN task-NNN]`.
-- 모델은 commit/push를 하지 않는다 — `pre-tool` 훅이 거부한다.
+- 러너 모드에서 모델은 commit/push를 하지 않는다 — `pre-tool` 훅이 거부한다. 대화형은 막지 않는다(사람이 승인 루프에, S2).
 
 ## 작업 규칙 (이 repo를 고칠 때)
 - 코드는 Python 3.9 stdlib만. `from __future__ import annotations` 필수, `X | None` 런타임 문법 금지. 외부 의존성 추가 금지.

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """가짜 모델 — e2e 테스트용 드라이버 스크립트. 작업 JSON을 stdin으로 받아 제목의 태그대로 트리를 바꾼다.
 
-태그: [add-mul] [add-sub] [hopeless] [break-global] [repair]
-출력 규약: "EDIT <path>" 줄 = 편집 1회 (P9 카운터), 마지막 줄 "RESULT: ..." = 자기 보고 (판정 아님).
+태그: [add-mul] [add-sub] [hopeless] [break-global] [repair] [cost:N]
+출력 규약: "EDIT <path>" 줄 = 편집 1회 (P9 카운터), "COST <usd>" 줄 = 비용 보고, 마지막 줄 "RESULT: ..." = 자기 보고 (판정 아님).
 """
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -39,4 +40,7 @@ elif "[out-of-scope]" in title:
 elif "복구" in title or "[repair]" in title:
     (root / "FIXED").write_text("fixed\n")
     print("EDIT FIXED")
+m = re.search(r"\[cost:([0-9.]+)\]", title)
+if m:
+    print("COST " + m.group(1))
 print("RESULT: done — fake model (%s)" % title)

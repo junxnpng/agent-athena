@@ -135,7 +135,9 @@ def run_night(args: argparse.Namespace) -> int:
     if git.branch_exists(branch):
         raise H.HarnessError("브랜치 %s 가 이미 있다 (로그와 브랜치가 어긋남). 지우거나 병합한 뒤 다시" % branch)
     git.create_branch(branch, "HEAD")
-    say("%s 시작 · 기점 %s (%s) · 브랜치 %s · 예산 %.1fh · 드라이버 %s" % (night_id, git.head(), note, branch, hours, driver_name))
+    cost_cap = "없음" if domain.max_night_usd is None else "$%.0f" % domain.max_night_usd
+    say("%s 시작 · 기점 %s (%s) · 브랜치 %s · 예산 %.1fh · 비용 상한 %s · 드라이버 %s" % (
+        night_id, git.head(), note, branch, hours, cost_cap, driver_name))
 
     if not repo.gitignore.exists():
         repo.gitignore.write_text(GITIGNORE_BODY, encoding="utf-8")
@@ -160,7 +162,8 @@ def run_night(args: argparse.Namespace) -> int:
     try:
         H.append_event(log, "night_started", night=night_id, branch=branch, base=git.head(), base_note=note,
                        budget_minutes=int(hours * 60), deadline=H.iso(deadline), driver=driver_name,
-                       model=domain.driver.get("model"), leaf_max_minutes=domain.leaf_max, max_attempts=domain.max_attempts)
+                       model=domain.driver.get("model"), leaf_max_minutes=domain.leaf_max, max_attempts=domain.max_attempts,
+                       max_night_usd=domain.max_night_usd, rate_limit_stop=domain.rate_limit_stop)
 
         # 지난 밤이 판정 없이 죽었으면 닫는다 (append-only로 — 지우지 않는다)
         states = H.derive_states(H.read_log(log), tasks)
@@ -220,12 +223,17 @@ def run_night(args: argparse.Namespace) -> int:
 
         # ── 루프
         tasks_run = 0
+        night_cost = 0.0  # 이 밤의 누적 비용 (USD) — model_done 합계와 같아야 한다
         driver_fails = 0  # 연속 무응답(시간 초과 + 0턴) 횟수
         while True:
             now_dt = H.now()
             remaining = (deadline - now_dt).total_seconds() / 60.0
             if remaining < domain.leaf_min:
                 ended_reason = "budget"
+                break
+            if domain.max_night_usd is not None and night_cost >= domain.max_night_usd:
+                ended_reason = "cost_budget"
+                say("누적 비용 $%.2f ≥ 상한 $%.2f → 밤 종료" % (night_cost, domain.max_night_usd))
                 break
             if args.max_tasks and tasks_run >= args.max_tasks:
                 ended_reason = "max_tasks"
@@ -249,12 +257,14 @@ def run_night(args: argparse.Namespace) -> int:
             stream_path = sessions_dir / ("%s.%d.stream.jsonl" % (task.id, attempt))
             run = D.run_task(ctx, driver_name, stream_path)
             tasks_run += 1
+            night_cost += run.cost_usd
             H.append_event(log, "model_done", night=night_id, task=task.id, attempt=attempt, ok=run.ok, timed_out=run.timed_out,
                            seconds=round(run.seconds, 1), turns=run.turns, cost_usd=round(run.cost_usd, 4),
                            edits=run.edits or None, tool_counts=run.tool_counts or None, denials=run.denials or None,
                            self_report=run.self_report or None, error=run.error or None,
                            slept_seconds=round(run.slept_seconds) if run.slept_seconds >= 30 else None,
-                           rate_limit=run.rate_limit_utilization,
+                           rate_limit=run.rate_limit_utilization, hooks_dead=run.hooks_dead or None,
+                           hook_fires=run.hook_fires if run.hook_fires > 1 else None,
                            result_tail=H.tail(run.result_text, 1500), stream=repo.rel(stream_path))
             say("  모델 %s · %s · %d턴 · $%.2f · 자기보고 %s%s" % (
                 "ok" if run.ok else "오류", H.fmt_duration(run.seconds), run.turns, run.cost_usd, run.self_report or "-",
@@ -262,7 +272,9 @@ def run_night(args: argparse.Namespace) -> int:
 
             # 인프라 실패 — 작업의 실패가 아니다: 시도 횟수를 먹지 않고, 계속해 봐야 소용없으면 밤을 끝낸다 (findings/002)
             infra = None
-            if run.slept_seconds >= SLEEP_ABORT_SEC:
+            if run.hooks_dead:
+                infra = ("hooks", "플러그인 훅 미로드 (카나리아 없음) — 쓰기 중재·trifecta 가드가 없는 무방비 실행", "hooks_dead")
+            elif run.slept_seconds >= SLEEP_ABORT_SEC:
                 H.append_event(log, "sleep_detected", night=night_id, task=task.id, attempt=attempt, seconds=round(run.slept_seconds))
                 infra = ("sleep", "머신이 %s 잠듦 — 시도 무효 (caffeinate 는 유휴 잠자기만 막는다)" % H.fmt_duration(run.slept_seconds), "machine_slept")
             elif run.timed_out and run.turns == 0:
@@ -333,6 +345,11 @@ def run_night(args: argparse.Namespace) -> int:
                         ended_reason = "smoke_unrepairable"
                         break
             in_flight = None
+            rl = run.rate_limit_utilization
+            if domain.rate_limit_stop is not None and rl is not None and rl >= domain.rate_limit_stop:
+                ended_reason = "rate_limited"
+                say("  5시간 창 사용률 %d%% ≥ 상한 %d%% → 밤 종료 (창이 풀린 뒤 다시)" % (round(rl * 100), round(domain.rate_limit_stop * 100)))
+                break
     except Interrupted:
         if in_flight:
             task, attempt = in_flight
@@ -366,7 +383,7 @@ def run_night(args: argparse.Namespace) -> int:
             lock.unlink()
         except FileNotFoundError:
             pass
-    return 0 if ended_reason in ("budget", "queue_empty", "max_tasks") else 3
+    return 0 if ended_reason in ("budget", "queue_empty", "max_tasks", "cost_budget", "rate_limited") else 3
 
 
 def main() -> int:

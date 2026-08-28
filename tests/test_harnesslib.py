@@ -286,5 +286,35 @@ class SummaryTests(unittest.TestCase):
         self.assertIn("종료: 머신이 잠듦 (밤 중단)", H.render_summary(c))
 
 
+class PlanDagTests(unittest.TestCase):
+    def test_render_plan_dag_nodes_edges_badges(self):
+        tasks = [task("task-001", "[add-mul] mul 추가"), task("task-002", "sub", deps=("task-001",)), task("task-003", "c")]
+        states = {"task-001": H.TaskState(id="task-001", state="passed"),
+                  "task-002": H.TaskState(id="task-002", state="blocked"),
+                  "task-003": H.TaskState(id="task-003", state="pending")}
+        dag = H.render_plan_dag(tasks, states)
+        self.assertIn("```mermaid", dag)
+        self.assertIn('task001["✅ task-001 add-mul mul 추가"]', dag)  # 대괄호 등 mermaid 특수문자는 라벨에서 제거
+        self.assertIn('task002["⛔ task-002 sub"]', dag)
+        self.assertIn('task003["⬜ task-003 c"]', dag)
+        self.assertIn("task001 --> task002", dag)
+        self.assertEqual(H.render_plan_dag([task(None, "id 없음")], {}), "")  # id 미발급 계획은 그리지 않는다
+
+    def test_summary_contains_dag_and_double_fire_anomaly(self):
+        tasks = [task("task-001", "a"), task("task-002", "b", deps=("task-001",))]
+        n = "night-010"
+        events = [
+            ev("night_started", night=n),
+            ev("model_done", night=n, task="task-001", attempt=1, turns=3, cost_usd=0.1, hook_fires=2),
+            ev("task_passed", night=n, task="task-001", attempt=1, commit="abc"),
+            ev("night_ended", night=n, reason="queue_empty"),
+        ]
+        c = H.collect_night(events, tasks, H.Domain({}), n)
+        self.assertIn("훅 이중 발화 2회: task-001", "\n".join(c["anomalies"]))
+        s = H.render_summary(c)
+        self.assertIn("## 계획 DAG", s)
+        self.assertIn("task001 --> task002", s)
+
+
 if __name__ == "__main__":
     unittest.main()

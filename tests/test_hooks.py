@@ -65,8 +65,10 @@ class HookTests(unittest.TestCase):
             p = subprocess.run(SH + [RUN_HOOK, "session-start"], input=json.dumps({"cwd": other}), capture_output=True, text=True, encoding="utf-8")
             self.assertEqual((p.returncode, p.stdout), (0, ""))
 
-    def test_commit_push_denied_in_both_modes(self):
-        self.assertEqual(self.bash("git commit -m 'x'"), "deny")
+    def test_commit_push_denied_only_in_runner_mode(self):
+        self.assertIsNone(self.bash("git commit -m 'x'"))                                 # 대화형: 사람이 승인 루프에 있다 (S2)
+        self.assertIsNone(self.bash("git push origin work"))
+        self.assertEqual(self.bash("git commit -m 'x'", runner=True), "deny")
         self.assertEqual(self.bash("git add . && git push origin main", runner=True), "deny")
         self.assertIsNone(self.bash("git status && git diff"))
 
@@ -111,6 +113,14 @@ class HookTests(unittest.TestCase):
         self.assertEqual(out["hookSpecificOutput"]["hookEventName"], "SessionStart")
         for needle in ("1. 작업 디렉토리", "2. 최근 로그", "3. 현재 작업 (P2가 결정", "task-001", "4. 스모크", ": ok", "5. 기존 문제"):
             self.assertIn(needle, ctx)
+
+    def test_session_start_writes_canary(self):
+        canary = self.root / ".harness" / "sessions" / "night-001" / "task-001.1.stream.canary"
+        canary.parent.mkdir(parents=True)
+        self.hook("session-start", {"source": "startup"}, runner=True, HARNESS_CANARY=str(canary))
+        self.assertTrue(canary.exists())  # 존재 = 플러그인 훅 생존 증명 — 드라이버가 첫 assistant 이벤트에서 확인한다
+        self.hook("session-start", {"source": "startup"}, runner=True, HARNESS_CANARY=str(canary))
+        self.assertEqual(len(canary.read_text().splitlines()), 2)  # append — 줄 수 = 발화 횟수 (이중 발화 감지 재료)
 
     def test_session_start_runner_mode_reads_smoke_from_log(self):
         H.append_event(self.root / ".harness" / "log.jsonl", "smoke", night="night-001", ok=False, exit=1, seconds=0.2, cmd=".harness/verify")

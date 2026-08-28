@@ -105,6 +105,8 @@ class NightE2E(unittest.TestCase):
         self.assertIn("# night-001", summary)
         self.assertIn("완료 2 / 실패(재시도 예정) 0 / 막힘 2 / 미착수 0", summary)
         self.assertIn("doom loop 의심: task-003 같은 파일 9회 편집 (notes.txt)", summary)
+        self.assertIn("## 계획 DAG", summary)
+        self.assertIn("task001 --> task002", summary)  # depends_on 이 엣지로
         self.assertIn("## task-003", repo.blocked.read_text())
         self.assertTrue((repo.sessions / "night-001" / "task-003.1.stream.jsonl").exists())
         self.assertFalse((repo.sessions / "lock").exists())
@@ -166,6 +168,47 @@ class NightE2E(unittest.TestCase):
         summary = H.Repo(self.root).summary.read_text()
         self.assertIn("머신이 잠듦 (밤 중단)", summary)
         self.assertIn("머신 잠듦 5m00s: task-001", summary)
+
+    def test_cost_budget_ends_night(self):
+        tasks = [
+            {"title": "[add-mul][cost:12] mul 추가", "goal": "mul", "verify": "python3 -c \"import calc; assert calc.mul(3,4)==12\"", "estimate_minutes": 5, "priority": 2},
+            {"title": "[add-sub] sub 추가", "goal": "sub", "verify": "python3 -c \"import calc; assert calc.sub(3,4)==-1\"", "estimate_minutes": 5, "priority": 1},
+        ]
+        make_repo(self.root, tasks=tasks, domain={"budget": {"hours": 0.5, "max_attempts": 3, "max_night_usd": 10}})
+        p = self.night()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)  # 비용 상한은 시간 예산과 같은 정상 종료다
+        repo = H.Repo(self.root)
+        events = H.read_log(repo.log)
+        self.assertEqual(events[-1]["reason"], "cost_budget")
+        self.assertEqual(events[-1]["cost_usd"], 12.0)
+        started = [e["task"] for e in events if e["event"] == "task_started"]
+        self.assertEqual(started, ["task-001"])  # 두 번째 작업은 시작도 못 한다
+        _, tasks = H.load_plan(repo)
+        st = H.derive_states(events, tasks)
+        self.assertEqual(st["task-001"].state, "passed")   # 상한 판정은 다음 선택 전 — 이미 산 시도는 버리지 않는다
+        self.assertEqual(st["task-002"].state, "pending")
+        self.assertIn("종료: 비용 상한 도달", repo.summary.read_text())
+
+    def test_rate_limit_stop_ends_night(self):
+        tasks = [
+            {"title": "[add-mul] mul 추가", "goal": "mul", "verify": "python3 -c \"import calc; assert calc.mul(3,4)==12\"", "estimate_minutes": 5, "priority": 2},
+            {"title": "[add-sub] sub 추가", "goal": "sub", "verify": "python3 -c \"import calc; assert calc.sub(3,4)==-1\"", "estimate_minutes": 5, "priority": 1},
+        ]
+        make_repo(self.root, tasks=tasks)  # 기본값 rate_limit_stop=0.85
+        self.env["HARNESS_FAKE_RATE"] = "0.95"
+        p = self.night()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        repo = H.Repo(self.root)
+        events = H.read_log(repo.log)
+        self.assertEqual(events[-1]["reason"], "rate_limited")
+        started = [e["task"] for e in events if e["event"] == "task_started"]
+        self.assertEqual(started, ["task-001"])
+        _, tasks = H.load_plan(repo)
+        st = H.derive_states(events, tasks)
+        self.assertEqual(st["task-001"].state, "passed")   # 판정이 끝난 뒤에 멈춘다 — 시도를 버리지 않는다
+        summary = repo.summary.read_text()
+        self.assertIn("종료: 5시간 창 사용률 상한 도달", summary)
+        self.assertIn("5시간 창 사용률 최대 95%", summary)
 
     def test_queue_unblock(self):
         make_repo(self.root, tasks=[PLAN[2]])  # hopeless → 3회 실패 → blocked

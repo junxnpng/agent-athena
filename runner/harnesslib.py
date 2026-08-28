@@ -126,8 +126,10 @@ DOMAIN_DEFAULTS: Dict[str, Any] = {
         "leaf_max_minutes": 30,    # 리프 상한 = 작업당 모델 타임아웃 (ASSUMPTIONS: 30분 이상에서 일관성 상실)
         "max_attempts": 3,         # 이 횟수 실패하면 blocked (P8-lite)
         "starvation_minutes": 1440,  # 이보다 오래 기다린 작업은 무조건 먼저 (P2, 등급 D)
+        "max_night_usd": 20.0,       # 밤 누적 비용 상한 (USD). null 상한은 상한이 아니다 — 해제는 명시적 null 로만
+        "rate_limit_stop": 0.85,     # 5시간 창 사용률이 이 이상 관측되면 밤 종료 (구독 요금제의 실질 예산; night-002 실측 67%)
     },
-    "driver": {"name": "claude", "model": None, "effort": None, "max_turns": 120, "max_budget_usd": None},
+    "driver": {"name": "claude", "model": None, "effort": None, "max_turns": 120, "max_budget_usd": 5.0},
 }
 
 
@@ -197,6 +199,16 @@ class Domain:
     @property
     def starvation_minutes(self) -> float:
         return float(self.raw["budget"]["starvation_minutes"])
+
+    @property
+    def max_night_usd(self) -> Optional[float]:
+        v = self.raw["budget"].get("max_night_usd")
+        return None if v is None else float(v)
+
+    @property
+    def rate_limit_stop(self) -> Optional[float]:
+        v = self.raw["budget"].get("rate_limit_stop")
+        return None if v is None else float(v)
 
     @property
     def driver(self) -> Dict[str, Any]:
@@ -899,7 +911,10 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
             if n >= DOOM_EDIT_THRESHOLD:
                 anomalies.append("doom loop 의심: %s 같은 파일 %d회 편집 (%s)" % (e["task"], n, f))
         turns = int(e.get("turns") or 0)
-        if e.get("slept_seconds"):
+        if e.get("hooks_dead"):
+            anomalies.append("훅 미로드: %s (시도 %s) — 카나리아 없음, 쓰기 중재·trifecta 가드가 없는 세션이라 즉시 중단했다. --plugin-dir 경로와 플러그인 로딩을 확인하라" % (
+                e["task"], e.get("attempt")))
+        elif e.get("slept_seconds"):
             slept_total += float(e["slept_seconds"])
             anomalies.append("머신 잠듦 %s: %s (시도 %s) — caffeinate 는 유휴 잠자기만 막는다. 뚜껑을 열어두거나 서버에서 돌린다" % (
                 fmt_duration(float(e["slept_seconds"])), e["task"], e.get("attempt")))
@@ -910,6 +925,9 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
             anomalies.append("드라이버 오류: %s (시도 %s) — %s" % (e["task"], e.get("attempt"), str(e["error"])[:120]))
         if e.get("denials"):
             anomalies.append("훅 거부 %d회: %s (시도 %s)" % (int(e["denials"]), e["task"], e.get("attempt")))
+        if int(e.get("hook_fires") or 0) > 1:
+            anomalies.append("훅 이중 발화 %d회: %s (시도 %s) — 전역 플러그인 설치와 --plugin-dir 주입이 겹쳤는지 확인 (배송 결정)" % (
+                int(e["hook_fires"]), e["task"], e.get("attempt")))
     rl = max((float(e.get("rate_limit") or 0) for e in ne if e.get("event") == "model_done"), default=0.0)
     if rl >= 0.5:
         anomalies.append("5시간 창 사용률 최대 %d%% — 다음 밤 창이 겹치면 느려진다" % round(rl * 100))
@@ -948,6 +966,37 @@ def _error_line(text: Optional[str]) -> str:
     return lines[-1][:160]
 
 
+DAG_BADGE = {"passed": "✅", "blocked": "⛔", "failed": "🔁", "started": "🏃", "pending": "⬜"}
+
+
+def _dag_node(tid: Any) -> str:
+    """mermaid 노드 id — 영숫자만 남긴다 (하이픈은 파서가 엣지로 오독할 수 있다)."""
+    s = re.sub(r"[^0-9A-Za-z]", "", str(tid)) or "x"
+    return s if s[0].isalpha() else "n" + s
+
+
+def render_plan_dag(tasks: Sequence[Task], states: Dict[str, TaskState]) -> str:
+    """계획 DAG를 mermaid로 (G2 aggregated) — 막힌 작업이 무엇을 물고 있는지 아침에 그림으로 보인다.
+    렌더는 러너가 plan.json+상태에서 결정론적으로 한다 (부기는 프로그램 — 모델이 그리지 않는다).
+    Obsidian·GitHub가 네이티브 렌더. expanded(log 언롤) 모드는 다음."""
+    ids = sorted(t.id for t in tasks if t.id)
+    if not ids:
+        return ""
+    by_id = {t.id: t for t in tasks if t.id}
+    lines = ["```mermaid", "flowchart TD"]
+    for tid in ids:
+        t = by_id[tid]
+        st = states.get(tid) or TaskState(id=tid)
+        title = re.sub(r'["\[\]{}()<>`|#;]', "", t.title).strip()[:40]
+        lines.append('  %s["%s %s %s"]' % (_dag_node(tid), DAG_BADGE.get(st.state, "⬜"), tid, title))
+    for tid in ids:
+        for dep in by_id[tid].depends_on:
+            if dep in by_id:
+                lines.append("  %s --> %s" % (_dag_node(dep), _dag_node(tid)))
+    lines.append("```")
+    return "\n".join(lines)
+
+
 def render_summary(c: Dict[str, Any]) -> str:
     started, ended = c["started"], c["ended"]
     s_ts = started.get("ts") if started else None
@@ -956,13 +1005,18 @@ def render_summary(c: Dict[str, Any]) -> str:
     by_id, states = c["by_id"], c["states"]
     reason = {"budget": "예산 소진", "queue_empty": "큐 비움", "max_tasks": "작업 수 상한", "interrupted": "중단됨",
               "smoke_unrepairable": "스모크 복구 실패", "bootstrap_failed": "부트스트랩 실패",
-              "machine_slept": "머신이 잠듦 (밤 중단)", "driver_unhealthy": "드라이버 무응답 연속 (밤 중단)"}.get(
+              "machine_slept": "머신이 잠듦 (밤 중단)", "driver_unhealthy": "드라이버 무응답 연속 (밤 중단)",
+              "cost_budget": "비용 상한 도달", "rate_limited": "5시간 창 사용률 상한 도달",
+              "hooks_dead": "훅 미로드 (밤 중단)"}.get(
         (ended or {}).get("reason", ""), (ended or {}).get("reason", "진행 중"))
     branch = (started or {}).get("branch", "?")
     out = ["# %s · %s → %s (%s)" % (c["night"], fmt_clock(s_ts), fmt_clock(e_ts), dur), ""]
     out += ["## 결론",
             "완료 %d / 실패(재시도 예정) %d / 막힘 %d / 미착수 %d · 종료: %s · 브랜치 `%s` · 비용 $%.2f" % (
                 len(c["passed"]), len(c["retry_ids"]), len(c["blocked"]), len(c["pending"]), reason, branch, c["cost"]), ""]
+    dag = render_plan_dag(list(by_id.values()), states)
+    if dag:
+        out += ["## 계획 DAG (✅통과 ⛔막힘 🔁재시도 ⬜미착수)", dag, ""]
     out += ["## 완료 (검증 통과)"]
     if c["passed"]:
         for e in c["passed"]:
