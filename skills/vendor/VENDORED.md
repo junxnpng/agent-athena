@@ -33,3 +33,4 @@
 | executing-plans | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | subagent-driven/finishing 참조 제거 (Step 3 마무리 3줄 → 사람 보고 1줄) |
 | retro | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 없음 (in-progress 출처 표시) |
 | test-driven-development | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 없음 |
+| webapp-testing | anthropics/skills | 3b3fad96af16 | Apache-2.0 | 2026-08-28 | 없음 (Playwright는 init.sh 계약) |
