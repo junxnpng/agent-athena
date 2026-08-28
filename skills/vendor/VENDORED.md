@@ -26,3 +26,4 @@
 | writing-for-agents | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 없음 |
 | skill-creator | anthropics/skills | 3b3fad96af16 | Apache-2.0 | 2026-08-28 | 없음 (환경노트: py3.10+, PyYAML) |
 | frontend-design | anthropics/skills | 3b3fad96af16 | Apache-2.0 | 2026-08-28 | 없음 |
+| improve-codebase-architecture | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | codebase-design 부재 폴백 1구 · 모드A 표시 |
