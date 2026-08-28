@@ -28,3 +28,4 @@
 | frontend-design | anthropics/skills | 3b3fad96af16 | Apache-2.0 | 2026-08-28 | 없음 |
 | improve-codebase-architecture | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | codebase-design 부재 폴백 1구 · 모드A 표시 |
 | code-review | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | setup 참조 → 사용자 질문으로 |
+| receiving-code-review | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 모드 A 전용 표시 (gh api — 공통 사항 4) |
