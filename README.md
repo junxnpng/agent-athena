@@ -43,6 +43,11 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 | `scripts/night-detached` | 밤을 분리 실행 (취침 시점의 한 명령) |
 | `scripts/check` | 하네스 자가 검증 (테스트 + CLAUDE.md 60줄 + 훅·플러그인 JSON + 이식성 린트) |
 
+## 스킬
+- 이식 스킬 25종이 `skills/<이름>/`에 있다 (대장 `skills/vendor/VENDORED.md`: 소스·고정 커밋·라이선스·감사일·수정 내역). `> 모드 A 전용` 표시가 있는 스킬은 네트워크를 쓰므로 대화형에서만.
+- 문서 4종(docx·xlsx·pptx·pdf)은 공식 설치: `claude plugin marketplace add anthropics/skills && claude plugin install document-skills@anthropic-agent-skills`
+- 갱신은 수동 재감사로만. 새 외부 스킬은 고정 커밋 클론 → 전 파일 정독 → 복사 → 대장 행 → 스킬당 커밋 `[vendor] …`
+
 ## 대화형으로 훅 쓰기
 `claude --plugin-dir /path/to/agent-athena` — `.harness/`가 있는 repo에서만 훅이 켜진다 (다른 repo에서는 무해).
 전역 설치와 러너를 같이 쓰지 않는다 — 훅이 두 번 뜬다.
