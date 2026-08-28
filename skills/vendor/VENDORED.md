@@ -18,3 +18,4 @@
 | teach | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 첫 줄 모드 A 전용 표시 |
 | arxiv-search | langchain-ai/deepagents | 457ac435e121 | MIT | 2026-08-28 | 모드A 표시 · main() print 버그 수정 · 경로 |
 | handoff | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 저장 위치 .harness/sessions/ 우선 |
+| writing-plans | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | subagent-driven 참조 제거 · 접두어 정리 |
