@@ -34,3 +34,4 @@
 | retro | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 없음 (in-progress 출처 표시) |
 | test-driven-development | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 없음 |
 | webapp-testing | anthropics/skills | 3b3fad96af16 | Apache-2.0 | 2026-08-28 | 없음 (Playwright는 init.sh 계약) |
+| dsh-trim-cot-leakage | deepseek-ai/deepseek-harness | cd5ef8148158 | MIT | 2026-08-28 | dsh 결합 4곳 범용화 |
