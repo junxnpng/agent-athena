@@ -107,6 +107,7 @@ class NightE2E(unittest.TestCase):
         self.assertIn("doom loop 의심: task-003 같은 파일 9회 편집 (notes.txt)", summary)
         self.assertIn("## 계획 DAG", summary)
         self.assertIn("task001 --> task002", summary)  # depends_on 이 엣지로
+        self.assertIn("- harness:test-driven-development ×1 — task-001", summary)  # 가짜 모델의 SKILL 줄 → 스트림 집계 → SUMMARY
         self.assertIn("## task-003", repo.blocked.read_text())
         self.assertTrue((repo.sessions / "night-001" / "task-003.1.stream.jsonl").exists())
         self.assertFalse((repo.sessions / "lock").exists())

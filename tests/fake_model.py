@@ -2,7 +2,7 @@
 """가짜 모델 — e2e 테스트용 드라이버 스크립트. 작업 JSON을 stdin으로 받아 제목의 태그대로 트리를 바꾼다.
 
 태그: [add-mul] [add-sub] [hopeless] [break-global] [repair] [cost:N]
-출력 규약: "EDIT <path>" 줄 = 편집 1회 (P9 카운터), "COST <usd>" 줄 = 비용 보고, 마지막 줄 "RESULT: ..." = 자기 보고 (판정 아님).
+출력 규약: "EDIT <path>" 줄 = 편집 1회 (P9 카운터), "COST <usd>" 줄 = 비용 보고, "SKILL <이름>" 줄 = 스킬 자동 호출 1회, 마지막 줄 "RESULT: ..." = 자기 보고 (판정 아님).
 """
 import json
 import os
@@ -19,6 +19,7 @@ calc = root / "calc.py"
 if "[add-mul]" in title:
     calc.write_text(calc.read_text() + "\n\ndef mul(a, b):\n    return a * b\n")
     print("EDIT calc.py")
+    print("SKILL harness:test-driven-development")  # 스킬 호출 흉내 → 스트림 집계 → SUMMARY "스킬 자동 호출"
 elif "[add-sub]" in title:
     calc.write_text(calc.read_text() + "\n\ndef sub(a, b):\n    return a - b\n")
     print("EDIT calc.py")

@@ -52,3 +52,4 @@
 - **2026-08-28 · 인프라 실패 ≠ 작업 실패** — 첫 무인 밤(night-002)에 맥이 잠들어(뚜껑) 시도 3개가 시간 초과로 처리되고 news 작업이 부당하게 막혔다. 러너는 이제 잠듦(벽시계−단조시계)과 무응답(시간 초과+0턴)을 `infra` 실패로 구분해 시도 횟수에 넣지 않고, 잠들면 밤을 끝낸다(`machine_slept`). 사람이 푸는 길: `queue unblock`. 턴 수는 result 없이도 assistant 메시지로 센다. 상세: `findings/002`, `findings/003`.
 - **2026-08-27 · `setsid`도 macOS에 없다** — 분리 실행은 `scripts/night-detached`(nohup + python `os.setsid()` + caffeinate/systemd-inhibit)로만 한다. 첫 무인 밤을 띄우다 발견.
 - **2026-08-27 · 플랜의 `id`는 러너가 쓴다** — 손으로 쓴 `plan.json`에는 `id`를 넣지 않는다. `runner/queue load`(또는 `night`)가 로그 ∪ 계획의 최댓값+1로 발급해 파일에 써 넣는다. 사람이 `id`를 적으면 형식·중복만 검사하고 그대로 쓴다 (I1은 *모델*이 계산하지 않는다는 뜻이다).
+- **2026-08-28 · 러너는 사용자 설정 소스를 뺀다** — `--plugin-dir`는 추가이지 대체가 아니어서 무인 세션이 전역 플러그인 34개(출력 스타일 훅 포함)를 상속했다(night-001·002 실측). 러너는 `--setting-sources project,local`로 user 소스를 제외하고, 대상 repo의 project/local 설정은 도메인 소유라 유지한다. 스킬 자동 호출은 확률적(sonnet 0/2, opus 1/1)이라 러너가 스트림의 `Skill` 호출을 세어 SUMMARY "스킬 자동 호출" 절에 보인다. 상세: `findings/004`.

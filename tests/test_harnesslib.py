@@ -246,7 +246,7 @@ class SummaryTests(unittest.TestCase):
             ev("night_started", night=n, branch="harness/night-004"),
             ev("task_enqueued", night=n, task="task-001"), ev("task_enqueued", night=n, task="task-002"), ev("task_enqueued", night=n, task="task-003"),
             ev("task_started", night=n, task="task-001", attempt=1),
-            ev("model_done", night=n, task="task-001", attempt=1, edits={"x.py": 11}, cost_usd=1.5, seconds=30),
+            ev("model_done", night=n, task="task-001", attempt=1, edits={"x.py": 11}, cost_usd=1.5, seconds=30, skills={"harness:verification-before-completion": 2}),
             ev("task_passed", night=n, task="task-001", attempt=1, commit="abc1234"),
             ev("task_started", night=n, task="task-002", attempt=1),
             ev("task_failed", night=n, task="task-002", attempt=1, stage="leaf", reason="exit 1", tail="Error: boom"),
@@ -265,6 +265,7 @@ class SummaryTests(unittest.TestCase):
         self.assertIn("## task-002 two", blocked)
         self.assertIn("Error: boom", blocked)
         self.assertIn("마지막 시도: exit 1 · `Error: boom`", text)
+        self.assertIn("- harness:verification-before-completion ×2 — task-001", text)  # 스킬 자동 호출 절 (findings/004)
 
     def test_anomalies_distinguish_slow_hang_and_sleep(self):
         tasks = [task("task-001", "a"), task("task-002", "b"), task("task-003", "c")]
@@ -283,7 +284,9 @@ class SummaryTests(unittest.TestCase):
         self.assertIn("머신 잠듦 15m00s: task-003", a)
         self.assertIn("5시간 창 사용률 최대 67%", a)
         self.assertEqual(a.count("드라이버 오류"), 0)  # 시간 초과와 중복 표기하지 않는다
-        self.assertIn("종료: 머신이 잠듦 (밤 중단)", H.render_summary(c))
+        text = H.render_summary(c)
+        self.assertIn("종료: 머신이 잠듦 (밤 중단)", text)
+        self.assertEqual(text.split("## 스킬 자동 호출")[1].splitlines()[1], "- (없음)")  # 호출 없음도 한 줄로 보인다
 
 
 class PlanDagTests(unittest.TestCase):

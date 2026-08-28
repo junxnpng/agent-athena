@@ -937,12 +937,21 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
     smoke = next((e for e in ne if e.get("event") == "smoke"), None)
     if smoke and not smoke.get("ok"):
         anomalies.append("밤 시작 스모크 실패 (복구 작업 발급)")
+    skills: Dict[str, Dict[str, Any]] = {}  # 모델이 스스로 부른 스킬 — 호출은 지침(설명문 매칭)이라 확률적, 실사용률은 여기서만 보인다 (findings/004)
+    for e in ne:
+        if e.get("event") != "model_done":
+            continue
+        for sk, n in (e.get("skills") or {}).items():
+            d = skills.setdefault(str(sk), {"count": 0, "tasks": []})
+            d["count"] += int(n or 0)
+            if e.get("task") not in d["tasks"]:
+                d["tasks"].append(e.get("task"))
     end_dt = parse_iso(ended["ts"]) if ended else now()
     next_tasks = rank(tasks, states, domain, now_dt=end_dt)[:3]
     return {
         "night": night_id, "started": started, "ended": ended, "states": states, "by_id": by_id,
         "passed": passed, "blocked": blocked, "retry_ids": retry_ids, "pending": pending,
-        "cost": cost, "anomalies": anomalies, "next": next_tasks, "events": ne,
+        "cost": cost, "anomalies": anomalies, "next": next_tasks, "events": ne, "skills": skills,
     }
 
 
@@ -1050,6 +1059,12 @@ def render_summary(c: Dict[str, Any]) -> str:
             out.append("%d. %s %s (priority %d, %d분)" % (i, t.id, t.title, t.priority, t.estimate_minutes))
     else:
         out.append("- (자격 있는 작업 없음 — 계획을 다시 쓰거나 BLOCKED.md를 본다)")
+    out += ["", "## 스킬 자동 호출 (모델이 스스로 부른 것 — 지침이지 강제가 아니다)"]
+    if c.get("skills"):
+        for sk, d in sorted(c["skills"].items(), key=lambda kv: (-kv[1]["count"], kv[0])):
+            out.append("- %s ×%d — %s" % (sk, d["count"], ", ".join(str(t) for t in d["tasks"])))
+    else:
+        out.append("- (없음)")
     out += ["", "## 이상 징후"]
     out += ["- " + a for a in c["anomalies"]] or ["- (없음)"]
     out += ["", "## 병합", "검토 후 `git merge %s`. push는 러너가 하지 않았다. 로그: `.harness/log.jsonl` (append-only)." % branch, ""]

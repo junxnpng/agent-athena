@@ -260,14 +260,15 @@ def run_night(args: argparse.Namespace) -> int:
             night_cost += run.cost_usd
             H.append_event(log, "model_done", night=night_id, task=task.id, attempt=attempt, ok=run.ok, timed_out=run.timed_out,
                            seconds=round(run.seconds, 1), turns=run.turns, cost_usd=round(run.cost_usd, 4),
-                           edits=run.edits or None, tool_counts=run.tool_counts or None, denials=run.denials or None,
+                           edits=run.edits or None, tool_counts=run.tool_counts or None, skills=run.skills or None, denials=run.denials or None,
                            self_report=run.self_report or None, error=run.error or None,
                            slept_seconds=round(run.slept_seconds) if run.slept_seconds >= 30 else None,
                            rate_limit=run.rate_limit_utilization, hooks_dead=run.hooks_dead or None,
                            hook_fires=run.hook_fires if run.hook_fires > 1 else None,
                            result_tail=H.tail(run.result_text, 1500), stream=repo.rel(stream_path))
-            say("  모델 %s · %s · %d턴 · $%.2f · 자기보고 %s%s" % (
+            say("  모델 %s · %s · %d턴 · $%.2f · 자기보고 %s%s%s" % (
                 "ok" if run.ok else "오류", H.fmt_duration(run.seconds), run.turns, run.cost_usd, run.self_report or "-",
+                (" · 스킬 " + ", ".join(sorted(run.skills))) if run.skills else "",
                 (" · " + run.error) if run.error else ""))
 
             # 인프라 실패 — 작업의 실패가 아니다: 시도 횟수를 먹지 않고, 계속해 봐야 소용없으면 밤을 끝낸다 (findings/002)

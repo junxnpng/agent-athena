@@ -2,6 +2,7 @@
 """drivers — 모델 런타임 호출 어댑터. 부기는 여기 없다: 프롬프트를 만들고, 프로세스를 돌리고, 관측값을 돌려준다.
 
 claude: `claude -p` + stream-json. 훅은 --plugin-dir로 세션 한정 주입 (설치 불필요, 실측 확인).
+        사용자 설정 소스(전역 플러그인·훅·출력 스타일)는 --setting-sources 로 뺀다 — 무인 세션이 대화형 환경을 상속하지 않게 (findings/004).
 fake:   HARNESS_FAKE_MODEL 셸 명령 (테스트 / 드라이런). 작업 JSON을 stdin으로 받는다.
 codex:  Phase 6.
 
@@ -26,6 +27,7 @@ import harnesslib as H
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 WRITE_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 DISALLOWED_TOOLS = "WebFetch,WebSearch,AskUserQuestion"
+SETTING_SOURCES = "project,local"  # user 제외: 전역 enabledPlugins·훅·출력 스타일이 무인 세션에 실리지 않게 (findings/004). 대상 repo 의 project/local 은 도메인 소유라 유지
 RESULT_RE = re.compile(r"RESULT:\s*(done|partial|blocked)\b", re.IGNORECASE)
 KNOWN_DRIVERS = ("claude", "fake")
 
@@ -41,6 +43,7 @@ class ModelRun:
     cost_usd: float = 0.0
     edits: Dict[str, int] = field(default_factory=dict)       # P9 재료: 파일별 편집 횟수
     tool_counts: Dict[str, int] = field(default_factory=dict)
+    skills: Dict[str, int] = field(default_factory=dict)      # 모델이 스스로 부른 스킬 (Skill tool_use 의 input.skill) — 자동 호출 실사용률 (findings/004)
     denials: int = 0                                          # 훅이 거부한 도구 호출 수
     result_text: str = ""
     self_report: str = ""                                     # 모델의 RESULT: 자기 보고 — 판정이 아니다 (P6)
@@ -169,6 +172,9 @@ def _ingest(run: ModelRun, ctx: TaskContext, line: bytes) -> None:
                 for t in H.bash_write_targets(str(inp.get("command") or "")):
                     fp = ctx.repo.rel(t if os.path.isabs(t) else os.path.join(str(ctx.repo.root), t))
                     run.edits[fp] = run.edits.get(fp, 0) + 1
+            elif name == "Skill":  # 스킬은 지침이라 호출은 확률적 — 실제로 불렸는지는 스트림에서만 안다 (I9)
+                sk = str(inp.get("skill") or "?")
+                run.skills[sk] = run.skills.get(sk, 0) + 1
     elif t == "result":
         run.saw_result = True
         run.turns = int(ev.get("num_turns") or 0)
@@ -192,6 +198,7 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
         exe, "-p", prompt,
         "--output-format", "stream-json", "--verbose", "--include-hook-events",  # 훅 거부도 관측 기록에 남긴다
         "--plugin-dir", str(H.HARNESS_ROOT),
+        "--setting-sources", SETTING_SOURCES,
         "--max-turns", str(int(drv.get("max_turns") or 120)),
         "--dangerously-skip-permissions",
         "--strict-mcp-config",
@@ -305,7 +312,7 @@ def run_fake(ctx: TaskContext, prompt: str, stream_path: Path) -> ModelRun:
     stream_path.write_text(out, encoding="utf-8")
     run = ModelRun(ok=(code == 0 and not to), timed_out=to, exit=code, seconds=secs, turns=1,
                    result_text=H.tail(out, 1500), saw_result=True, stream_path=str(stream_path))
-    for ln in out.splitlines():  # 가짜 모델은 "EDIT <path>" 줄로 편집을, "COST <usd>" 줄로 비용을 알린다
+    for ln in out.splitlines():  # 가짜 모델은 "EDIT <path>" 줄로 편집을, "COST <usd>" 줄로 비용을, "SKILL <이름>" 줄로 스킬 호출을 알린다
         if ln.startswith("EDIT "):
             fp = ln[5:].strip()
             run.edits[fp] = run.edits.get(fp, 0) + 1
@@ -314,6 +321,9 @@ def run_fake(ctx: TaskContext, prompt: str, stream_path: Path) -> ModelRun:
                 run.cost_usd = float(ln[5:].strip())
             except ValueError:
                 pass
+        elif ln.startswith("SKILL "):
+            sk = ln[6:].strip()
+            run.skills[sk] = run.skills.get(sk, 0) + 1
     m = RESULT_RE.search(out)
     run.self_report = m.group(1).lower() if m else ""
     run.slept_seconds = float(os.environ.get("HARNESS_FAKE_SLEPT") or 0)  # 테스트: 잠듦 흉내

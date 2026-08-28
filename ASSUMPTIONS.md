@@ -31,6 +31,8 @@
 | 훅 생존 카나리아 | 훅은 자기 부재를 알릴 수 없다 — `--plugin-dir` 주입이 조용히 실패하면 `--dangerously-skip-permissions`만 남아 무방비다 (I6·I7이 전부 훅에 걸려 있다). session-start가 카나리아 파일을 쓰고, 드라이버가 첫 assistant 이벤트에서 존재를 확인 — 없으면 즉시 중단 (`hooks_dead`) | 구조적 · A | `hooks/session-start`, `drivers.py: run_claude`, `runner/night` |
 | G2 계획 DAG 렌더 | 모델이 그린 다이어그램은 자기 평가가 섞인다 — 러너가 plan.json+상태에서 결정론적으로 mermaid 렌더 (P10과 같은 원리) | 구조적 · A | `harnesslib.py: render_plan_dag` |
 | 비용 상한 기본값 | 모델은 자기 비용을 모르고, null 상한은 상한이 아니다 (night-002: 55분에 5시간 창 67% 실측). 시도당 `driver.max_budget_usd` · 밤당 `budget.max_night_usd` · 창 사용률 `budget.rate_limit_stop` 삼중 기본값 — 해제는 명시적 null 로만 | 구조적 · A | `harnesslib.py: DOMAIN_DEFAULTS`, `runner/night` |
+| 설정 소스 격리 | 무인 세션은 사용자의 대화형 환경(전역 플러그인 34개·훅·출력 스타일)을 기본으로 상속한다 — 모델은 "학습 모드: 사용자 몫을 남겨라" 같은 대화형 지시를 무인 상황에서 걸러내지 못한다(night-001·002 스트림 8/8 상속, 6/8에서 ★ Insight 출력). 러너는 `--setting-sources project,local`로 user 소스를 뺀다 (`--bare`는 훅까지 꺼서 부적합) | 구조적 · A | `drivers.py: SETTING_SOURCES` |
+| 스킬 자동 호출 관측 | 스킬은 md 지침이라 호출은 설명문 매칭의 확률이고 모델 급에 따라 다르다(실측 2026-08-28: sonnet 0/2, opus 1/1). 러너 프롬프트는 스킬을 지목하지 않으므로 실사용률은 스트림의 `Skill` tool_use를 세어야만 보인다 → `model_done.skills`, SUMMARY "스킬 자동 호출" | Claude 5 · B | `drivers.py: _ingest`, `harnesslib.py: collect_night` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)

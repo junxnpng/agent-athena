@@ -25,15 +25,17 @@ class IngestTests(unittest.TestCase):
                 b'{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}',
                 b'{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"cat > tests/t.py <<EOF\\nx\\nEOF"}}]}}',
                 b'{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"%s/src/a.py"}}]}}' % d.encode(),
+                b'{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"harness:brainstorming","args":"x"}}]}}',
                 b'not json',
             ]
             for ln in lines:
                 D._ingest(run, ctx, ln)
-            self.assertEqual(run.assistant_turns, 3)
+            self.assertEqual(run.assistant_turns, 4)
             self.assertEqual(run.rate_limit_utilization, 0.67)
             self.assertFalse(run.saw_result)
             self.assertEqual(run.edits, {"tests/t.py": 1, "src/a.py": 1})
-            self.assertEqual(run.tool_counts, {"Bash": 1, "Edit": 1})
+            self.assertEqual(run.tool_counts, {"Bash": 1, "Edit": 1, "Skill": 1})
+            self.assertEqual(run.skills, {"harness:brainstorming": 1})  # 스킬 자동 호출은 스트림에서만 보인다 (findings/004)
             D._ingest(run, ctx, b'{"type":"result","subtype":"success","num_turns":7,"total_cost_usd":1.5,"result":"ok\\nRESULT: done - x","permission_denials":[{}]}')
             self.assertEqual((run.turns, run.cost_usd, run.denials, run.self_report, run.saw_result), (7, 1.5, 1, "done", True))
 
@@ -62,7 +64,7 @@ class ClaudeCanaryTests(unittest.TestCase):
     def fake_claude(self, lines, touch_canary, sleep_after=False, double_fire=False):
         data = self.root / "bin" / "stream.jsonl"
         data.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        body = ["#!/bin/sh"]
+        body = ["#!/bin/sh", "printf '%%s\\n' \"$@\" > \"%s\"" % (self.root / "bin" / "args.txt")]  # 드라이버가 준 인자를 남긴다
         if touch_canary:
             body.append(': > "$HARNESS_CANARY"')
         if double_fire:
@@ -92,6 +94,15 @@ class ClaudeCanaryTests(unittest.TestCase):
         self.fake_claude([self.ASSISTANT, self.RESULT], touch_canary=False, double_fire=True)
         run, _ = self.run_claude()
         self.assertEqual((run.hooks_dead, run.ok, run.hook_fires), (False, True, 2))  # 훅은 살아 있다 — 기록만
+
+    def test_args_exclude_user_settings_but_keep_plugin_dir(self):
+        self.fake_claude([self.ASSISTANT, self.RESULT], touch_canary=True)
+        run, _ = self.run_claude()
+        self.assertTrue(run.ok)
+        args = (self.root / "bin" / "args.txt").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(args[args.index("--setting-sources") + 1], "project,local")  # 전역 플러그인·훅·출력 스타일 상속 차단 (findings/004)
+        self.assertEqual(args[args.index("--plugin-dir") + 1], str(H.HARNESS_ROOT))     # 하네스 훅은 여전히 주입된다
+        self.assertNotIn("--bare", args)  # --bare 는 훅·키체인까지 꺼서 부적합
 
     def test_canary_missing_kills_immediately_even_with_stale_file(self):
         self.fake_claude([self.ASSISTANT, self.RESULT], touch_canary=False, sleep_after=True)
