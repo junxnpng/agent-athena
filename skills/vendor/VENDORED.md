@@ -10,3 +10,4 @@
 
 | 이름 | 소스repo | 커밋 | 라이선스 | 감사일 | 수정 내역 |
 |---|---|---|---|---|---|
+| verification-before-completion | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 없음 |
