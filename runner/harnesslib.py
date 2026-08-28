@@ -334,6 +334,19 @@ def strip_heredoc_bodies(cmd: str, keep: "re.Pattern[str]" = _SHELL_HEREDOC_RE) 
     return "\n".join(out)
 
 
+_LEADING_CD_RE = re.compile(r'''^\s*cd\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s*(?:&&|;)''')
+
+
+def leading_cd(cmd: str, cwd: Path) -> Path:
+    """`cd <dir> && …` 로 시작하는 명령의 상대 경로 기준 — night-005 실측 3: `cd /tmp && cat > t.py` 의 `t.py` 를 repo 기준으로 풀어
+    허용된 임시 디렉토리 쓰기를 거부했다 (findings/005). 앞머리 cd 하나만 본다 — 그 뒤는 휴리스틱 범위 밖."""
+    m = _LEADING_CD_RE.match(cmd)
+    if not m:
+        return cwd
+    target = Path(m.group(1) or m.group(2) or m.group(3) or ".").expanduser()
+    return target if target.is_absolute() else cwd / target
+
+
 def bash_write_targets(cmd: str) -> List[str]:
     """Bash 명령에서 쓰기 대상 경로를 휴리스틱으로 뽑는다 (> >> tee · sed -i · cp/mv 목적지 · touch/mkdir).
 

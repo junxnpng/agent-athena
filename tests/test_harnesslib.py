@@ -163,6 +163,13 @@ class ScopeTests(unittest.TestCase):
         self.assertIn("-> str:", H.strip_heredoc_bodies("bash <<EOF\nx -> str:\nEOF"))
         self.assertNotIn("-> str:", H.strip_heredoc_bodies("cat <<EOF\nx -> str:\nEOF\nls"))
 
+    def test_leading_cd_sets_relative_base(self):
+        cwd = Path("/r")
+        self.assertEqual(H.leading_cd("cd /tmp && cat > t.py <<'EOF'\nx\nEOF", cwd), Path("/tmp"))
+        self.assertEqual(H.leading_cd("cd sub; echo x > a.py", cwd), Path("/r/sub"))
+        self.assertEqual(H.leading_cd("cd \"my dir\" && ls", cwd), Path("/r/my dir"))
+        self.assertEqual(H.leading_cd("echo x > a.py && cd /tmp", cwd), cwd)  # 앞머리 cd 만 본다
+
     def test_scope_violations(self):
         d = H.Domain({"write_scope": ["tests"]})
         changed = ["tests/t.py", "src/x.py", ".harness/log.jsonl", ".harness/plan.json", ".harness/sessions/n/x", "evil.py"]

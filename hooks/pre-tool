@@ -130,8 +130,9 @@ def main() -> int:
         cmd = str(inp.get("command") or "")
         reason = check_bash(cmd, runner_mode)
         if not reason:  # heredoc · 리다이렉션 · sed -i · cp/mv 의 쓰기 대상도 범위 검사 (휴리스틱; 최종 판정은 러너)
+            base = H.leading_cd(cmd, cwd)  # `cd /tmp && cat > t.py` — 상대 경로는 cd 뒤 기준 (findings/005 실측 3)
             for t in H.bash_write_targets(cmd):
-                r = check_path(t, repo, domain, cwd, runner_mode)
+                r = check_path(t, repo, domain, base, runner_mode)
                 if r:
                     reason = "Bash 쓰기 대상 %s: %s" % (t, r)
                     break

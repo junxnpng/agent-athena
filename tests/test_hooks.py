@@ -109,6 +109,10 @@ class HookTests(unittest.TestCase):
         # night-004 — 파이썬 heredoc 본문의 HTML `>` 는 쓰기 대상이 아니지만, 그 안의 git commit 은 여전히 거부한다
         self.assertIsNone(self.bash("python3 - <<'PY'\nprint(\"<b>Sentiment</b> > Markets\")\nPY", runner=True))
         self.assertEqual(self.bash("python3 - <<'PY'\nimport os; os.system(\"git commit -m x\")\nPY", runner=True), "deny")
+        # night-005 실측 3 — 앞머리 `cd <dir> &&` 뒤의 상대 경로는 그 디렉토리 기준: /tmp 스크래치는 허용, 범위 밖 디렉토리로 cd 하면 거부
+        self.assertIsNone(self.bash("cd /tmp && cat > t_ruf.py <<'EOF'\nx\nEOF", runner=True))
+        self.assertIsNone(self.bash("cd src && echo x > a.py", runner=True))
+        self.assertEqual(self.bash("cd lib && echo x > b.py", runner=True), "deny")
 
     def test_budget_message(self):
         out = self.hook("pre-tool", {"tool_name": "Bash", "tool_input": {"command": "ls"}}, runner=True, HARNESS_DEADLINE_EPOCH="1")
