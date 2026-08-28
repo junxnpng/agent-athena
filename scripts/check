@@ -26,9 +26,14 @@ import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
 assert m, "frontmatter 없음"
+from pathlib import Path
+ledger = Path("skills/vendor/VENDORED.md")
+vendored = {ln.split("|")[1].strip() for ln in ledger.read_text(encoding="utf-8").splitlines() if ln.startswith("| ")} if ledger.exists() else set()
+if Path(sys.argv[1]).parent.name in vendored:
+    sys.exit(0)  # vendored 스킬은 upstream frontmatter 유지 (skills/vendor/VENDORED.md)
 keys = [ln.split(":", 1)[0].strip() for ln in m.group(1).splitlines() if ln.strip() and not ln.startswith(" ")]
 extra = sorted(set(keys) - {"name", "description"})
-assert not extra, "frontmatter 는 name, description 2키만: %s" % extra
+assert not extra, "frontmatter 는 name, description 2키만: %s (vendored 면제는 skills/vendor/VENDORED.md)" % extra
 PY
 done
 
