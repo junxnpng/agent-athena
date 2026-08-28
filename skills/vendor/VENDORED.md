@@ -13,3 +13,4 @@
 | verification-before-completion | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 없음 |
 | systematic-debugging | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | superpowers: 접두어 2곳 제거 |
 | ponytail-review | DietrichGebert/ponytail | 2ed6c52c9d7e | MIT | 2026-08-28 | 없음 |
+| grilling | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 없음 |
