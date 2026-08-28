@@ -301,15 +301,18 @@ def contract_missing(repo: Repo) -> List[str]:
 
 _REDIRECT_RE = re.compile(r"(?:(?<![<>&-])>>?|\btee\b(?:\s+-[a-z]+)*)\s*[\"']?([^\s\"'<>|;&()`]+)")  # `->` 는 리다이렉션이 아니다 (findings/005)
 _HEREDOC_RE = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
-_EXEC_HEREDOC_RE = re.compile(r"(?:^|[|;&(]\s*)(?:sudo\s+)?(?:\S*/)?(?:sh|bash|zsh|dash|ksh|python[0-9.]*|perl|ruby|node)\b[^|;&\n]*<<")
+_SHELL_HEREDOC_RE = re.compile(r"(?:^|[|;&(]\s*)(?:sudo\s+)?(?:\S*/)?(?:sh|bash|zsh|dash|ksh)\b[^|;&\n]*<<")  # 본문이 셸로 실행된다 — `>` 가 진짜 리다이렉션
+EXEC_HEREDOC_RE = re.compile(r"(?:^|[|;&(]\s*)(?:sudo\s+)?(?:\S*/)?(?:sh|bash|zsh|dash|ksh|python[0-9.]*|perl|ruby|node)\b[^|;&\n]*<<")  # 본문이 무엇이든 실행된다 — 거부 규칙(commit/push·네트워크)은 여기까지 본다
 _SED_I_RE = re.compile(r"\bsed\s+-i(?:\s*'')?\s+(?:-e\s+)?(?:'[^']*'|\"[^\"]*\"|\S+)\s+([^\s|;&]+)")
 _CP_MV_RE = re.compile(r"\b(?:cp|mv)\s+(?:-\S+\s+)*\S+\s+([^\s|;&]+)")
 _TOUCH_RE = re.compile(r"\b(?:touch|mkdir(?:\s+-p)?)\s+([^\s|;&]+)")
 
 
-def strip_heredoc_bodies(cmd: str) -> str:
+def strip_heredoc_bodies(cmd: str, keep: "re.Pattern[str]" = _SHELL_HEREDOC_RE) -> str:
     """heredoc 본문은 데이터라 스캔에서 뺀다 — night-003 실측: `def f() -> str:`·`<title>{x}`·주석의 `->` 를 쓰기 대상으로 오인해
-    범위 안 쓰기를 거부했다 (findings/005). 단 본문이 셸·인터프리터에 *실행*되는 heredoc(`bash <<EOF`)은 그대로 둔다 — 그 안의 `>` 는 진짜다.
+    범위 안 쓰기를 거부했다 (findings/005). `keep` 에 맞는 머리 줄의 heredoc 은 본문을 그대로 둔다 — 기본은 셸 실행형(`bash <<EOF`):
+    그 안의 `>` 만 진짜 리다이렉션이다. night-004 실측 2: `python3 - <<PY` 본문의 `<b>Sentiment</b>` 도 오인했다 — 파이썬 본문의 `>` 는 셸이 아니다.
+    거부 규칙(commit/push·네트워크)은 EXEC_HEREDOC_RE 로 인터프리터 본문까지 본다 (`os.system("git commit")` 우회 방지).
     머리 줄(`cat > f <<EOF`)은 항상 훑는다. 놓치는 쪽은 러너의 git status 최종 판정이 받는다."""
     lines = cmd.splitlines()
     out: List[str] = []
@@ -319,7 +322,7 @@ def strip_heredoc_bodies(cmd: str) -> str:
         out.append(ln)
         i += 1
         m = _HEREDOC_RE.search(ln)
-        if not m or _EXEC_HEREDOC_RE.search(ln):
+        if not m or keep.search(ln):
             continue
         word, strip_tabs = m.group(3), bool(m.group(1))
         while i < len(lines):

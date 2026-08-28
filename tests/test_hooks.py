@@ -106,6 +106,9 @@ class HookTests(unittest.TestCase):
         self.assertIsNone(self.bash("cat > src/t.py <<'EOF'\ndef f() -> str:\n    return '<b>{x}</b>'\ncurl https://example.com/feed  # 문서용 예시\nEOF", runner=True))
         self.assertEqual(self.bash("bash <<'EOF'\necho x > lib/z.py\nEOF", runner=True), "deny")
         self.assertEqual(self.bash("sh <<'EOF'\ncurl https://example.com\nEOF", runner=True), "deny")
+        # night-004 — 파이썬 heredoc 본문의 HTML `>` 는 쓰기 대상이 아니지만, 그 안의 git commit 은 여전히 거부한다
+        self.assertIsNone(self.bash("python3 - <<'PY'\nprint(\"<b>Sentiment</b> > Markets\")\nPY", runner=True))
+        self.assertEqual(self.bash("python3 - <<'PY'\nimport os; os.system(\"git commit -m x\")\nPY", runner=True), "deny")
 
     def test_budget_message(self):
         out = self.hook("pre-tool", {"tool_name": "Bash", "tool_input": {"command": "ls"}}, runner=True, HARNESS_DEADLINE_EPOCH="1")

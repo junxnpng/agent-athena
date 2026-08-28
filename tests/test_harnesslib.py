@@ -156,7 +156,10 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(H.bash_write_targets("echo 'x -> y' > note.txt"), ["note.txt"])
         # 실행형 heredoc 의 본문은 진짜 명령이다 — 계속 훑는다
         self.assertEqual(H.bash_write_targets("bash <<'EOF'\necho x > /etc/passwd\nEOF"), ["/etc/passwd"])
-        self.assertEqual(H.bash_write_targets(".venv/bin/python - <<'EOF'\nprint('a -> b')\nopen(\"w\")\nEOF"), [])
+        # night-004 실측 2 — 파이썬 heredoc 본문의 `<b>Sentiment</b>` 은 셸 리다이렉션이 아니다 (인터프리터 본문은 쓰기 대상 스캔 제외)
+        self.assertEqual(H.bash_write_targets(".venv/bin/python - <<'PY'\nprint(\"<b>Sentiment</b> > Markets\")\nx = a > b\nPY"), [])
+        self.assertEqual(H.bash_write_targets("python3 - <<'PY'\nprint(1)\nPY\necho z > after.txt"), ["after.txt"])
+        self.assertIn("git commit", H.strip_heredoc_bodies("python3 - <<PY\nos.system(\"git commit -m x\")\nPY", keep=H.EXEC_HEREDOC_RE))  # 거부 규칙용 스캔은 인터프리터 본문을 본다
         self.assertIn("-> str:", H.strip_heredoc_bodies("bash <<EOF\nx -> str:\nEOF"))
         self.assertNotIn("-> str:", H.strip_heredoc_bodies("cat <<EOF\nx -> str:\nEOF\nls"))
 
