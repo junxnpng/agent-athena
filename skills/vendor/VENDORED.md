@@ -30,3 +30,4 @@
 | code-review | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | setup 참조 → 사용자 질문으로 |
 | receiving-code-review | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 모드 A 전용 표시 (gh api — 공통 사항 4) |
 | using-git-worktrees | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 없음 |
+| executing-plans | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | subagent-driven/finishing 참조 제거 (Step 3 마무리 3줄 → 사람 보고 1줄) |
