@@ -22,3 +22,4 @@
 | domain-modeling | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 없음 |
 | research | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 모드 A 전용 표시 |
 | to-spec | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 트래커 발행 → 로컬 md 저장 |
+| wait-what | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | CONTEXT-MAP 절 삭제 |
