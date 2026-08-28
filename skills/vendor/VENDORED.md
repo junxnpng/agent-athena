@@ -16,3 +16,4 @@
 | grilling | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 없음 |
 | brainstorming | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | scripts/server.cjs 텔레메트리 상수 고정(외부 로고 fetch 제거) |
 | teach | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 첫 줄 모드 A 전용 표시 |
+| arxiv-search | langchain-ai/deepagents | 457ac435e121 | MIT | 2026-08-28 | 모드A 표시 · main() print 버그 수정 · 경로 |
