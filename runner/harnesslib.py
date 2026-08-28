@@ -299,10 +299,36 @@ def contract_missing(repo: Repo) -> List[str]:
 
 # ────────────────────────────────────────────────────────────── I6 쓰기 범위
 
-_REDIRECT_RE = re.compile(r"(?:(?<![<>&])>>?|\btee\b(?:\s+-[a-z]+)*)\s*[\"']?([^\s\"'<>|;&()`]+)")
+_REDIRECT_RE = re.compile(r"(?:(?<![<>&-])>>?|\btee\b(?:\s+-[a-z]+)*)\s*[\"']?([^\s\"'<>|;&()`]+)")  # `->` 는 리다이렉션이 아니다 (findings/005)
+_HEREDOC_RE = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+_EXEC_HEREDOC_RE = re.compile(r"(?:^|[|;&(]\s*)(?:sudo\s+)?(?:\S*/)?(?:sh|bash|zsh|dash|ksh|python[0-9.]*|perl|ruby|node)\b[^|;&\n]*<<")
 _SED_I_RE = re.compile(r"\bsed\s+-i(?:\s*'')?\s+(?:-e\s+)?(?:'[^']*'|\"[^\"]*\"|\S+)\s+([^\s|;&]+)")
 _CP_MV_RE = re.compile(r"\b(?:cp|mv)\s+(?:-\S+\s+)*\S+\s+([^\s|;&]+)")
 _TOUCH_RE = re.compile(r"\b(?:touch|mkdir(?:\s+-p)?)\s+([^\s|;&]+)")
+
+
+def strip_heredoc_bodies(cmd: str) -> str:
+    """heredoc 본문은 데이터라 스캔에서 뺀다 — night-003 실측: `def f() -> str:`·`<title>{x}`·주석의 `->` 를 쓰기 대상으로 오인해
+    범위 안 쓰기를 거부했다 (findings/005). 단 본문이 셸·인터프리터에 *실행*되는 heredoc(`bash <<EOF`)은 그대로 둔다 — 그 안의 `>` 는 진짜다.
+    머리 줄(`cat > f <<EOF`)은 항상 훑는다. 놓치는 쪽은 러너의 git status 최종 판정이 받는다."""
+    lines = cmd.splitlines()
+    out: List[str] = []
+    i = 0
+    while i < len(lines):
+        ln = lines[i]
+        out.append(ln)
+        i += 1
+        m = _HEREDOC_RE.search(ln)
+        if not m or _EXEC_HEREDOC_RE.search(ln):
+            continue
+        word, strip_tabs = m.group(3), bool(m.group(1))
+        while i < len(lines):
+            body = lines[i]
+            i += 1
+            if (body.lstrip("\t") if strip_tabs else body).rstrip() == word:
+                out.append(body)
+                break
+    return "\n".join(out)
 
 
 def bash_write_targets(cmd: str) -> List[str]:
@@ -311,6 +337,7 @@ def bash_write_targets(cmd: str) -> List[str]:
     완전하지 않다 — 훅의 조기 거부와 P9 편집 카운터용. 최종 판정은 러너가 git status 로 한다 (scope_violations).
     첫 밤 실측: bypass 모드의 모델은 파일을 전부 `cat > f <<EOF` 로 써서 Write/Edit 경로 검사가 아무것도 못 봤다.
     """
+    cmd = strip_heredoc_bodies(cmd)
     out: List[str] = []
     for m in _REDIRECT_RE.finditer(cmd):
         t = m.group(1)

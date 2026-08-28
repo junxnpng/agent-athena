@@ -102,6 +102,10 @@ class HookTests(unittest.TestCase):
         self.assertEqual(self.bash("python3 gen.py | tee lib/c.txt", runner=True), "deny")
         self.assertIsNone(self.bash("python3 -m pytest -q > /tmp/out.txt 2>&1"))
         self.assertIsNone(self.bash("python3 -m pytest -q 2>&1 | tail -3"))
+        # findings/005 — heredoc 본문(데이터)의 `-> str:`·`<b>{x}`·줄머리 `curl` 은 거부 사유가 아니다. 실행형 heredoc 은 계속 본다
+        self.assertIsNone(self.bash("cat > src/t.py <<'EOF'\ndef f() -> str:\n    return '<b>{x}</b>'\ncurl https://example.com/feed  # 문서용 예시\nEOF", runner=True))
+        self.assertEqual(self.bash("bash <<'EOF'\necho x > lib/z.py\nEOF", runner=True), "deny")
+        self.assertEqual(self.bash("sh <<'EOF'\ncurl https://example.com\nEOF", runner=True), "deny")
 
     def test_budget_message(self):
         out = self.hook("pre-tool", {"tool_name": "Bash", "tool_input": {"command": "ls"}}, runner=True, HARNESS_DEADLINE_EPOCH="1")

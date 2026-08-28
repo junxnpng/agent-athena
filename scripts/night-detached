@@ -1,9 +1,13 @@
 #!/bin/sh
-# night-detached — 밤을 터미널·세션과 분리해 띄운다 (취침 시점의 "한 명령"). 사용: scripts/night-detached --repo <path> [night 옵션...]
+# night-detached — 밤을 터미널·세션과 분리해 띄운다 (취침 시점의 "한 명령").
+# 사용: scripts/night-detached --repo <path> [night 옵션...]        밤 하나
+#       scripts/night-detached loop --repo <path> [night-loop 옵션...] 밤 여러 개를 마감까지 잇는다 (runner/night-loop)
 # - nohup + 새 세션: setsid 는 macOS 에 없으므로 python os.setsid() 로 만든다 (macOS / Ubuntu 공통)
 # - 잠자기 방지: macOS caffeinate -i, Ubuntu systemd-inhibit (있으면). 둘 다 없으면 그냥 띄운다
 # - 출력: <repo>/.harness/sessions/runner.log (append). 진행은 <repo>/.harness/log.jsonl, 아침엔 SUMMARY.md
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ENTRY=night
+if [ "$1" = "loop" ]; then ENTRY=night-loop; shift; fi
 REPO=.
 prev=""
 for a in "$@"; do
@@ -21,5 +25,5 @@ elif command -v systemd-inhibit >/dev/null 2>&1; then
 fi
 # shellcheck disable=SC2086  # KEEPAWAKE 는 의도적 단어 분리
 nohup python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
-  $KEEPAWAKE python3 "$ROOT/runner/night" "$@" >> "$LOG" 2>&1 < /dev/null &
-printf 'night detached: pid %s · keepawake: %s · log: %s\n' "$!" "${KEEPAWAKE:-none}" "$LOG"
+  $KEEPAWAKE python3 "$ROOT/runner/$ENTRY" "$@" >> "$LOG" 2>&1 < /dev/null &
+printf '%s detached: pid %s · keepawake: %s · log: %s\n' "$ENTRY" "$!" "${KEEPAWAKE:-none}" "$LOG"

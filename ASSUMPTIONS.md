@@ -33,6 +33,8 @@
 | 비용 상한 기본값 | 모델은 자기 비용을 모르고, null 상한은 상한이 아니다 (night-002: 55분에 5시간 창 67% 실측). 시도당 `driver.max_budget_usd` · 밤당 `budget.max_night_usd` · 창 사용률 `budget.rate_limit_stop` 삼중 기본값 — 해제는 명시적 null 로만 | 구조적 · A | `harnesslib.py: DOMAIN_DEFAULTS`, `runner/night` |
 | 설정 소스 격리 | 무인 세션은 사용자의 대화형 환경(전역 플러그인 34개·훅·출력 스타일)을 기본으로 상속한다 — 모델은 "학습 모드: 사용자 몫을 남겨라" 같은 대화형 지시를 무인 상황에서 걸러내지 못한다(night-001·002 스트림 8/8 상속, 6/8에서 ★ Insight 출력). 러너는 `--setting-sources project,local`로 user 소스를 뺀다 (`--bare`는 훅까지 꺼서 부적합) | 구조적 · A | `drivers.py: SETTING_SOURCES` |
 | 스킬 자동 호출 관측 | 스킬은 md 지침이라 호출은 설명문 매칭의 확률이고 모델 급에 따라 다르다(실측 2026-08-28: sonnet 0/2, opus 1/1). 러너 프롬프트는 스킬을 지목하지 않으므로 실사용률은 스트림의 `Skill` tool_use를 세어야만 보인다 → `model_done.skills`, SUMMARY "스킬 자동 호출" | Claude 5 · B | `drivers.py: _ingest`, `harnesslib.py: collect_night` |
+| heredoc 본문 제외 | 조기 거부 휴리스틱은 재현율만 걱정했지만 정밀도가 낮으면 거부가 곧 우회 유도다 — 모델은 거부당하면 다른 도구로 같은 쓰기를 한다(night-003: `cat > tests/x.py <<EOF` 거부 → `Write`). heredoc 본문은 데이터라 스캔에서 빼고, 실행형(`bash <<EOF`)만 남긴다 | Claude 5 · B | `harnesslib.py: strip_heredoc_bodies`, `hooks/pre-tool: check_bash` |
+| 연속 밤 루프 | 밤이 5시간 창·예산으로 끝나면 사람이 없는 한 아무도 다음 밤을 띄우지 않는다 — 대화형 루프 스킬(/loop 류)은 러너 밖에서 세션을 반복하는 것이라 층이 틀리다. `runner/night-loop`가 밤을 잇되 밤 안은 만지지 않고, 총비용 상한·마감·밤 수로 묶는다(밤당 상한은 밤마다 새로 시작하므로) | 구조적 · A | `runner/night-loop`, `scripts/night-detached loop` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)

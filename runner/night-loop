@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""night-loop — 밤 여러 개를 벽시계 마감까지 잇는 바깥 루프. 스킬이 아니라 러너의 일이다.
+
+밤 = 세션 원칙은 그대로: 이 루프는 `runner/night`를 차례로 띄울 뿐 밤 안(선택·판정·커밋)은 만지지 않는다.
+- 바로 잇는다: 밤이 시간 예산(budget)·작업 수 상한(max_tasks)으로 끝났을 때
+- 쉬고 잇는다: 5시간 창(rate_limited)·밤 비용 상한(cost_budget)으로 끝났을 때 — --wait-minutes 뒤
+- 멈춘다: 큐 비움(queue_empty) · 인프라/구조 실패(machine_slept·hooks_dead·driver_unhealthy·smoke_unrepairable·bootstrap_failed·interrupted)
+  · 모르는 사유 · 비정상 exit · 마감(--until-hours) · 밤 수 상한 · **총비용 상한**(--max-total-usd — 밤당 상한은 밤마다 새로 시작하므로 루프에 따로 있어야 한다)
+루프는 log.jsonl 에 아무것도 쓰지 않는다 (밤 밖의 부기는 runner.log 한 줄씩) — 밤 preflight 가 보는 트리를 더럽히지 않는다.
+SIGTERM/SIGINT: 진행 중인 밤은 끝까지 두고 다음 밤을 띄우지 않는다 (밤 자체를 끊으려면 runner/night 프로세스에 보낸다).
+"""
+from __future__ import annotations
+
+import argparse
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Sequence
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harnesslib as H  # noqa: E402
+
+NIGHT = Path(__file__).resolve().parent / "night"
+CONTINUE_NOW = ("budget", "max_tasks")
+CONTINUE_AFTER_WAIT = ("rate_limited", "cost_budget")
+STOP_OK = ("queue_empty", "deadline", "max_nights", "cost_cap", "signal")  # 루프 exit 0 — 나머지는 사람이 봐야 한다 (exit 3)
+
+
+def decide(reason: str, rc: int) -> str:
+    """밤 종료 사유 → 'now' | 'wait' | 'stop'. 모르는 사유·비정상 exit 는 멈춘다 — 사람이 봐야 한다."""
+    if rc != 0:
+        return "stop"
+    if reason in CONTINUE_NOW:
+        return "now"
+    if reason in CONTINUE_AFTER_WAIT:
+        return "wait"
+    return "stop"
+
+
+def night_ends(events: Sequence[Dict[str, Any]], since: int) -> List[Dict[str, Any]]:
+    return [e for e in events[since:] if e.get("event") == "night_ended"]
+
+
+def main() -> int:
+    H.ensure_utf8_stdio()
+    ap = argparse.ArgumentParser(description="밤 여러 개를 마감까지 잇는다 — 나머지 인자는 runner/night 에 그대로 넘긴다 (--model --hours --max-tasks --driver ...)")
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--until-hours", type=float, default=7.0, help="루프 전체 벽시계 예산 (시간)")
+    ap.add_argument("--wait-minutes", type=float, default=30.0, help="창·밤 비용 상한으로 끝난 뒤 다음 밤까지 대기")
+    ap.add_argument("--max-total-usd", type=float, default=40.0, help="루프 총비용 상한 (USD)")
+    ap.add_argument("--max-nights", type=int, default=8, help="밤 수 상한")
+    args, passthrough = ap.parse_known_args()
+    repo = H.Repo(Path(args.repo).resolve())
+    if not repo.hdir.is_dir():
+        print("night-loop: %s 에 .harness/ 가 없다" % repo.root, file=sys.stderr)
+        return 2
+
+    def say(msg: str) -> None:
+        print("[%s] loop: %s" % (H.now().strftime("%H:%M:%S"), msg), flush=True)
+
+    stop_requested: List[int] = []
+
+    def on_signal(signum: int, frame: Any) -> None:  # noqa: ANN401
+        stop_requested.append(signum)
+        say("신호 %d — 진행 중인 밤은 끝까지, 다음 밤은 띄우지 않는다" % signum)
+
+    signal.signal(signal.SIGINT, on_signal)
+    signal.signal(signal.SIGTERM, on_signal)
+
+    start_mono = time.monotonic()
+    deadline = start_mono + args.until_hours * 3600.0
+    base = len(H.read_log(repo.log)) if repo.log.exists() else 0
+    nights, total = 0, 0.0
+    why = "?"
+    say("시작 · 마감 %.1fh · 총비용 상한 $%.0f · 밤 상한 %d · night 인자: %s" % (
+        args.until_hours, args.max_total_usd, args.max_nights, " ".join(passthrough) or "(없음)"))
+    while True:
+        if stop_requested:
+            why = "signal"
+            break
+        if nights >= args.max_nights:
+            why = "max_nights"
+            break
+        left = deadline - time.monotonic()
+        if left <= 0:
+            why = "deadline"
+            break
+        say("밤 %d 시작 (마감까지 %s, 누적 비용 $%.2f)" % (nights + 1, H.fmt_duration(left), total))
+        p = subprocess.run([sys.executable, str(NIGHT), "--repo", str(repo.root)] + passthrough,
+                           stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+        ends = night_ends(H.read_log(repo.log) if repo.log.exists() else [], base)
+        if len(ends) <= nights:
+            why = "night_not_started(exit %s)" % p.returncode
+            break
+        end = ends[-1]
+        nights += 1
+        cost = float(end.get("cost_usd") or 0.0)
+        total += cost
+        reason = str(end.get("reason") or "?")
+        action = decide(reason, p.returncode)
+        say("%s 종료 (%s, exit %s) · 통과 %s / 실패 %s / 막힘 %s · 비용 $%.2f · 누적 $%.2f → %s" % (
+            end.get("night"), reason, p.returncode, end.get("passed"), end.get("failed"), end.get("blocked"), cost, total,
+            {"now": "바로 잇는다", "wait": "%.0f분 쉬고 잇는다" % args.wait_minutes, "stop": "멈춘다"}[action]))
+        if total >= args.max_total_usd:
+            why = "cost_cap"
+            break
+        if action == "stop":
+            why = reason
+            break
+        if action == "wait":
+            until = min(time.monotonic() + args.wait_minutes * 60.0, deadline)
+            while time.monotonic() < until and not stop_requested:
+                time.sleep(min(5.0, max(0.0, until - time.monotonic())))
+    say("루프 종료 (%s) · 밤 %d개 · 총비용 $%.2f · %s" % (why, nights, total, H.fmt_duration(time.monotonic() - start_mono)))
+    return 0 if why in STOP_OK else 3
+
+
+if __name__ == "__main__":
+    sys.exit(main())

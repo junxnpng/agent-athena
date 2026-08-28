@@ -84,8 +84,9 @@ def check_path(path_str: str, repo: H.Repo, domain: H.Domain, cwd: Path, runner_
 
 def check_bash(cmd: str, runner_mode: bool) -> Optional[str]:
     rules = ALWAYS_DENY + (RUNNER_DENY if runner_mode else [])
+    scan = H.strip_heredoc_bodies(cmd)  # heredoc 본문(데이터)의 `curl …`·`->` 는 명령이 아니다 — 실행형 heredoc 은 남는다 (findings/005)
     for pat, reason in rules:
-        if re.search(pat, cmd, re.MULTILINE | re.IGNORECASE):  # macOS 대소문자 무시 FS: summary.md == SUMMARY.md
+        if re.search(pat, scan, re.MULTILINE | re.IGNORECASE):  # macOS 대소문자 무시 FS: summary.md == SUMMARY.md
             return reason
     return None
 

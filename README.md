@@ -19,7 +19,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 6. `runner/decompose --check --repo <path>` → 계획 검증 (접수 게이트: 검증기 없는 리프는 거부)
 7. `runner/night --repo <path> --hours 0.5` → **감독 하에 30분**
 8. `.harness/SUMMARY.md`가 5분 안에 읽히는지 확인
-9. 그 다음에야 무인으로: **`scripts/night-detached --repo <path> --hours 8`** — 터미널을 닫아도 살아남고(nohup + 새 세션) 맥/우분투 잠자기를 막는다(caffeinate / systemd-inhibit). 멈추려면 `kill $(cut -d' ' -f1 <repo>/.harness/sessions/lock)`
+9. 그 다음에야 무인으로: **`scripts/night-detached --repo <path> --hours 8`** — 터미널을 닫아도 살아남고(nohup + 새 세션) 맥/우분투 잠자기를 막는다(caffeinate / systemd-inhibit). 멈추려면 `kill $(cut -d' ' -f1 <repo>/.harness/sessions/lock)`. 아침까지 밤을 잇고 싶으면 **`scripts/night-detached loop --repo <path> --until-hours 7 --max-total-usd 40`** — 창·예산으로 끝난 밤 뒤에 다음 밤을 띄우고, 큐가 비거나 총비용 상한에 닿으면 멈춘다(`runner/night-loop`)
 
 ## 무인 실행 주의 (findings/002)
 - **맥북은 뚜껑을 닫으면 잠든다.** `caffeinate`는 유휴 잠자기만 막는다 → 전원 연결 + 뚜껑 열어두기, 또는 Ubuntu 서버에서.
@@ -40,7 +40,8 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 | `runner/summary` | SUMMARY.md / BLOCKED.md 재생성 (P10) |
 | `runner/init` | 대상 repo `.harness/` 골격 |
 | `runner/decompose --check` | 계획 검증. 자동 분해(P7)는 Phase 3 |
-| `scripts/night-detached` | 밤을 분리 실행 (취침 시점의 한 명령) |
+| `scripts/night-detached` | 밤을 분리 실행 (취침 시점의 한 명령) · `loop` 앞에 붙이면 `runner/night-loop` |
+| `runner/night-loop` | 밤 여러 개를 마감까지 잇는다 (창·예산 종료 시 다음 밤, 총비용 상한·밤 수·마감으로 멈춤) |
 | `scripts/check` | 하네스 자가 검증 (테스트 + CLAUDE.md 60줄 + 훅·플러그인 JSON + 이식성 린트) |
 
 ## 스킬

@@ -148,6 +148,18 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(H.bash_write_targets("sed -i '' 's/a/b/' src/m.py"), ["src/m.py"])
         self.assertEqual(H.bash_write_targets("grep -c '>' file.txt"), [])
 
+    def test_bash_write_targets_skip_heredoc_bodies(self):
+        # findings/005 (night-003) — heredoc 본문의 `-> str:`·`<b>{x}`·주석 `->` 는 쓰기 대상이 아니다. 머리 줄은 훑는다
+        py = "cat > tests/x.py <<'EOF'\ndef f(a: int) -> str:\n    return f\"<b>{a}</b>\"  # a -> b\nEOF"
+        self.assertEqual(H.bash_write_targets(py), ["tests/x.py"])
+        self.assertEqual(H.bash_write_targets("cat <<-EOF > out.txt\n\tx -> y\n\tEOF\necho z > after.txt"), ["out.txt", "after.txt"])
+        self.assertEqual(H.bash_write_targets("echo 'x -> y' > note.txt"), ["note.txt"])
+        # 실행형 heredoc 의 본문은 진짜 명령이다 — 계속 훑는다
+        self.assertEqual(H.bash_write_targets("bash <<'EOF'\necho x > /etc/passwd\nEOF"), ["/etc/passwd"])
+        self.assertEqual(H.bash_write_targets(".venv/bin/python - <<'EOF'\nprint('a -> b')\nopen(\"w\")\nEOF"), [])
+        self.assertIn("-> str:", H.strip_heredoc_bodies("bash <<EOF\nx -> str:\nEOF"))
+        self.assertNotIn("-> str:", H.strip_heredoc_bodies("cat <<EOF\nx -> str:\nEOF\nls"))
+
     def test_scope_violations(self):
         d = H.Domain({"write_scope": ["tests"]})
         changed = ["tests/t.py", "src/x.py", ".harness/log.jsonl", ".harness/plan.json", ".harness/sessions/n/x", "evil.py"]
