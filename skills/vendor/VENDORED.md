@@ -21,3 +21,4 @@
 | writing-plans | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | subagent-driven 참조 제거 · 접두어 정리 |
 | domain-modeling | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 없음 |
 | research | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 모드 A 전용 표시 |
+| to-spec | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | 트래커 발행 → 로컬 md 저장 |
