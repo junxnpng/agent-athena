@@ -142,6 +142,14 @@ class LoopProposeE2E(unittest.TestCase):
         self.assertEqual([(t.id, t.origin) for t in tasks], [("task-001", "proposal")])
         self.assertEqual(H.derive_states(events, tasks)["task-001"].state, "passed")
 
+    def test_cost_cap_is_checked_before_proposing(self):
+        # 상한을 넘긴 밤 뒤에는 제안(비용)을 하지 않는다 — 2026-08-29 실측 순서 버그
+        make_repo(self.root, tasks=[{"title": "[add-mul][cost:9] mul", "goal": "g", "verify": "python3 -c \"import calc; assert calc.mul(3,4)==12\"", "estimate_minutes": 5}],
+                  domain={"plan": {"auto_propose": True, "auto_accept": True, "max_rounds": 3}})
+        p = sh("python3", LOOP, "--repo", str(self.root), "--wait-minutes", "0", "--max-total-usd", "5", "--driver", "fake", env=self.env, check=False)
+        self.assertIn("루프 종료 (cost_cap) · 밤 1개", p.stdout)
+        self.assertEqual([e for e in H.read_log(H.Repo(self.root).log) if e["event"] == "plan_proposed"], [])  # 제안 0회
+
     def test_round_cap_is_reported_as_max_rounds(self):
         make_repo(self.root, tasks=[], domain={"plan": {"auto_propose": True, "auto_accept": True, "max_rounds": 1}})
         p = self.loop()
