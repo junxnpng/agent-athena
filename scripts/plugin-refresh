@@ -1,0 +1,8 @@
+#!/bin/sh
+# plugin-refresh — 전역 설치본을 이 repo 의 현재 상태로 갱신한다 (설치는 스냅샷 복사라 커밋해도 저절로 바뀌지 않는다).
+# 사용: scripts/plugin-refresh   (스킬·훅을 고친 커밋 뒤에 한 번. 러너는 --plugin-dir 로 항상 live 코드를 쓰므로 무관)
+set -e
+claude plugin marketplace update harness-local
+claude plugin update harness@harness-local
+claude plugin details harness@harness-local | sed -n '/Component inventory/,/Hooks/p'
+printf 'plugin-refresh: 완료 — 열려 있는 대화형 세션은 재시작해야 반영된다\n'

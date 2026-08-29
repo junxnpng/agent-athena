@@ -13,7 +13,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 - `runner/init` 대상 repo 골격 · `runner/decompose --check` 계획 검증(자동 분해 P7은 Phase 3)
 - `runner/harnesslib.py` 공용 부기(로그 fold·상태 파생·P2 정책·검증기·git·SUMMARY) · `runner/drivers.py` 모델 드라이버(claude/fake)
 - `hooks/run-hook` 진입점 → `session-start`(P4) · `pre-tool`(쓰기 중재·trifecta·예산). 확장자 없음 — Windows 자동감지 회피
-- `tests/` 단위+e2e 테스트 · `scripts/check` 자가 검증(테스트 + 이 파일 60줄 제한 + 훅/플러그인 JSON)
+- `tests/` 단위+e2e 테스트 · `scripts/check` 자가 검증(테스트 + 이 파일 60줄 제한 + 훅/플러그인 JSON) · `scripts/plugin-refresh` 전역 설치본 갱신
 - `skills/<이름>/` 이식 스킬 25종(대장 `skills/vendor/VENDORED.md`, 감사 정본 `docs/handoff-pack-2026-08-28.md` 4부) · `skills/vendor/<이름>/` = 로드 제외(to-tickets)
 - `templates/harness-dir/` 대상 repo `.harness/` 골격 · `docs/` 사양(v0 `spec-v0.md`, v1은 반출 팩 2부) · `.out-of-scope/` 거절 기록 · `findings/` 실패 기록 · `ASSUMPTIONS.md` 가정 · `CONTEXT.md` 어휘
 - 대상 repo: `<repo>/.harness/{spec.md, verify, init.sh, domain.json, plan.json, log.jsonl, SUMMARY.md, BLOCKED.md}` — git 추적

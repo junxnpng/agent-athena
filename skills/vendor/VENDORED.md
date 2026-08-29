@@ -27,7 +27,7 @@
 | skill-creator | anthropics/skills | 3b3fad96af16 | Apache-2.0 | 2026-08-28 | 없음 (환경노트: py3.10+, PyYAML) |
 | frontend-design | anthropics/skills | 3b3fad96af16 | Apache-2.0 | 2026-08-28 | 없음 |
 | improve-codebase-architecture | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | codebase-design 부재 폴백 1구 · 모드A 표시 |
-| code-review | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | setup 참조 → 사용자 질문으로 |
+| review-changes | mattpocock/skills | 6654f6b60cd9 | MIT | 2026-08-28 | setup 참조 → 사용자 질문으로 · **rename** code-review → review-changes (2026-08-29, 공식 플러그인 `code-review`·내장 `code-review`와 3중 이름 충돌 — 팩 3부 M절) |
 | receiving-code-review | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 모드 A 전용 표시 (gh api — 공통 사항 4) |
 | using-git-worktrees | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | 없음 |
 | executing-plans | obra/superpowers | b36e0829c6d0 | MIT | 2026-08-28 | subagent-driven/finishing 참조 제거 (Step 3 마무리 3줄 → 사람 보고 1줄) |
