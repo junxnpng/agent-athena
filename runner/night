@@ -156,6 +156,13 @@ def run_night(args: argparse.Namespace) -> int:
     def sig(signum, frame):  # noqa: ANN001
         raise Interrupted()
 
+    def stash_attempt(task_id: str, attempt_no: int) -> Optional[str]:
+        """실패한 시도의 흔적을 남기고 트리를 되돌린다 (I4 + '깨진 코드 위에 쌓지 않는다'). 돌려주는 값: 패치의 repo 상대 경로, 변경이 없었으면 None."""
+        patch_path = sessions_dir / ("%s.%d.patch" % (task_id, attempt_no))
+        had_patch = git.save_patch(patch_path)
+        git.revert_worktree()
+        return repo.rel(patch_path) if had_patch else None
+
     signal.signal(signal.SIGINT, sig)
     signal.signal(signal.SIGTERM, sig)
 
@@ -285,11 +292,9 @@ def run_night(args: argparse.Namespace) -> int:
                 driver_fails = 0
             if infra:
                 stage, reason, end = infra
-                patch_path = sessions_dir / ("%s.%d.patch" % (task.id, attempt))
-                had_patch = git.save_patch(patch_path)
-                git.revert_worktree()
+                patch_rel = stash_attempt(str(task.id), attempt)
                 H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage=stage, reason=reason,
-                               infra=True, patch=repo.rel(patch_path) if had_patch else None)
+                               infra=True, patch=patch_rel)
                 say("  인프라 실패 (%s) → 되돌림, 시도 횟수 미산입%s" % (reason, " · 밤 종료" if end else ""))
                 in_flight = None
                 if end:
@@ -328,17 +333,15 @@ def run_night(args: argparse.Namespace) -> int:
                     assert vr is not None
                     reason = "%s verify %s" % (stage, vr.reason or "실패")
                     vr_exit, vr_tail = vr.exit, vr.tail
-                patch_path = sessions_dir / ("%s.%d.patch" % (task.id, attempt))
-                had_patch = git.save_patch(patch_path)
-                git.revert_worktree()
+                patch_rel = stash_attempt(str(task.id), attempt)
                 if run.timed_out:
                     reason = "모델 시간 초과; " + reason
                 elif run.error:
                     reason = "드라이버 오류; " + reason
                 H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage=stage, reason=reason,
-                               exit=vr_exit, tail=vr_tail, patch=repo.rel(patch_path) if had_patch else None)
+                               exit=vr_exit, tail=vr_tail, patch=patch_rel)
                 failures = st.failures + 1
-                say("  검증 실패 (%s) → 되돌림%s · 실패 %d/%d" % (reason, ", 패치 보존" if had_patch else "", failures, domain.max_attempts))
+                say("  검증 실패 (%s) → 되돌림%s · 실패 %d/%d" % (reason, ", 패치 보존" if patch_rel else "", failures, domain.max_attempts))
                 if failures >= domain.max_attempts:
                     H.append_event(log, "task_blocked", night=night_id, task=task.id, attempts=attempt, reason="%d회 연속 검증 실패" % failures)
                     say("  %s 막힘 → BLOCKED" % task.id)
@@ -354,12 +357,12 @@ def run_night(args: argparse.Namespace) -> int:
     except Interrupted:
         if in_flight:
             task, attempt = in_flight
+            patch_rel = None
             try:
-                git.save_patch(sessions_dir / ("%s.%d.patch" % (task.id, attempt)))
-                git.revert_worktree()
+                patch_rel = stash_attempt(str(task.id), attempt)
             except H.HarnessError as e:
                 say("되돌리기 실패: %s" % e)
-            H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage="interrupted", reason="러너 중단")
+            H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage="interrupted", reason="러너 중단", patch=patch_rel)
             say("%s 시도 %d 중단 → 실패로 기록" % (task.id, attempt))
         if ended_reason not in ("bootstrap_failed",):
             ended_reason = "interrupted"
