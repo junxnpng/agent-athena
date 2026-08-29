@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 HARNESS_ROOT = Path(__file__).resolve().parent.parent
+os.environ.setdefault("HARNESS_ROOT", str(HARNESS_ROOT))  # 도메인 검증기·부트스트랩이 $HARNESS_ROOT/runner/verify-doc 등을 찾는다 (회사 경로 무관)
 HDIR_NAME = ".harness"
 CONTRACT_FILES = ("spec.md", "verify", "init.sh", "domain.json", "plan.json")
 BOOKKEEPING_OUTPUTS = ("log.jsonl", "SUMMARY.md", "BLOCKED.md", "plan.proposed.json")
