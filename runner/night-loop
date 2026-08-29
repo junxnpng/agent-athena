@@ -41,6 +41,12 @@ def decide(reason: str, rc: int) -> str:
     return "stop"
 
 
+def backoff_minutes(base: float, consecutive_waits: int, cap: float = 120.0) -> float:
+    """창 상한으로 연속해서 끝나면 대기를 base × n 으로 늘린다 (30→60→90→120). 2026-08-29 실측: 30분 뒤에도 창이 86% 라
+    밤 하나에 작업 하나씩 잘게 쪼개졌다 — 5시간 창은 천천히 풀린다."""
+    return min(cap, base * max(1, consecutive_waits))
+
+
 def night_ends(events: Sequence[Dict[str, Any]], since: int) -> List[Dict[str, Any]]:
     return [e for e in events[since:] if e.get("event") == "night_ended"]
 
@@ -84,7 +90,7 @@ def main() -> int:
     start_mono = time.monotonic()
     deadline = start_mono + args.until_hours * 3600.0
     base = len(H.read_log(repo.log)) if repo.log.exists() else 0
-    nights, total, rounds = 0, 0.0, 0
+    nights, total, rounds, waits = 0, 0.0, 0, 0
     domain = H.load_domain(repo)
     why = "?"
     say("시작 · 마감 %.1fh · 총비용 상한 $%.0f · 밤 상한 %d · night 인자: %s" % (
@@ -113,9 +119,11 @@ def main() -> int:
         total += cost
         reason = str(end.get("reason") or "?")
         action = decide(reason, p.returncode)
+        waits = waits + 1 if action == "wait" else 0
+        wait_min = backoff_minutes(args.wait_minutes, waits) if action == "wait" else 0.0
         say("%s 종료 (%s, exit %s) · 통과 %s / 실패 %s / 막힘 %s · 비용 $%.2f · 누적 $%.2f → %s" % (
             end.get("night"), reason, p.returncode, end.get("passed"), end.get("failed"), end.get("blocked"), cost, total,
-            {"now": "바로 잇는다", "wait": "%.0f분 쉬고 잇는다" % args.wait_minutes, "stop": "멈춘다"}[action]))
+            {"now": "바로 잇는다", "wait": "%.0f분 쉬고 잇는다" % wait_min, "stop": "멈춘다"}[action]))
         if reason == "queue_empty" and p.returncode == 0 and domain.plan_auto_propose and rounds < domain.plan_max_rounds:
             # P7-lite: 큐가 비면 제안 → (auto_accept 면) 채택 → 다음 밤. 둘 다 domain.json 에서 켠 repo 에서만 (기본 꺼짐)
             rounds += 1
@@ -151,7 +159,7 @@ def main() -> int:
             why = reason
             break
         if action == "wait":
-            until = min(time.monotonic() + args.wait_minutes * 60.0, deadline)
+            until = min(time.monotonic() + wait_min * 60.0, deadline)
             while time.monotonic() < until and not stop_requested:
                 time.sleep(min(5.0, max(0.0, until - time.monotonic())))
     say("루프 종료 (%s) · 밤 %d개 · 총비용 $%.2f · %s" % (why, nights, total, H.fmt_duration(time.monotonic() - start_mono)))
