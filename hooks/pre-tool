@@ -162,6 +162,20 @@ def main() -> int:
     except H.HarnessError:
         domain = H.Domain({})
     reason: Optional[str] = None
+    if domain.is_private:  # D2: 비공개 repo — 사람이 있어도 네트워크 다리를 끊는다 (인젝션 → 유출 경로 차단)
+        if tool in ("WebFetch", "WebSearch"):
+            reason = "[harness] 비공개 repo(data_class: private)에서는 %s 를 쓰지 않는다 — 웹 조회는 다른 세션에서 하고 결과만 가져온다 (I7)" % tool
+        elif tool == "Skill":
+            name = str(inp.get("skill") or "").split(":")[-1]
+            if name in H.network_skills():
+                reason = "[harness] 비공개 repo(data_class: private)에서는 네트워크 스킬 %s 를 쓰지 않는다 (모드 A 전용 표시, I7)" % name
+        elif tool == "Bash":
+            net = check_bash(str(inp.get("command") or ""), True)  # 러너 규칙(네트워크·commit) 중 네트워크만 빌린다
+            if net and "네트워크" in net:
+                reason = net + " — 비공개 repo(data_class: private)"
+    if reason:
+        deny(reason)
+        return 0
     if tool in WRITE_TOOLS:
         reason = check_path(str(inp.get("file_path") or inp.get("notebook_path") or ""), repo, domain, cwd, runner_mode)
     elif tool == "Bash":

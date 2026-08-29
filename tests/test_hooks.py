@@ -142,6 +142,23 @@ class HookTests(unittest.TestCase):
         for needle in ("1. 작업 디렉토리", "2. 최근 로그", "3. 현재 작업 (P2가 결정", "task-001", "4. 스모크", ": ok", "5. 기존 문제"):
             self.assertIn(needle, ctx)
 
+    def tool(self, name, inp, runner=False):
+        return self.decision(self.hook("pre-tool", {"tool_name": name, "tool_input": inp}, runner))
+
+    def test_private_repo_cuts_network_even_interactively(self):
+        # D2 (2026-08-29): data_class: private — 사람이 있어도 네트워크 다리를 끊는다. 네트워크 스킬 목록은 SKILL.md 의 "모드 A 전용" 표시에서 온다
+        self.assertIsNone(self.bash("curl https://example.com"))                       # public(기본) 대화형: 허용
+        self.assertIsNone(self.tool("WebFetch", {"url": "https://example.com"}))
+        (self.root / ".harness" / "domain.json").write_text(json.dumps({"write_scope": ["src"], "data_class": "private"}))
+        self.assertEqual(self.bash("curl https://example.com"), "deny")
+        self.assertEqual(self.tool("WebFetch", {"url": "https://example.com"}), "deny")
+        self.assertEqual(self.tool("WebSearch", {"query": "x"}), "deny")
+        self.assertEqual(self.tool("Skill", {"skill": "harness:arxiv-search", "args": ""}), "deny")
+        self.assertIsNone(self.tool("Skill", {"skill": "harness:grilling", "args": ""}))     # 네트워크 없는 스킬은 그대로
+        self.assertIsNone(self.bash("git commit -m x"))                                  # commit 은 여전히 S2 (대화형 허용)
+        ctx = self.hook("session-start", {"source": "startup"})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("비공개 repo(private)", ctx)
+
     def test_session_start_lists_pending_gates_with_approval_words(self):
         (self.root / ".harness" / "plan.json").write_text(json.dumps({"tasks": [
             {"id": "task-001", "title": "설계 승인", "goal": "g", "verify": "approval", "estimate_minutes": 0},

@@ -39,5 +39,7 @@
     "propose_count": 6,
     "max_rounds": 3
   },
-  "_plan": "P7-lite. auto_propose = 큐가 비면 night-loop 가 runner/decompose --propose 로 리프를 제안. auto_accept = 사람 승인 없이 plan.json 에 넣는다 (무인 '완성도 반복'). 둘 다 기본 꺼짐 — 제안은 plan.proposed.json 에 남고 아침에 runner/queue accept. 제안된 검증기는 지금 실패해야 채택된다."
+  "_plan": "P7-lite. auto_propose = 큐가 비면 night-loop 가 runner/decompose --propose 로 리프를 제안. auto_accept = 사람 승인 없이 plan.json 에 넣는다 (무인 '완성도 반복'). 둘 다 기본 꺼짐 — 제안은 plan.proposed.json 에 남고 아침에 runner/queue accept. 제안된 검증기는 지금 실패해야 채택된다.",
+  "data_class": "public",
+  "_data_class": "public | private. private = 비공개 데이터(재무·건강·보유 종목·결정 근거) — 대화형에서도 curl 류·WebFetch/WebSearch·네트워크 스킬(모드 A 전용 표시)을 훅이 거부한다. 웹이 필요하면 다른 repo/세션에서 조회하고 결과만 가져온다 (D2, 2026-08-29)"
 }

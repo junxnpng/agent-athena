@@ -260,6 +260,19 @@ class GitTests(unittest.TestCase):
         self.assertIsNone(self.git.commit_all("nothing"))
 
 
+class DataClassTests(unittest.TestCase):
+    def test_network_skills_come_from_mode_a_mark(self):
+        names = H.network_skills()
+        self.assertTrue({"arxiv-search", "research", "teach"} <= set(names), names)
+        self.assertNotIn("grilling", names)
+
+    def test_data_class_default_and_validation(self):
+        self.assertEqual((H.Domain({}).data_class, H.Domain({}).is_private), ("public", False))
+        self.assertTrue(H.Domain({"data_class": "private"}).is_private)
+        with self.assertRaises(H.HarnessError):
+            H.Domain({"data_class": "secret"}).data_class
+
+
 class SummaryTests(unittest.TestCase):
     def test_render_counts_and_anomalies(self):
         tasks = [task("task-001", "one"), task("task-002", "two"), task("task-003", "three")]

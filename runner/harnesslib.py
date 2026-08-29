@@ -132,6 +132,7 @@ DOMAIN_DEFAULTS: Dict[str, Any] = {
         "rate_limit_stop": 0.85,     # 5시간 창 사용률이 이 이상 관측되면 밤 종료 (구독 요금제의 실질 예산; night-002 실측 67%)
     },
     "driver": {"name": "claude", "model": None, "effort": None, "max_turns": 120, "max_budget_usd": 5.0},
+    "data_class": "public",      # public | private — private 면 대화형에서도 네트워크(curl 류·WebFetch/WebSearch·네트워크 스킬)를 훅이 거부 (D2, trifecta 를 구조로 끊는다)
     "plan": {
         "auto_propose": False,   # 큐가 비면 night-loop 가 decompose --propose 를 돌린다 (P7-lite)
         "auto_accept": False,    # 제안을 사람 승인 없이 plan.json 에 넣는다 — 무인 "완성도 반복" 은 이 둘을 켠 repo 에서만
@@ -171,6 +172,17 @@ class Domain:
     @property
     def verify_cmd(self) -> str:
         return str(self.raw["verify"]["cmd"])
+
+    @property
+    def data_class(self) -> str:
+        v = str(self.raw.get("data_class") or "public")
+        if v not in ("public", "private"):
+            raise HarnessError("domain.json data_class 는 public | private (지금: %s)" % v)
+        return v
+
+    @property
+    def is_private(self) -> bool:
+        return self.data_class == "private"
 
     @property
     def plan_auto_propose(self) -> bool:
@@ -319,6 +331,23 @@ def find_repo(start: Union[str, Path]) -> Optional[Repo]:
         if (cand / HDIR_NAME).is_dir():
             return Repo(cand)
     return None
+
+
+MODE_A_MARK = "모드 A 전용"  # 네트워크 지시가 있는 스킬은 SKILL.md 앞부분에 이 표시가 있다 (VENDORED 규약) — private repo 에서는 훅이 호출을 거부
+
+
+def network_skills(root: Optional[Path] = None) -> List[str]:
+    """'모드 A 전용' 표시가 있는 스킬 이름 — 목록을 따로 관리하지 않고 SKILL.md 에서 읽는다 (한 곳의 진실)."""
+    base = (root or HARNESS_ROOT) / "skills"
+    out: List[str] = []
+    for sk in sorted(base.glob("*/SKILL.md")):
+        try:
+            head = "".join(sk.open(encoding="utf-8", errors="replace").readlines()[:12])
+        except OSError:
+            continue
+        if MODE_A_MARK in head:
+            out.append(sk.parent.name)
+    return out
 
 
 def contract_missing(repo: Repo) -> List[str]:
