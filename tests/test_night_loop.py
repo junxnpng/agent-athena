@@ -42,6 +42,7 @@ class DecideTests(unittest.TestCase):
         for r in ("queue_empty", "machine_slept", "hooks_dead", "driver_unhealthy", "smoke_unrepairable", "bootstrap_failed", "interrupted", "???"):
             self.assertEqual(L.decide(r, 0), "stop", r)
         self.assertEqual(L.decide("budget", 3), "stop")  # 비정상 exit 는 사유와 무관하게 멈춘다 — 사람이 봐야 한다
+        self.assertEqual([L.backoff_minutes(30, n) for n in (0, 1, 2, 3, 4, 9)], [30, 30, 60, 90, 120, 120])  # 연속 창 상한 → 백오프, 120분 상한
 
 
 class LoopE2E(unittest.TestCase):
