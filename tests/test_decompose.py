@@ -92,6 +92,20 @@ class ProposeE2E(unittest.TestCase):
         _, tasks = H.load_plan(H.Repo(self.root))
         self.assertEqual(tasks[1].depends_on, ["task-001"])  # '#0' → 발급된 id
 
+    def test_one_based_and_title_dependencies_are_normalized(self):
+        make_repo(self.root, tasks=[])
+        self.env["HARNESS_FAKE_PROPOSAL"] = json.dumps({"tasks": [
+            {"title": "a", "goal": "g", "verify": "test -f A", "estimate_minutes": 5},
+            {"title": "b", "goal": "g", "verify": "test -f B", "estimate_minutes": 5, "depends_on": ["#1"]},   # 1-based: a
+            {"title": "c", "goal": "g", "verify": "test -f C", "estimate_minutes": 5, "depends_on": ["a"]},    # 제목 참조
+        ]})
+        p = self.run_(DECOMPOSE, "--propose", "--driver", "fake")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("1-based", p.stdout)
+        _, proposed = H.read_proposed(H.Repo(self.root))
+        self.assertEqual([t.depends_on for t in proposed], [[], ["#0"], ["#0"]])
+        self.assertEqual([e for e in H.read_log(H.Repo(self.root).log) if e["event"] == "plan_proposed"][-1]["deps_base"], 1)
+
     def test_invalid_proposal_is_rejected_without_touching_plan(self):
         make_repo(self.root, tasks=[])
         self.env["HARNESS_FAKE_PROPOSAL"] = json.dumps({"tasks": [{"title": "no verify", "goal": "g", "estimate_minutes": 5}]})

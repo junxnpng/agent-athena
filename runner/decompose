@@ -14,7 +14,7 @@ import argparse
 import copy
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import drivers as D  # noqa: E402
@@ -58,6 +58,34 @@ def _reindex_after_drop(kept_idx: List[int], tasks: List[H.Task]) -> List[H.Task
     return out
 
 
+def _normalize_deps(proposed: List[H.Task], tasks: List[H.Task], domain: H.Domain) -> Tuple[List[str], int]:
+    """제안의 depends_on 을 계획 검증이 통과하는 형태로. 제목 참조 → '#i'(항상 0-based). '#k' 는 0-based 로 실패하면 1-based 로 한 번 더 —
+    첫 실전 제안(GreedyAtena, 2026-08-29)이 '#1..#4' 를 1부터 세어 자기 의존으로 반려됐다. 돌려주는 값: (오류 목록, 적용한 base)."""
+    titles = {t.title: i for i, t in enumerate(proposed)}
+    idx_refs = [int(d[1:]) for t in proposed for d in t.depends_on if d.startswith("#") and d[1:].isdigit()]
+
+    def build(base: int) -> List[H.Task]:
+        trial = copy.deepcopy(proposed)
+        for t in trial:
+            t.depends_on = ["#%d" % titles[d] if d in titles else ("#%d" % (int(d[1:]) - base) if d.startswith("#") and d[1:].isdigit() else d)
+                            for d in t.depends_on]
+        return trial
+
+    last: List[str] = []
+    for base in (0, 1):
+        if base == 1 and (not idx_refs or min(idx_refs) < 1):
+            break
+        trial = build(base)
+        shifted = copy.deepcopy(trial)
+        H.offset_deps(shifted, len(tasks))
+        last = H.validate_plan(list(tasks) + shifted, domain)
+        if not last:
+            for t, tt in zip(proposed, trial):
+                t.depends_on = list(tt.depends_on)
+            return [], base
+    return last, -1
+
+
 def propose(repo: H.Repo, driver_name: str, count: int, model: str = "") -> int:
     domain = H.load_domain(repo)
     if model:
@@ -99,9 +127,9 @@ def propose(repo: H.Repo, driver_name: str, count: int, model: str = "") -> int:
     proposed = [H.task_from_json(t) for t in obj["tasks"] if isinstance(t, dict)]
     for t in proposed:
         t.id, t.origin = None, "proposal"
-    trial = copy.deepcopy(proposed)
-    H.offset_deps(trial, len(tasks))
-    errors = [e for e in H.validate_plan(list(tasks) + trial, domain)]
+    errors, deps_base = _normalize_deps(proposed, list(tasks), domain)
+    if deps_base == 1:
+        print("참고: 의존 인덱스를 1-based 로 해석했다 (모델이 #1 부터 셌다)")
     if errors:
         H.append_event(repo.log, "plan_proposed", ok=False, error="계획 검증 실패", errors=errors[:10], proposed=len(proposed), **base)
         print("제안 반려 (계획 검증):\n - " + "\n - ".join(errors), file=sys.stderr)
@@ -122,7 +150,7 @@ def propose(repo: H.Repo, driver_name: str, count: int, model: str = "") -> int:
     data = {"version": 1, "source": "decompose", "round": round_no, "rationale": str(obj.get("rationale") or ""),
             "model_cost_usd": round(run.cost_usd, 4), "dropped": dropped, "tasks": [t.to_json() for t in kept]}
     repo.proposed.write_text(H.json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    H.append_event(repo.log, "plan_proposed", ok=True, proposed=len(proposed), kept=len(kept), dropped=len(dropped), **base)
+    H.append_event(repo.log, "plan_proposed", ok=True, proposed=len(proposed), kept=len(kept), dropped=len(dropped), deps_base=deps_base, **base)
     sha = git.commit_all("[harness] plan proposal %d (%d 리프)" % (round_no, len(kept))) if was_clean else None
     print("제안 %d개 중 채택 후보 %d개 → %s · 버림 %d개 · 비용 $%.2f%s" % (
         len(proposed), len(kept), H.PROPOSED_NAME, len(dropped), run.cost_usd,
