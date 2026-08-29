@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""verify-doc — 산출물(Markdown + YAML frontmatter)의 결정론 검증기 (D3, 2026-08-29). exit 0 = 통과.
+
+  runner/verify-doc <file.md> [--require-keys k1,k2] [--sections "섹션1,섹션2"] [--bib refs.bib] [--data data.csv|data.json]
+                              [--min-words N] [--no-frontmatter]
+
+검사하는 것(전부 기계적): frontmatter 필수 키 · 필수 섹션(`#…` 제목) 존재 · 내부 링크·파일 참조 존재(외부 URL 은 형식만 — 무인은 네트워크 없음)
+· 인용 키(`[@key]`, `\\cite{key}`)가 bib 에 존재 · 표 안의 숫자가 데이터 파일(CSV/JSON)에 존재 · 최소 단어 수.
+검사하지 않는 것: 품질·논리·참신성 — 그것은 승인 게이트(사람)의 몫이다. 모델이 채점하는 검증기는 P6 과 충돌하므로 두지 않는다.
+논문·리포트·뉴스 요약처럼 exit 0 이 없는 산출물을 리프로 만들 때 verify 에 이 명령을 쓴다 (레벨 2 의 결정론 부분).
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+_FM_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+_HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.M)
+_MD_LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+_IMG_LINK_RE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
+_WIKI_LINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
+_CITE_RE = re.compile(r"\[@([A-Za-z0-9_:./-]+)\]|\\cite[tp]?\{([^}]+)\}")
+_BIB_KEY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
+_NUM_RE = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?![\w.])")
+_URL_RE = re.compile(r"^[a-z][a-z0-9+.-]*://", re.I)
+
+
+def parse_frontmatter(text: str) -> Tuple[Optional[Dict[str, str]], str]:
+    """최소 YAML: `key: value` 줄만. 리스트·중첩은 값 문자열로 둔다 (키 존재만 검사한다). 없으면 (None, 본문)."""
+    m = _FM_RE.match(text)
+    if not m:
+        return None, text
+    fm: Dict[str, str] = {}
+    for ln in m.group(1).splitlines():
+        if not ln.strip() or ln.lstrip().startswith("#"):
+            continue
+        if ln[0].isspace():
+            continue  # 중첩 값 — 상위 키에 속한다
+        k, _, v = ln.partition(":")
+        if k.strip():
+            fm[k.strip()] = v.strip()
+    return fm, text[m.end():]
+
+
+def headings(text: str) -> List[str]:
+    return [h.strip() for h in _HEADING_RE.findall(text)]
+
+
+def check_links(text: str, doc: Path, root: Path) -> List[str]:
+    errs: List[str] = []
+    targets = _MD_LINK_RE.findall(text) + _IMG_LINK_RE.findall(text)
+    for t in targets:
+        if _URL_RE.match(t) or t.startswith("#") or t.startswith("mailto:"):
+            continue
+        path = t.split("#", 1)[0]
+        if not path:
+            continue
+        cands = [doc.parent / path, root / path]
+        if not any(c.exists() for c in cands):
+            errs.append("링크 대상 없음: %s" % t)
+    for name in _WIKI_LINK_RE.findall(text):
+        name = name.strip()
+        found = any(p.stem == name or p.name == name for p in root.rglob("*.md")) if root.exists() else False
+        if not found:
+            errs.append("위키링크 대상 없음: [[%s]]" % name)
+    return errs
+
+
+def check_citations(text: str, bib: Path) -> List[str]:
+    keys: Set[str] = set(_BIB_KEY_RE.findall(bib.read_text(encoding="utf-8", errors="replace"))) if bib.exists() else set()
+    if not bib.exists():
+        return ["bib 파일 없음: %s" % bib]
+    errs: List[str] = []
+    for a, b in _CITE_RE.findall(text):
+        for key in [a] if a else [k.strip() for k in b.split(",")]:
+            if key and key not in keys:
+                errs.append("인용 키가 bib 에 없다: %s" % key)
+    return errs
+
+
+def _norm_number(s: str) -> Optional[float]:
+    try:
+        return float(s.replace(",", "").replace("%", "").strip())
+    except ValueError:
+        return None
+
+
+def data_numbers(path: Path) -> Set[float]:
+    nums: Set[float] = set()
+    if path.suffix.lower() == ".json":
+        def walk(x: Any) -> None:
+            if isinstance(x, bool):
+                return
+            if isinstance(x, (int, float)):
+                nums.add(float(x))
+            elif isinstance(x, str):
+                v = _norm_number(x)
+                if v is not None:
+                    nums.add(v)
+            elif isinstance(x, dict):
+                for v in x.values():
+                    walk(v)
+            elif isinstance(x, list):
+                for v in x:
+                    walk(v)
+        walk(json.loads(path.read_text(encoding="utf-8")))
+    else:
+        with path.open(encoding="utf-8", newline="") as fh:
+            for row in csv.reader(fh):
+                for cell in row:
+                    v = _norm_number(cell)
+                    if v is not None:
+                        nums.add(v)
+    return nums
+
+
+def table_numbers(text: str) -> List[str]:
+    """마크다운 표(| 로 시작하는 줄) 안의 숫자 토큰. 구분선(---)은 건너뛴다."""
+    out: List[str] = []
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s.startswith("|") or set(s) <= set("|-: "):
+            continue
+        for cell in s.strip("|").split("|"):
+            out += _NUM_RE.findall(cell)
+    return out
+
+
+def check_numbers(text: str, data: Path, tol: float = 1e-6) -> List[str]:
+    if not data.exists():
+        return ["데이터 파일 없음: %s" % data]
+    nums = data_numbers(data)
+    errs: List[str] = []
+    for tok in table_numbers(text):
+        v = _norm_number(tok)
+        if v is None:
+            continue
+        if not any(abs(v - n) <= tol * max(1.0, abs(n)) for n in nums):
+            errs.append("표의 숫자가 데이터에 없다: %s" % tok)
+    return errs
+
+
+def verify(path: Path, require_keys: List[str], sections: List[str], bib: Optional[Path], data: Optional[Path],
+           min_words: int, need_frontmatter: bool, root: Path) -> List[str]:
+    if not path.exists():
+        return ["파일 없음: %s" % path]
+    text = path.read_text(encoding="utf-8", errors="replace")
+    errs: List[str] = []
+    fm, body = parse_frontmatter(text)
+    if need_frontmatter and fm is None:
+        errs.append("frontmatter 없음 (--- 로 감싼 YAML 머리)")
+    for k in require_keys:
+        if not fm or k not in fm or not fm[k]:
+            errs.append("frontmatter 키 없음/비어 있음: %s" % k)
+    have = headings(body)
+    for s in sections:
+        if not any(h == s or h.startswith(s) for h in have):
+            errs.append("필수 섹션 없음: %s" % s)
+    errs += check_links(body, path, root)
+    if bib is not None:
+        errs += check_citations(body, bib)
+    if data is not None:
+        errs += check_numbers(body, data)
+    if min_words:
+        words = len(re.findall(r"\S+", body))
+        if words < min_words:
+            errs.append("단어 수 %d < 최소 %d" % (words, min_words))
+    return errs
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="산출물(Markdown) 결정론 검증기 — 형식·참조·숫자만, 품질은 사람(승인 게이트)")
+    ap.add_argument("file")
+    ap.add_argument("--require-keys", default="", help="frontmatter 필수 키, 쉼표 구분")
+    ap.add_argument("--sections", default="", help="필수 섹션 제목, 쉼표 구분 (앞부분 일치)")
+    ap.add_argument("--bib", default=None)
+    ap.add_argument("--data", default=None, help="표의 숫자를 대조할 CSV/JSON")
+    ap.add_argument("--min-words", type=int, default=0)
+    ap.add_argument("--no-frontmatter", action="store_true", help="frontmatter 를 요구하지 않는다")
+    ap.add_argument("--root", default=".", help="위키링크·repo 상대 링크의 기준 (기본 cwd)")
+    a = ap.parse_args()
+    path = Path(a.file)
+    errs = verify(path, [k.strip() for k in a.require_keys.split(",") if k.strip()], [s.strip() for s in a.sections.split(",") if s.strip()],
+                  Path(a.bib) if a.bib else None, Path(a.data) if a.data else None, a.min_words, not a.no_frontmatter, Path(a.root).resolve())
+    for e in errs:
+        print("verify-doc: %s: %s" % (path, e))
+    if errs:
+        return 1
+    print("verify-doc: ok (%s)" % path)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
