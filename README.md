@@ -43,6 +43,8 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 | `scripts/night-detached` | 밤을 분리 실행 (취침 시점의 한 명령) · `loop` 앞에 붙이면 `runner/night-loop` |
 | `runner/night-loop` | 밤 여러 개를 마감까지 잇는다 (창·예산 종료 시 다음 밤, 총비용 상한·밤 수·마감으로 멈춤) |
 | `scripts/plugin-refresh` | 전역 설치본(스냅샷)을 repo 현재 상태로 갱신 |
+| `runner/decompose --propose` | P7-lite: 사양·계획 상태·지난 SUMMARY 로 리프 제안 → `.harness/plan.proposed.json` (이미 통과하는 검증기는 버림) |
+| `runner/queue accept` | 제안을 plan.json 에 편입 (id 발급·검증). `domain.json plan.auto_propose/auto_accept` 가 켜진 repo 는 night-loop 가 큐가 빌 때 자동으로 |
 | `scripts/check` | 하네스 자가 검증 (테스트 + CLAUDE.md 60줄 + 훅·플러그인 JSON + 이식성 린트) |
 
 ## 스킬

@@ -5,6 +5,7 @@
   runner/queue next   [--repo .] [--json] [--remaining-minutes N]
   runner/queue load   [--repo .]            # id 없는 작업에 발급 + 계획 검증 + plan.json 갱신
   runner/queue unblock task-NNN --reason "..." [--repo .]   # 막힌 작업을 사람이 푼다 (task_unblocked 이벤트 append)
+  runner/queue accept (--all | 인덱스...) [--repo .]        # decompose --propose 의 제안(plan.proposed.json)을 plan.json 에 넣는다 (id 발급·검증)
 """
 from __future__ import annotations
 
@@ -20,9 +21,11 @@ import harnesslib as H  # noqa: E402
 def main() -> int:
     H.ensure_utf8_stdio()
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["status", "next", "load", "unblock"])
-    ap.add_argument("task", nargs="?", help="unblock 대상 task-NNN")
+    ap.add_argument("cmd", choices=["status", "next", "load", "unblock", "accept"])
+    ap.add_argument("args", nargs="*", help="unblock: task-NNN · accept: 제안 인덱스(0부터)")
     ap.add_argument("--reason", default="")
+    ap.add_argument("--all", action="store_true", help="accept: 제안 전부")
+    ap.add_argument("--by", default="human", help="accept 주체 기록 (human | auto)")
     ap.add_argument("--repo", default=".")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--remaining-minutes", type=float, default=None)
@@ -47,12 +50,25 @@ def main() -> int:
     states = H.derive_states(events, tasks)
     now_dt = H.now()
     if a.cmd == "unblock":
-        st = states.get(a.task or "")
+        task_id = a.args[0] if a.args else ""
+        st = states.get(task_id)
         if st is None or st.state != "blocked":
-            print("unblock: %s 는 blocked 상태가 아니다 (%s)" % (a.task, st.state if st else "없음"), file=sys.stderr)
+            print("unblock: %s 는 blocked 상태가 아니다 (%s)" % (task_id or "(없음)", st.state if st else "없음"), file=sys.stderr)
             return 1
-        H.append_event(repo.log, "task_unblocked", task=a.task, reason=a.reason or "사람이 해제", by="human")
-        print("%s 해제 — 다음 밤에 다시 자격을 얻는다 (실패 횟수 0)" % a.task)
+        H.append_event(repo.log, "task_unblocked", task=task_id, reason=a.reason or "사람이 해제", by="human")
+        print("%s 해제 — 다음 밤에 다시 자격을 얻는다 (실패 횟수 0)" % task_id)
+        return 0
+    if a.cmd == "accept":
+        if not a.all and not a.args:
+            print("accept: 제안 인덱스(0부터)를 주거나 --all", file=sys.stderr)
+            return 1
+        git = H.Git(repo.root)
+        was_clean = git.is_clean()
+        chosen = H.accept_proposed(repo, domain, events, None if a.all else [int(x) for x in a.args])
+        ids = [str(t.id) for t in chosen]
+        H.append_event(repo.log, "plan_accepted", ids=ids, by=a.by)
+        sha = git.commit_all("[harness] plan accept (%s)" % ", ".join(ids)) if was_clean else None
+        print("채택: %s%s" % (", ".join(ids), (" · 부기 커밋 %s" % sha) if sha else (" · (트리가 clean 이 아니어서 커밋하지 않음)" if not was_clean else "")))
         return 0
     if a.cmd == "next":
         t = H.select_next(tasks, states, domain, now_dt, a.remaining_minutes)
@@ -62,6 +78,9 @@ def main() -> int:
         print(json.dumps(t.to_json(), ensure_ascii=False) if a.json else "%s %s (priority %d, %d분)" % (t.id, t.title, t.priority, t.estimate_minutes))
         return 0
 
+    if repo.proposed.exists():
+        _, pending = H.read_proposed(repo)
+        print("제안 대기: %d개 (%s) → runner/queue accept --all | 인덱스" % (len(pending), H.PROPOSED_NAME))
     order = {t.id: i + 1 for i, t in enumerate(H.rank(tasks, states, domain, now_dt))}
     rows = []
     for t in tasks:

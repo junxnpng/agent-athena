@@ -2,6 +2,7 @@
 """가짜 모델 — e2e 테스트용 드라이버 스크립트. 작업 JSON을 stdin으로 받아 제목의 태그대로 트리를 바꾼다.
 
 태그: [add-mul] [add-sub] [hopeless] [break-global] [repair] [cost:N]
+제안 모드: task.id == "propose" 면 HARNESS_FAKE_PROPOSAL(JSON 문자열)을, 없으면 기본 제안(mul 작업 + 이미 통과하는 빈 작업)을 ```json 블록으로 낸다.
 출력 규약: "EDIT <path>" 줄 = 편집 1회 (P9 카운터), "COST <usd>" 줄 = 비용 보고, "SKILL <이름>" 줄 = 스킬 자동 호출 1회, 마지막 줄 "RESULT: ..." = 자기 보고 (판정 아님).
 """
 import json
@@ -16,6 +17,13 @@ title = t["title"]
 root = Path(os.environ["HARNESS_REPO"])
 calc = root / "calc.py"
 
+if t.get("id") == "propose":
+    default = {"rationale": "fake 제안", "tasks": [
+        {"title": "[add-mul] mul 추가 (제안)", "goal": "mul(a,b)", "verify": "python3 -c \"import calc; assert calc.mul(3,4)==12\"", "estimate_minutes": 5, "priority": 1},
+        {"title": "빈 작업 — 검증기가 이미 통과한다", "goal": "x", "verify": "true", "estimate_minutes": 5, "priority": 0},
+    ]}
+    print("탐색 끝.\n```json\n%s\n```\nRESULT: done — 제안" % (os.environ.get("HARNESS_FAKE_PROPOSAL") or json.dumps(default, ensure_ascii=False)))
+    sys.exit(0)
 if "[add-mul]" in title:
     calc.write_text(calc.read_text() + "\n\ndef mul(a, b):\n    return a * b\n")
     print("EDIT calc.py")

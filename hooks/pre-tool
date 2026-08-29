@@ -2,7 +2,7 @@
 """pre-tool — P3-lite 쓰기 중재 (I6) · I7 trifecta 가드 · P5 예산 확인. PreToolUse 훅.
 
 거부는 결정론적이다: 경로가 쓰기 범위 밖이거나 부기 파일이면, 명령이 네트워크/커밋/트리 되돌리기면.
-러너 모드(HARNESS_NIGHT 설정)에서 더 엄격하다. 대화형에서는 사람이 있으므로 부기 파일과 commit/push 만 막는다.
+러너 모드(HARNESS_NIGHT 설정)에서 더 엄격하다(commit/push·네트워크 거부). 대화형에서는 사람이 승인 루프에 있으므로 부기 파일만 막는다 (S2, 2026-08-28).
 .harness/ 가 없는 repo에서는 아무것도 하지 않는다.
 
 출력: 거부 시 {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": ...}}

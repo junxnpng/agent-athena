@@ -23,9 +23,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import harnesslib as H  # noqa: E402
 
 NIGHT = Path(__file__).resolve().parent / "night"
+DECOMPOSE = Path(__file__).resolve().parent / "decompose"
+QUEUE = Path(__file__).resolve().parent / "queue"
 CONTINUE_NOW = ("budget", "max_tasks")
 CONTINUE_AFTER_WAIT = ("rate_limited", "cost_budget")
-STOP_OK = ("queue_empty", "deadline", "max_nights", "cost_cap", "signal")  # 루프 exit 0 — 나머지는 사람이 봐야 한다 (exit 3)
+STOP_OK = ("queue_empty", "deadline", "max_nights", "cost_cap", "signal", "proposal_pending")  # 루프 exit 0 — 나머지는 사람이 봐야 한다 (exit 3)
 
 
 def decide(reason: str, rc: int) -> str:
@@ -41,6 +43,16 @@ def decide(reason: str, rc: int) -> str:
 
 def night_ends(events: Sequence[Dict[str, Any]], since: int) -> List[Dict[str, Any]]:
     return [e for e in events[since:] if e.get("event") == "night_ended"]
+
+
+def driver_flags(passthrough: Sequence[str]) -> List[str]:
+    """night 에 넘기는 인자 중 decompose 도 받는 것(--driver, --model)만 골라낸다."""
+    out: List[str] = []
+    args = list(passthrough)
+    for i, a in enumerate(args):
+        if a in ("--driver", "--model") and i + 1 < len(args):
+            out += [a, args[i + 1]]
+    return out
 
 
 def main() -> int:
@@ -72,7 +84,8 @@ def main() -> int:
     start_mono = time.monotonic()
     deadline = start_mono + args.until_hours * 3600.0
     base = len(H.read_log(repo.log)) if repo.log.exists() else 0
-    nights, total = 0, 0.0
+    nights, total, rounds = 0, 0.0, 0
+    domain = H.load_domain(repo)
     why = "?"
     say("시작 · 마감 %.1fh · 총비용 상한 $%.0f · 밤 상한 %d · night 인자: %s" % (
         args.until_hours, args.max_total_usd, args.max_nights, " ".join(passthrough) or "(없음)"))
@@ -103,6 +116,31 @@ def main() -> int:
         say("%s 종료 (%s, exit %s) · 통과 %s / 실패 %s / 막힘 %s · 비용 $%.2f · 누적 $%.2f → %s" % (
             end.get("night"), reason, p.returncode, end.get("passed"), end.get("failed"), end.get("blocked"), cost, total,
             {"now": "바로 잇는다", "wait": "%.0f분 쉬고 잇는다" % args.wait_minutes, "stop": "멈춘다"}[action]))
+        if reason == "queue_empty" and p.returncode == 0 and domain.plan_auto_propose and rounds < domain.plan_max_rounds:
+            # P7-lite: 큐가 비면 제안 → (auto_accept 면) 채택 → 다음 밤. 둘 다 domain.json 에서 켠 repo 에서만 (기본 꺼짐)
+            rounds += 1
+            say("큐 비움 → 리프 제안 %d/%d (decompose --propose)" % (rounds, domain.plan_max_rounds))
+            pr = subprocess.run([sys.executable, str(DECOMPOSE), "--propose", "--repo", str(repo.root)] + driver_flags(passthrough),
+                                stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+            prop = next((e for e in reversed(H.read_log(repo.log)) if e.get("event") == "plan_proposed"), None)
+            total += float((prop or {}).get("cost_usd") or 0.0)
+            if pr.returncode == 0 and domain.plan_auto_accept:
+                ac = subprocess.run([sys.executable, str(QUEUE), "accept", "--all", "--by", "auto", "--repo", str(repo.root)],
+                                    stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+                if ac.returncode != 0:
+                    why = "accept_failed"
+                    break
+                say("제안 채택 (auto_accept) → 다음 밤")
+                action = "now"
+            elif pr.returncode == 0:
+                why = "proposal_pending"  # 사람이 아침에 runner/queue accept
+                break
+            elif pr.returncode == 1:
+                why = "queue_empty"  # 제안할 것이 없다 — 사양이 다 이뤄졌다
+                break
+            else:
+                why = "propose_failed"
+                break
         if total >= args.max_total_usd:
             why = "cost_cap"
             break

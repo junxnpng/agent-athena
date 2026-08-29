@@ -1,29 +1,27 @@
 #!/usr/bin/env python3
-"""decompose — 사양 → 계획 (P7). v0 절단: 자동 분해는 Phase 3. 지금은 손으로 쓴 plan.json 의 접수 게이트만 있다.
+"""decompose — 사양 → 계획 (P7).
 
-  runner/decompose --check [--repo .]     # 계획 검증: 검증기 필수(I5) · 리프 5~30분 · 의존성 · 순환 · id 형식
+  runner/decompose --check   [--repo .]                       # 계획 검증: 검증기 필수(I5) · 리프 5~30분 · 의존성 · 순환 · id 형식
+  runner/decompose --propose [--repo .] [--count N] [--driver claude|fake] [--model M]
+                                                              # P7-lite: 리프 제안 → .harness/plan.proposed.json (plan.json 은 건드리지 않는다)
+
+제안 원칙: 모델은 제안만 한다 — id 발급·검증·채택은 러너와 사람의 몫(I1). 제안된 검증기는 **지금 트리에서 실패해야** 채택된다:
+이미 통과하는 검증기는 빈 작업이라 버린다. 채택은 `runner/queue accept`, 무인 채택은 domain.json plan.auto_accept (기본 꺼짐).
 """
 from __future__ import annotations
 
 import argparse
+import copy
 import sys
 from pathlib import Path
+from typing import Any, Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import drivers as D  # noqa: E402
 import harnesslib as H  # noqa: E402
 
 
-def main() -> int:
-    H.ensure_utf8_stdio()
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--repo", default=".")
-    ap.add_argument("--check", action="store_true")
-    a = ap.parse_args()
-    if not a.check:
-        print("decompose: 자동 분해(P7)는 Phase 3 이다. 지금은 .harness/plan.json 을 손으로 쓰고 `--check` 로 검증한다.\n"
-              "  리프 = 검증기를 한 번 돌릴 수 있는 최소 덩어리, 5~30분, 세부 구현은 쓰지 않는다.", file=sys.stderr)
-        return 2
-    repo = H.Repo(Path(a.repo).resolve())
+def check(repo: H.Repo) -> int:
     domain = H.load_domain(repo)
     _, tasks = H.load_plan(repo)
     errors = H.validate_plan(tasks, domain)
@@ -36,6 +34,126 @@ def main() -> int:
     total = sum(t.estimate_minutes for t in tasks)
     print("통과: 작업 %d개, 추정 합계 %d분 (%.1fh)" % (len(tasks), total, total / 60.0))
     return 0
+
+
+def _reindex_after_drop(kept_idx: List[int], tasks: List[H.Task]) -> List[H.Task]:
+    """버린 작업을 가리키는 의존은 그 작업도 버린다(고정점까지). 남은 것의 '#i' 를 새 순서로 고친다."""
+    keep = set(kept_idx)
+    changed = True
+    while changed:
+        changed = False
+        for i in sorted(keep):
+            for d in tasks[i].depends_on:
+                if d.startswith("#") and d[1:].isdigit() and int(d[1:]) not in keep:
+                    keep.discard(i)
+                    changed = True
+                    break
+    order = sorted(keep)
+    remap = {"#%d" % old: "#%d" % new for new, old in enumerate(order)}
+    out = []
+    for i in order:
+        t = tasks[i]
+        t.depends_on = [remap.get(d, d) for d in t.depends_on]
+        out.append(t)
+    return out
+
+
+def propose(repo: H.Repo, driver_name: str, count: int, model: str = "") -> int:
+    domain = H.load_domain(repo)
+    if model:
+        domain.raw["driver"] = dict(domain.raw["driver"], model=model)
+    git = H.Git(repo.root)
+    was_clean = git.is_clean()
+    events = H.read_log(repo.log) if repo.log.exists() else []
+    _, tasks = H.load_plan(repo)
+    states = H.derive_states(events, tasks)
+    round_no = 1 + sum(1 for e in events if e.get("event") == "plan_proposed")
+    spec = repo.spec.read_text(encoding="utf-8").strip() if repo.spec.exists() else "(spec.md 없음)"
+    last_summary = repo.summary.read_text(encoding="utf-8").strip()[:6000] if repo.summary.exists() else "(없음)"
+    tools = "\n".join("- %s: `%s` %s" % (x.get("name", "?"), x.get("cmd", "?"), x.get("note", "")) for x in domain.tools) or "(없음)"
+    prompt = D.render("propose.md", {
+        "count": count, "leaf_min": domain.leaf_min, "leaf_max": domain.leaf_max,
+        "write_scope": ", ".join("`%s`" % p for p in domain.write_scope), "global_verify": domain.verify_cmd,
+        "spec": spec, "plan_summary": H.plan_state_summary(tasks, states), "last_summary": last_summary, "tools": tools,
+    })
+    timeout_min = float(domain.leaf_max)
+    ctx = D.propose_context(repo, domain, timeout_min)
+    stream = repo.sessions / "propose" / ("propose-%03d.stream.jsonl" % round_no)
+    print("제안 %d회 · 드라이버 %s · 상한 %d분 · 계획 %d개 작업" % (round_no, driver_name, int(timeout_min), len(tasks)), flush=True)
+    run = D.run_propose(ctx, driver_name, prompt, stream)
+    changed = git.changed_paths()
+    if changed:  # 제안은 읽기 전용이다 — 모델이 뭔가 바꿨으면 되돌리고 기록한다
+        git.revert_worktree()
+        print("경고: 제안 중 트리 변경 %d개 → 되돌림 (%s)" % (len(changed), ", ".join(changed[:5])))
+    base: Dict[str, Any] = {"round": round_no, "driver": driver_name, "cost_usd": round(run.cost_usd, 4), "turns": run.turns,
+                            "stream": repo.rel(stream), "reverted": changed or None}
+    if not run.ok:
+        H.append_event(repo.log, "plan_proposed", ok=False, error=run.error or "모델 실패", **base)
+        print("제안 실패: %s" % (run.error or "모델 실패"), file=sys.stderr)
+        return 2
+    obj = H.extract_json_block(run.result_text)
+    if obj is None or not isinstance(obj.get("tasks"), list):
+        H.append_event(repo.log, "plan_proposed", ok=False, error="출력에 tasks JSON 블록이 없다", **base)
+        print("제안 실패: 출력에 ```json 블록(tasks)이 없다 — 스트림 %s" % repo.rel(stream), file=sys.stderr)
+        return 2
+    proposed = [H.task_from_json(t) for t in obj["tasks"] if isinstance(t, dict)]
+    for t in proposed:
+        t.id, t.origin = None, "proposal"
+    trial = copy.deepcopy(proposed)
+    H.offset_deps(trial, len(tasks))
+    errors = [e for e in H.validate_plan(list(tasks) + trial, domain)]
+    if errors:
+        H.append_event(repo.log, "plan_proposed", ok=False, error="계획 검증 실패", errors=errors[:10], proposed=len(proposed), **base)
+        print("제안 반려 (계획 검증):\n - " + "\n - ".join(errors), file=sys.stderr)
+        return 1
+    kept_idx: List[int] = []
+    dropped: List[Dict[str, str]] = []
+    for i, t in enumerate(proposed):
+        vr = H.run_verify(repo, t.verify, min(domain.verify_timeout, 120))
+        if vr.ok:
+            dropped.append({"title": t.title, "reason": "검증기가 지금 이미 통과한다 — 빈 작업"})
+        else:
+            kept_idx.append(i)
+    kept = _reindex_after_drop(kept_idx, proposed)
+    if len(kept) < len(kept_idx):
+        for i in kept_idx:
+            if proposed[i] not in kept:
+                dropped.append({"title": proposed[i].title, "reason": "버린 작업에 의존한다"})
+    data = {"version": 1, "source": "decompose", "round": round_no, "rationale": str(obj.get("rationale") or ""),
+            "model_cost_usd": round(run.cost_usd, 4), "dropped": dropped, "tasks": [t.to_json() for t in kept]}
+    repo.proposed.write_text(H.json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    H.append_event(repo.log, "plan_proposed", ok=True, proposed=len(proposed), kept=len(kept), dropped=len(dropped), **base)
+    sha = git.commit_all("[harness] plan proposal %d (%d 리프)" % (round_no, len(kept))) if was_clean else None
+    print("제안 %d개 중 채택 후보 %d개 → %s · 버림 %d개 · 비용 $%.2f%s" % (
+        len(proposed), len(kept), H.PROPOSED_NAME, len(dropped), run.cost_usd,
+        (" · 부기 커밋 %s" % sha) if sha else (" · (트리가 clean 이 아니어서 커밋하지 않음)" if not was_clean else "")))
+    for t in kept:
+        print("  + %s (%d분) — `%s`" % (t.title, t.estimate_minutes, t.verify_cmd[:80]))
+    for d in dropped:
+        print("  - %s — %s" % (d["title"], d["reason"]))
+    if kept:
+        print("받아들이려면: runner/queue accept --all --repo %s  (또는 인덱스 골라서)" % repo.root)
+    return 0 if kept else 1
+
+
+def main() -> int:
+    H.ensure_utf8_stdio()
+    ap = argparse.ArgumentParser(description="사양 → 계획 (P7): --check 접수 게이트 / --propose 리프 제안")
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--check", action="store_true")
+    ap.add_argument("--propose", action="store_true")
+    ap.add_argument("--count", type=int, default=0, help="제안 리프 수 (기본 domain.json plan.propose_count)")
+    ap.add_argument("--driver", choices=list(D.KNOWN_DRIVERS), default=None)
+    ap.add_argument("--model", default="")
+    a = ap.parse_args()
+    repo = H.Repo(Path(a.repo).resolve())
+    if a.check:
+        return check(repo)
+    if a.propose:
+        domain = H.load_domain(repo)
+        return propose(repo, a.driver or str(domain.driver.get("name") or "claude"), a.count or domain.plan_propose_count, a.model)
+    print("decompose: --check(접수 게이트) 또는 --propose(리프 제안, P7-lite). 계획은 .harness/plan.json.", file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

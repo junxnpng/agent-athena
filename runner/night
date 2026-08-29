@@ -250,8 +250,8 @@ def run_night(args: argparse.Namespace) -> int:
             in_flight = (task, attempt)
             H.append_event(log, "task_started", night=night_id, task=task.id, attempt=attempt, title=task.title,
                            origin=task.origin, timeout_minutes=round(timeout_min, 1))
-            say("%s 시도 %d/%d → %s (상한 %d분, 남은 예산 %s) · %s" % (
-                task.id, attempt, domain.max_attempts, driver_name, int(timeout_min), H.fmt_duration(remaining * 60), task.title))
+            say("%s 시도 %d (실패 %d/%d) → %s (상한 %d분, 남은 예산 %s) · %s" % (  # 시도 번호는 인프라 무효 시도를 포함해 센다 — 분모는 실패 상한
+                task.id, attempt, st.failures, domain.max_attempts, driver_name, int(timeout_min), H.fmt_duration(remaining * 60), task.title))
             ctx = D.TaskContext(repo=repo, domain=domain, night_id=night_id, task=task, state=st, attempt=attempt,
                                 timeout_minutes=timeout_min, deadline_epoch=deadline.timestamp(), spec_text=spec_text)
             stream_path = sessions_dir / ("%s.%d.stream.jsonl" % (task.id, attempt))

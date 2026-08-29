@@ -141,7 +141,7 @@ class HookTests(unittest.TestCase):
         self.assertIn("러너 모드 night-001", ctx)
         self.assertIn("4. 스모크 (밤 시작에 러너가 실행", ctx)
         self.assertIn("실패", ctx)
-        self.assertIn("task-001 t · 시도 1/3", ctx)
+        self.assertIn("task-001 t · 시도 1 (실패 0/3)", ctx)
 
 
 if __name__ == "__main__":

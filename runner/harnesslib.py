@@ -28,7 +28,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 HARNESS_ROOT = Path(__file__).resolve().parent.parent
 HDIR_NAME = ".harness"
 CONTRACT_FILES = ("spec.md", "verify", "init.sh", "domain.json", "plan.json")
-BOOKKEEPING_OUTPUTS = ("log.jsonl", "SUMMARY.md", "BLOCKED.md")
+BOOKKEEPING_OUTPUTS = ("log.jsonl", "SUMMARY.md", "BLOCKED.md", "plan.proposed.json")
+PROPOSED_NAME = "plan.proposed.json"  # P7-lite: 러너가 제안한 리프 — 사람이(또는 plan.auto_accept 로) 받아들여야 plan.json 에 들어간다
 ID_RE = re.compile(r"^(night|task)-(\d{3,})$")
 NIGHT_BRANCH_PREFIX = "harness/"
 TAIL_CHARS = 3000
@@ -130,6 +131,12 @@ DOMAIN_DEFAULTS: Dict[str, Any] = {
         "rate_limit_stop": 0.85,     # 5시간 창 사용률이 이 이상 관측되면 밤 종료 (구독 요금제의 실질 예산; night-002 실측 67%)
     },
     "driver": {"name": "claude", "model": None, "effort": None, "max_turns": 120, "max_budget_usd": 5.0},
+    "plan": {
+        "auto_propose": False,   # 큐가 비면 night-loop 가 decompose --propose 를 돌린다 (P7-lite)
+        "auto_accept": False,    # 제안을 사람 승인 없이 plan.json 에 넣는다 — 무인 "완성도 반복" 은 이 둘을 켠 repo 에서만
+        "propose_count": 6,      # 한 번에 제안할 리프 수
+        "max_rounds": 3,         # 루프 한 번당 제안 횟수 상한 (무한 생성 방지)
+    },
 }
 
 
@@ -163,6 +170,22 @@ class Domain:
     @property
     def verify_cmd(self) -> str:
         return str(self.raw["verify"]["cmd"])
+
+    @property
+    def plan_auto_propose(self) -> bool:
+        return bool(self.raw["plan"]["auto_propose"])
+
+    @property
+    def plan_auto_accept(self) -> bool:
+        return bool(self.raw["plan"]["auto_accept"])
+
+    @property
+    def plan_propose_count(self) -> int:
+        return int(self.raw["plan"]["propose_count"])
+
+    @property
+    def plan_max_rounds(self) -> int:
+        return int(self.raw["plan"]["max_rounds"])
 
     @property
     def verify_timeout(self) -> int:
@@ -268,6 +291,10 @@ class Repo:
     @property
     def blocked(self) -> Path:
         return self.hdir / "BLOCKED.md"
+
+    @property
+    def proposed(self) -> Path:
+        return self.hdir / PROPOSED_NAME
 
     @property
     def sessions(self) -> Path:
@@ -488,6 +515,98 @@ def save_plan(repo: Repo, meta: Dict[str, Any], tasks: Sequence[Task]) -> None:
     data = dict(meta)
     data["tasks"] = [t.to_json() for t in tasks]
     repo.plan.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def task_from_json(t: Dict[str, Any]) -> Task:
+    return _task_from_json(t)
+
+
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n\s*```", re.S)
+
+
+def extract_json_block(text: str) -> Optional[Dict[str, Any]]:
+    """모델 출력에서 마지막 ```json 블록(없으면 마지막 최상위 {…})을 객체로. 못 찾으면 None — 파싱 실패는 제안 실패다, 추측하지 않는다."""
+    blocks = _JSON_FENCE_RE.findall(text or "")
+    for cand in reversed(blocks):
+        try:
+            obj = json.loads(cand)
+        except ValueError:
+            continue
+        if isinstance(obj, dict):
+            return obj
+    start = (text or "").rfind("{\"")
+    while start != -1:
+        try:
+            obj = json.loads(text[start:text.rfind("}") + 1])
+            return obj if isinstance(obj, dict) else None
+        except ValueError:
+            start = text.rfind("{\"", 0, start)
+    return None
+
+
+def offset_deps(tasks: Sequence[Task], base: int) -> None:
+    """제안 안의 '#i' 의존을 plan.json 에 이어 붙일 위치(base+i)로 옮긴다. 발급된 id 참조는 그대로."""
+    for t in tasks:
+        t.depends_on = ["#%d" % (base + int(d[1:])) if d.startswith("#") and d[1:].isdigit() else d for d in t.depends_on]
+
+
+def plan_state_summary(tasks: Sequence[Task], states: Dict[str, "TaskState"]) -> str:
+    """제안 프롬프트용 — 계획의 각 작업을 상태와 함께 한 줄씩 (모델은 이걸 보고 겹치지 않는 다음 일을 고른다)."""
+    if not tasks:
+        return "(계획 비어 있음)"
+    out = []
+    for t in tasks:
+        st = states.get(t.id) if t.id else None
+        out.append("- %s [%s] %s — 검증기 `%s`" % (t.id or "#?", st.state if st else "pending", t.title, t.verify_cmd[:90]))
+    return "\n".join(out)
+
+
+def read_proposed(repo: Repo) -> Tuple[Dict[str, Any], List[Task]]:
+    if not repo.proposed.exists():
+        return {}, []
+    try:
+        data = json.loads(repo.proposed.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise HarnessError("%s 파싱 실패: %s" % (PROPOSED_NAME, e))
+    tasks = [_task_from_json(t) for t in (data.get("tasks") or []) if isinstance(t, dict)]
+    return {k: v for k, v in data.items() if k != "tasks"}, tasks
+
+
+def accept_proposed(repo: Repo, domain: Domain, events: Sequence[Dict[str, Any]], picks: Optional[Sequence[int]] = None) -> List[Task]:
+    """제안 → plan.json. picks 는 제안 목록의 인덱스(None = 전부). id 는 여기서 발급(I1: 모델이 아니라 러너가), 계획 검증 통과 못 하면 아무것도 안 바꾼다."""
+    pmeta, proposed = read_proposed(repo)
+    if not proposed:
+        raise HarnessError("받아들일 제안이 없다 (%s)" % PROPOSED_NAME)
+    chosen_idx = list(range(len(proposed))) if picks is None else [int(i) for i in picks]
+    bad = [i for i in chosen_idx if not (0 <= i < len(proposed))]
+    if bad:
+        raise HarnessError("제안 인덱스 범위 밖: %s (0~%d)" % (bad, len(proposed) - 1))
+    chosen = [proposed[i] for i in chosen_idx]
+    for t in chosen:  # 부분 수락 시 '#i' 가 빠진 작업을 가리키면 반려
+        for d in t.depends_on:
+            if d.startswith("#") and d[1:].isdigit() and int(d[1:]) not in chosen_idx:
+                raise HarnessError("%s 의 의존 %s 가 수락 목록에 없다" % (t.title, d))
+    remap = {"#%d" % old: "#%d" % new for new, old in enumerate(chosen_idx)}
+    for t in chosen:
+        t.depends_on = [remap.get(d, d) for d in t.depends_on]
+        t.id = None
+        t.origin = "proposal"
+    meta, tasks = load_plan(repo)
+    offset_deps(chosen, len(tasks))
+    merged = list(tasks) + chosen
+    errors = validate_plan(merged, domain)
+    if errors:
+        raise HarnessError("제안이 계획 검증을 통과하지 못했다:\n - " + "\n - ".join(errors))
+    assign_ids(merged, events)
+    save_plan(repo, meta, merged)
+    rest = [t for i, t in enumerate(proposed) if i not in chosen_idx]
+    if rest:
+        data = dict(pmeta)
+        data["tasks"] = [t.to_json() for t in rest]
+        repo.proposed.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    else:
+        repo.proposed.unlink()
+    return chosen
 
 
 def validate_plan(tasks: Sequence[Task], domain: Domain) -> List[str]:

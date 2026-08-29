@@ -140,6 +140,24 @@ def run_task(ctx: TaskContext, driver_name: str, stream_path: Path) -> ModelRun:
     raise H.HarnessError("모르는 드라이버: %s (가능: %s)" % (driver_name, ", ".join(KNOWN_DRIVERS)))
 
 
+PROPOSE_DISALLOWED = "Write,Edit,MultiEdit,NotebookEdit"  # 제안은 읽기 전용 탐색 — 쓰기는 Bash 휴리스틱+러너 되돌리기가 받는다
+
+
+def propose_context(repo: H.Repo, domain: H.Domain, timeout_minutes: float) -> TaskContext:
+    """P7-lite 제안 실행용 컨텍스트 — 밤이 아니라 'propose' 세션. 훅은 러너 모드(HARNESS_NIGHT=propose)로 뜬다."""
+    task = H.Task(id="propose", title="계획 제안 (P7-lite)", goal="", verify="true", estimate_minutes=domain.leaf_min, origin="plan")
+    return TaskContext(repo=repo, domain=domain, night_id="propose", task=task, state=H.TaskState(id="propose"), attempt=1,
+                       timeout_minutes=timeout_minutes, deadline_epoch=time.time() + timeout_minutes * 60.0, spec_text="")
+
+
+def run_propose(ctx: TaskContext, driver_name: str, prompt: str, stream_path: Path) -> ModelRun:
+    if driver_name == "claude":
+        return run_claude(ctx, prompt, build_system_prompt(), stream_path, extra_disallowed=PROPOSE_DISALLOWED)
+    if driver_name == "fake":
+        return run_fake(ctx, prompt, stream_path)
+    raise H.HarnessError("모르는 드라이버: %s (가능: %s)" % (driver_name, ", ".join(KNOWN_DRIVERS)))
+
+
 # ────────────────────────────────────────────────────────────── claude -p
 
 def _ingest(run: ModelRun, ctx: TaskContext, line: bytes) -> None:
@@ -187,7 +205,7 @@ def _ingest(run: ModelRun, ctx: TaskContext, line: bytes) -> None:
         run.self_report = m.group(1).lower() if m else ""
 
 
-def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: Path) -> ModelRun:
+def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: Path, extra_disallowed: str = "") -> ModelRun:
     run = ModelRun(ok=False, stream_path=str(stream_path))
     exe = H.find_claude()
     if not exe:
@@ -202,7 +220,7 @@ def run_claude(ctx: TaskContext, prompt: str, system_prompt: str, stream_path: P
         "--max-turns", str(int(drv.get("max_turns") or 120)),
         "--dangerously-skip-permissions",
         "--strict-mcp-config",
-        "--disallowedTools", DISALLOWED_TOOLS,
+        "--disallowedTools", DISALLOWED_TOOLS + ("," + extra_disallowed if extra_disallowed else ""),
         "--append-system-prompt", system_prompt,
     ]
     for flag, key in (("--model", "model"), ("--effort", "effort"), ("--max-budget-usd", "max_budget_usd")):

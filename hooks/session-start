@@ -56,8 +56,8 @@ def build(cwd: Path) -> str:
         current = H.select_next(tasks, states, domain)
     if current:
         st = states.get(current.id) or H.TaskState(id=str(current.id))
-        lines.append("3. 현재 작업 (P2가 결정 — 직접 고르지 않는다): %s %s · 시도 %d/%d · 검증기 `%s`%s" % (
-            current.id, current.title, st.attempts + (0 if runner_mode else 1), domain.max_attempts, current.verify_cmd,
+        lines.append("3. 현재 작업 (P2가 결정 — 직접 고르지 않는다): %s %s · 시도 %d (실패 %d/%d) · 검증기 `%s`%s" % (
+            current.id, current.title, st.attempts + (0 if runner_mode else 1), st.failures, domain.max_attempts, current.verify_cmd,
             "" if runner_mode else " · (대화형: 러너가 돌리면 이 작업이 먼저 선택된다)"))
     else:
         lines.append("3. 현재 작업: 없음 — %s" % ("; ".join(plan_err) if plan_err else "자격 있는 작업이 없다 (계획을 채우거나 BLOCKED.md 확인)"))

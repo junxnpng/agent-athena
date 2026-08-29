@@ -10,7 +10,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 
 ## 레이아웃
 - `runner/night` 밤 하나 실행(진입점) · `runner/night-loop` 밤 여러 개 잇기(창·예산 종료 시, 총비용 상한) · `runner/queue` 선택 정책 · `runner/id` ID 발급 · `runner/summary` 아침 산출물
-- `runner/init` 대상 repo 골격 · `runner/decompose --check` 계획 검증(자동 분해 P7은 Phase 3)
+- `runner/init` 대상 repo 골격 · `runner/decompose --check` 계획 검증 · `--propose` 리프 제안(P7-lite: 제안은 러너, 채택은 사람 또는 `plan.auto_accept`; 검증기는 지금 실패해야 채택)
 - `runner/harnesslib.py` 공용 부기(로그 fold·상태 파생·P2 정책·검증기·git·SUMMARY) · `runner/drivers.py` 모델 드라이버(claude/fake)
 - `hooks/run-hook` 진입점 → `session-start`(P4) · `pre-tool`(쓰기 중재·trifecta·예산). 확장자 없음 — Windows 자동감지 회피
 - `tests/` 단위+e2e 테스트 · `scripts/check` 자가 검증(테스트 + 이 파일 60줄 제한 + 훅/플러그인 JSON) · `scripts/plugin-refresh` 전역 설치본 갱신
