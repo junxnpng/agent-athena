@@ -2,8 +2,9 @@
 """pre-tool — P3-lite 쓰기 중재 (I6) · I7 trifecta 가드 · P5 예산 확인. PreToolUse 훅.
 
 거부는 결정론적이다: 경로가 쓰기 범위 밖이거나 부기 파일이면, 명령이 네트워크/커밋/트리 되돌리기면.
-러너 모드(HARNESS_NIGHT 설정)에서 더 엄격하다(commit/push·네트워크 거부). 대화형에서는 사람이 승인 루프에 있으므로 부기 파일만 막는다 (S2, 2026-08-28).
-.harness/ 가 없는 repo에서는 아무것도 하지 않는다.
+러너 모드(HARNESS_NIGHT 설정)에서 더 엄격하다(commit/push·네트워크·.harness 계약 파일 거부). 대화형에서는 사람이 승인 루프에 있으므로
+commit/push 는 막지 않고(S2, 2026-08-28) 쓰기 범위(I6)와 부기 파일만 본다 — domain.json human_scope 는 대화형에서만 열리는 경로다 (2026-08-29).
+.harness/ 가 없는 repo에서는 아무것도 하지 않는다. 훅 자체의 오류는 허용이 아니라 거부다 (fail-closed — exit 1 은 Claude Code 에서 비차단이라 통과된다).
 
 출력: 거부 시 {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": ...}}
       허용 시 아무 결정도 내지 않는다 (allow 를 돌려주면 사람의 권한 확인을 우회하게 된다).
@@ -23,21 +24,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "runner"))
 import harnesslib as H  # noqa: E402
 
 WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
-BOOK = r"\.harness/(log\.jsonl|SUMMARY\.md|BLOCKED\.md)"
+BOOK = r"\.harness/(log\.jsonl|SUMMARY\.md|BLOCKED\.md|plan\.proposed\.json)"
 PLAN = r"\.harness/(plan\.json|spec\.md|domain\.json|verify|init\.sh|\.gitignore)"
 WRITE_OPS = r"(>>?|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\btruncate\b)[^|;&]*"
+# `git -C x push` `git -c k=v commit` `git --git-dir=… push` — 옵션을 소비한 뒤 서브명령을 본다 (2026-08-29 리뷰 실측 우회)
+_GIT = r"\bgit\b(?:\s+(?:-C\s+\S+|-c\s+\S+|--git-dir=\S+|--work-tree=\S+|-\S+))*\s+"
+# 명령 위치(줄머리·파이프·서브셸) + wrapper(`env X=1 curl` `time curl` `nice -n 5 curl` `xargs -I{} curl {}` `HTTP_PROXY=x curl`)
+_CMD = r"(^|[|;&(]\s*|\$\(\s*|`\s*)" + H.WRAPPER_RE
+# DNS(dig/nslookup/host/getent…)와 macOS `open <url>` 도 유출 채널이다 — D2 "네트워크 다리를 끊는다" 는 이것까지
+_NET = r"(curl|wget|ssh|scp|sftp|nc|ncat|telnet|rsync|socat|dig|nslookup|host|getent|drill|delv|kdig|ping|xdg-open)\b|open\s+(?:-\S+\s+)*\S*://"
 
 ALWAYS_DENY = [
-    (WRITE_OPS + BOOK, "부기 파일(log.jsonl / SUMMARY.md / BLOCKED.md)은 러너 소유다 — 읽기만"),
+    (WRITE_OPS + BOOK, "부기 파일(log.jsonl / SUMMARY.md / BLOCKED.md / plan.proposed.json)은 러너 소유다 — 읽기만"),
     (r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*\s+(/|~|\$HOME)(\s|$|/\s)", "파괴적 삭제"),
 ]
 RUNNER_DENY = [
     # commit/push 는 대화형에서는 막지 않는다 — 사람이 승인 루프에 있다 (S2, 2026-08-28 결정). 러너 모드는 부기의 근간이라 유지
-    (r"\bgit\s+(push|commit)\b", "commit/push 는 러너의 몫이다 (spec §6). 검증이 통과하면 러너가 커밋한다"),
-    (r"(^|[|;&]\s*|\$\(\s*|`\s*)(curl|wget|ssh|scp|sftp|nc|ncat|telnet|rsync)\b", "네트워크 접근 금지 (I7). 필요한 것은 .harness/init.sh 의 몫"),
+    (_GIT + r"(push|commit)\b", "commit/push 는 러너의 몫이다 (spec §6). 검증이 통과하면 러너가 커밋한다"),
+    (_CMD + _NET, "네트워크 접근 금지 (I7). 필요한 것은 .harness/init.sh 의 몫"),
     (r"\b(pip3?|pipx|uv|npm|pnpm|yarn|brew|apt(-get)?|cargo|go)\s+(install|add|get|update|upgrade)\b", "패키지 설치는 부트스트랩(.harness/init.sh)의 몫 (I7)"),
-    (r"\bgit\s+(fetch|pull|clone|remote)\b|(^|[|;&]\s*)gh\s", "네트워크 접근 금지 (I7)"),
-    (r"\bgit\s+(reset\s+--hard|checkout\s+--\s+\.|restore\s+\.|clean\b|stash\b)", "트리 되돌리기는 러너의 몫이다. 실패 시 러너가 패치를 보존하고 되돌린다"),
+    (_GIT + r"(fetch|pull|clone|remote)\b|" + _CMD + r"gh\s", "네트워크 접근 금지 (I7)"),
+    (_GIT + r"(reset\s+--hard|checkout\s+--\s+\.|restore\s+\.|clean\b|stash\b|worktree\b)", "트리 되돌리기·worktree 는 러너의 몫이다. 실패 시 러너가 패치를 보존하고 되돌린다"),
     (WRITE_OPS + PLAN, ".harness/ 는 러너 모드에서 읽기 전용이다 (I1, I8)"),
 ]
 
@@ -73,6 +80,8 @@ def check_path(path_str: str, repo: H.Repo, domain: H.Domain, cwd: Path, runner_
             return ".harness/%s 는 러너 모드에서 읽기 전용이다 (I1, I8)" % name
         return None
     scopes = domain.write_scope
+    if not runner_mode:
+        scopes = scopes + domain.human_scope  # 사람이 넣는 자료(수집함·기록)는 대화형에서만 열린다 — 밤은 write_scope 만 (2026-08-29)
     if "." in scopes:
         return None
     for s in scopes:
@@ -135,7 +144,8 @@ def readonly_reason(tool: str, inp: dict, cwd: Path) -> Optional[str]:
             if inside(t if os.path.isabs(t) else str(base / t)):
                 return RO_REASON
         scan = H.strip_heredoc_bodies(cmd, keep=H.EXEC_HEREDOC_RE)
-        if _RO_GIT_RE.search(scan) and (inside(str(base)) or str(root) in cmd):
+        expanded = cmd.replace("~/", str(Path.home()) + "/")  # `git -C ~/workspace/agent-athena push` — 문자열 비교 전에 ~ 를 편다
+        if _RO_GIT_RE.search(scan) and (inside(str(base)) or str(root) in expanded):
             return RO_REASON
     return None
 
@@ -144,7 +154,11 @@ def main() -> int:
     H.ensure_utf8_stdio()
     try:
         data = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))
-    except (ValueError, OSError):
+    except (ValueError, OSError) as e:
+        deny("훅 입력을 읽지 못했다 (%s) — 가드 없이 통과시키지 않는다 (fail-closed)" % e)
+        return 0
+    if not isinstance(data, dict):
+        deny("훅 입력이 객체가 아니다 — 가드 없이 통과시키지 않는다 (fail-closed)")
         return 0
     cwd = Path(data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
     ro = readonly_reason(str(data.get("tool_name") or ""), data.get("tool_input") or {}, cwd)
@@ -159,10 +173,13 @@ def main() -> int:
     inp = data.get("tool_input") or {}
     try:
         domain = H.load_domain(repo)
-    except H.HarnessError:
-        domain = H.Domain({})
+    except H.HarnessError as e:  # 계약이 깨졌으면 public 으로 여는 게 아니라 private 로 닫는다 (fail-closed)
+        print("pre-tool: domain.json 파싱 실패 (%s) — private 로 간주한다" % e, file=sys.stderr)
+        domain = H.Domain({"data_class": "private"})
     reason: Optional[str] = None
-    if domain.is_private:  # D2: 비공개 repo — 사람이 있어도 네트워크 다리를 끊는다 (인젝션 → 유출 경로 차단)
+    if tool.startswith("mcp__") and (domain.is_private or runner_mode):  # MCP 도구 = 외부 통신 채널 (Gmail·Drive…) — hooks.json matcher 가 mcp__.* 를 잡는다
+        reason = "[harness] MCP 도구 %s 는 %s에서 쓰지 않는다 — 외부 통신 채널 (I7)" % (tool, "비공개 repo(data_class: private)" if domain.is_private else "러너 모드")
+    elif domain.is_private:  # D2: 비공개 repo — 사람이 있어도 네트워크 다리를 끊는다 (인젝션 → 유출 경로 차단)
         if tool in ("WebFetch", "WebSearch"):
             reason = "[harness] 비공개 repo(data_class: private)에서는 %s 를 쓰지 않는다 — 웹 조회는 다른 세션에서 하고 결과만 가져온다 (I7)" % tool
         elif tool == "Skill":
@@ -200,6 +217,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as e:  # 훅이 세션을 죽이면 안 된다
+    except Exception as e:  # 가드의 예외는 허용이 아니라 거부다 — exit 1 은 Claude Code 에서 비차단 오류라 도구가 그냥 실행된다 (2026-08-29 리뷰)
         print("pre-tool: %s" % e, file=sys.stderr)
-        sys.exit(1)
+        deny("훅 내부 오류 — 안전을 위해 거부: %s (하네스에서 scripts/check 로 점검)" % e)
+        sys.exit(0)

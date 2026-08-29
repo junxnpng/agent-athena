@@ -26,8 +26,14 @@ _IMG_LINK_RE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
 _WIKI_LINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 _CITE_RE = re.compile(r"\[@([A-Za-z0-9_:./-]+)\]|\\cite[tp]?\{([^}]+)\}")
 _BIB_KEY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
-_NUM_RE = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?![\w.])")
+_NUM_RE = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?(?![\w.])")  # 지수 표기(1.5e10)도 숫자다 — 안 잡으면 표에 임의 수치를 숨길 수 있다
 _URL_RE = re.compile(r"^[a-z][a-z0-9+.-]*://", re.I)
+_FENCE_RE = re.compile(r"^(```|~~~)[^\n]*\n.*?^\1[ \t]*$", re.M | re.S)
+
+
+def strip_fences(text: str) -> str:
+    """코드 펜스 본문을 뺀 사본 — 펜스 안의 `# Results`·`| x | 100 |` 는 섹션도 표도 아니다 (2026-08-29 리뷰: 펜스로 필수 섹션을 위장할 수 있었다)."""
+    return _FENCE_RE.sub("", text)
 
 
 def parse_frontmatter(text: str) -> Tuple[Optional[Dict[str, str]], str]:
@@ -60,14 +66,22 @@ def check_links(text: str, doc: Path, root: Path) -> List[str]:
         path = t.split("#", 1)[0]
         if not path:
             continue
+        if Path(path).is_absolute():  # `Path("docs") / "/tmp/x"` 는 왼쪽을 버린다 — 절대 경로 링크는 repo 밖 참조라 거부
+            errs.append("절대 경로 링크는 쓰지 않는다 (repo 상대 경로만): %s" % t)
+            continue
         cands = [doc.parent / path, root / path]
         if not any(c.exists() for c in cands):
             errs.append("링크 대상 없음: %s" % t)
-    for name in _WIKI_LINK_RE.findall(text):
-        name = name.strip()
-        found = any(p.stem == name or p.name == name for p in root.rglob("*.md")) if root.exists() else False
-        if not found:
-            errs.append("위키링크 대상 없음: [[%s]]" % name)
+    wiki = [n.strip() for n in _WIKI_LINK_RE.findall(text)]
+    if wiki:
+        names = set()
+        if root.exists():
+            for p in root.rglob("*.md"):  # 한 번만 훑는다 — 링크마다 rglob 하면 O(링크 × 파일)
+                names.add(p.stem)
+                names.add(p.name)
+        for name in wiki:
+            if name not in names:
+                errs.append("위키링크 대상 없음: [[%s]]" % name)
     return errs
 
 
@@ -151,7 +165,8 @@ def verify(path: Path, require_keys: List[str], sections: List[str], bib: Option
         return ["파일 없음: %s" % path]
     text = path.read_text(encoding="utf-8", errors="replace")
     errs: List[str] = []
-    fm, body = parse_frontmatter(text)
+    fm, raw_body = parse_frontmatter(text)
+    body = strip_fences(raw_body)  # 섹션·링크·인용·표·단어 수 모두 펜스 밖에서만 센다
     if need_frontmatter and fm is None:
         errs.append("frontmatter 없음 (--- 로 감싼 YAML 머리)")
     for k in require_keys:

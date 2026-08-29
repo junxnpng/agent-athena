@@ -41,6 +41,10 @@
 | 산출물 검증기 | 산문 산출물의 품질은 기계가 못 재지만 형식·참조·수치 일치는 잴 수 있다 — 모델이 인용을 지어내거나 표의 숫자를 데이터와 다르게 적는 일(실측 다수)을 결정론으로 걸러내고, 품질 판단은 사람 게이트에 남긴다 | Claude 5 · B | `runner/verify-doc` |
 | 데이터 등급(private) | 비공개 데이터가 있는 repo에서는 사람이 승인 루프에 있어도 인젝션이 만든 유출 요청을 사람이 알아채지 못한다(bypass 모드, URL 쿼리에 실어 보내는 한 번의 fetch) — 네트워크 다리를 훅으로 끊는 것만 강제다 | 구조적 · A | `hooks/pre-tool` (data_class), `harnesslib.py: network_skills` |
 | 아침 다이제스트 | 밤의 결과는 사람이 아침에 *찾아가서* 읽는다는 가정은 repo 가 7개가 되면 깨진다 — 게이트를 잊는다. 배달은 결정론 스크립트가 SUMMARY 를 사용자 채팅으로 옮기는 것뿐이고(모델 없음 → I7 인젝션 경로 없음), 밤 중 알림은 여전히 범위 밖이다 | 구조적 · 모델 무관 | `scripts/morning-digest`, `templates/launchd/com.harness.morning-digest.plist` |
+| 일일 비용 상한 | 밤·루프 단위 상한은 다시 띄우면 0 부터라 하루 총량을 못 막는다(2026-08-29 $68 실측). 하루 총량은 상태 파일이 아니라 로그 fold(자정 이후 model_done·plan_proposed 합)로 파생하고, 형제 repo 합산은 레지스트리 없이 워크스페이스 구조로 찾는다 | 구조적 · 모델 무관 | `harnesslib.day_cost_usd`, `runner/night`(exit 4·cost_day), `runner/night-loop --max-day-usd` |
+| 프로세스 그룹 청소 | killpg 한 번으로 그룹이 다 죽는다는 가정은 틀렸다 — fork 직후의 손자가 시그널을 놓쳐 파이프를 잡고 살아남는다(1/30, findings/006). 리더 종료 뒤 `ps` 로 그룹 잔존을 훑어 SIGKILL 한다 | 구조적 · 모델 무관 | `harnesslib.kill_group` |
+| 훅 fail-closed | 가드가 예외로 죽으면 통과가 아니라 거부다 — Claude Code 는 훅 exit 1 을 비차단으로 보고 도구를 실행한다. domain.json 이 깨져도 public 이 아니라 private 로 닫는다 | 구조적 · 모델 무관 | `hooks/pre-tool` |
+| 대화형 전용 경로(human_scope) | I6 는 대화형에서도 강제다(사람이 매 쓰기를 보지 않는다 — bypass). 사람이 넣는 자료(수집함·기록)는 write_scope 가 아니라 human_scope 로 열어, 밤은 지어낼 수 없고 낮에는 승인 루프 안에서 쓴다 | 구조적 · 모델 무관 | `hooks/pre-tool: check_path`, `harnesslib.Domain.human_scope` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)

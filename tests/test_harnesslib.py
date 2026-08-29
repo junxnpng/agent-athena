@@ -354,5 +354,91 @@ class PlanDagTests(unittest.TestCase):
         self.assertIn("task001 --> task002", s)
 
 
+class HardeningLibTests(unittest.TestCase):
+    """2026-08-29 리뷰 — 정규식·파싱·프로세스 청소·템플릿 정합."""
+
+    def test_rm_targets_and_redirect_lookbehind(self):
+        self.assertEqual(H.bash_write_targets("rm -f a.txt b.txt && rm -rf dir/"), ["a.txt", "b.txt", "dir/"])
+        self.assertEqual(H.bash_write_targets("unlink .harness-readonly"), [".harness-readonly"])
+        self.assertEqual(H.bash_write_targets("env X=1 rm old.log"), ["old.log"])
+        self.assertEqual(H.bash_write_targets("echo 'a => b' && x !> y"), [])  # => !> 는 리다이렉션이 아니다
+
+    def test_exec_heredoc_wrappers(self):
+        for head in ("env python3 - <<PY", "time python3 <<PY", "nice -n 5 python3 - <<'PY'", "uv run python - <<PY",
+                     "poetry run python <<PY", "HTTP_PROXY=x python3 - <<PY", "sudo bash <<EOF", "xargs -0 sh <<EOF"):
+            self.assertIsNotNone(H.EXEC_HEREDOC_RE.search(head), head)
+        self.assertIsNone(H.EXEC_HEREDOC_RE.search("cat > f <<'EOF'"))
+
+    def test_task_from_json_bad_fields_are_harness_errors(self):
+        with self.assertRaises(H.HarnessError):
+            H.task_from_json({"title": "t", "goal": "g", "verify": "true", "estimate_minutes": "abc"})
+        with self.assertRaises(H.HarnessError):
+            H.task_from_json({"title": "t", "goal": "g", "verify": "true", "estimate_minutes": 5, "priority": "high"})  # [] 는 falsy 라 0 으로 읽힌다 — 빈 값은 오류가 아니다
+
+    def test_network_skills_mark_anywhere_in_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            sk = Path(d) / "skills" / "netty"
+            sk.mkdir(parents=True)
+            (sk / "SKILL.md").write_text("---\n" + "\n".join("k%d: v" % i for i in range(20)) + "\n---\n모드 A 전용\n", encoding="utf-8")
+            self.assertEqual(H.network_skills(Path(d)), ["netty"])
+
+    def test_template_domain_covers_defaults(self):
+        tpl = json.loads((Path(__file__).resolve().parent.parent / "templates" / "harness-dir" / "domain.json").read_text(encoding="utf-8"))
+
+        def keys(d, prefix=""):
+            out = set()
+            for k, v in d.items():
+                if k.startswith("_"):
+                    continue
+                out.add(prefix + k)
+                if isinstance(v, dict):
+                    out |= keys(v, prefix + k + ".")
+            return out
+        self.assertEqual(keys(H.DOMAIN_DEFAULTS) - keys(tpl), set())  # 코드가 새 키를 배우면 템플릿도 배워야 한다
+
+    def test_append_event_never_truncates(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "log.jsonl"
+            H.append_event(log, "e1", a=1)
+            s1 = log.read_bytes()
+            H.append_event(log, "e2")
+            s2 = log.read_bytes()
+            self.assertTrue(s2.startswith(s1) and len(s2) > len(s1))  # I2
+
+    def test_commit_harness_leaves_model_edits_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d).resolve()
+            git_init(root)
+            (root / ".harness").mkdir()
+            (root / ".harness" / "SUMMARY.md").write_text("old\n")
+            (root / "src.py").write_text("a\n")
+            g = H.Git(root)
+            g.commit_all("init")
+            (root / ".harness" / "SUMMARY.md").write_text("new\n")
+            (root / "src.py").write_text("dirty\n")  # 이상 종료로 남은 모델 편집
+            sha = g.commit_harness("summary")
+            self.assertTrue(sha)
+            self.assertEqual(g.run("show", "--stat", "--format=", "HEAD").count(".harness/SUMMARY.md"), 1)
+            self.assertNotIn("src.py", g.run("show", "--stat", "--format=", "HEAD"))
+            self.assertIn("src.py", g.changed_paths())  # 더러운 트리는 그대로 — 러너가 되돌린다
+            self.assertIsNone(g.commit_harness("again"))
+
+
+class KillGroupTests(unittest.TestCase):
+    def test_kill_group_sweeps_children_that_ignore_term(self):
+        proc = subprocess.Popen(["sh", "-c", "trap '' TERM; sleep 30 & sleep 30"], start_new_session=True)
+        t = time.monotonic()
+        H.kill_group(proc, grace=0.5)
+        proc.wait(timeout=5)
+        self.assertLess(time.monotonic() - t, 5.0)
+        time.sleep(0.3)
+        self.assertEqual(H._group_members(proc.pid), [])  # 손자까지 없다 — findings/006
+
+    def test_kill_group_is_quiet_when_already_gone(self):
+        proc = subprocess.Popen(["true"])
+        proc.wait()
+        H.kill_group(proc, grace=0.1)  # 예외 없이 돌아온다
+
+
 if __name__ == "__main__":
     unittest.main()

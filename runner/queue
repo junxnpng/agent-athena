@@ -49,6 +49,7 @@ def main() -> int:
         print("검증 통과: %d개 작업" % len(tasks))
         return 0
 
+    unissued = {t.id for t in H.assign_ids(tasks, events)} if a.cmd in ("status", "next") else set()  # 메모리에서만 — `#0` 의존이 id 로 풀려야 자격이 보인다 (파일은 load 가 쓴다)
     states = H.derive_states(events, tasks)
     now_dt = H.now()
     if a.cmd == "unblock":
@@ -105,12 +106,14 @@ def main() -> int:
     rows = []
     for t in tasks:
         st = states.get(t.id) or H.TaskState(id=str(t.id))
-        rows.append({"id": t.id, "state": st.state, "attempts": st.attempts, "failures": st.failures,
+        rows.append({"id": (str(t.id) + "*") if t.id in unissued else t.id, "state": st.state, "attempts": st.attempts, "failures": st.failures,
                      "priority": t.priority, "estimate": t.estimate_minutes, "waited_min": round(H.waited_minutes(st, now_dt)),
                      "order": order.get(t.id), "origin": t.origin, "title": t.title})
     if a.json:
         print(json.dumps(rows, ensure_ascii=False, indent=1))
         return 0
+    if unissued:
+        print("(*: 아직 발급되지 않은 id — runner/queue load 가 파일에 쓴다)")
     print("%-9s %-8s %3s %3s %4s %4s %7s %5s  %s" % ("id", "state", "att", "fail", "prio", "est", "waited", "next", "title"))
     for r in rows:
         print("%-9s %-8s %3d %3d %4d %4d %6dm %5s  %s" % (r["id"] or "-", r["state"], r["attempts"], r["failures"], r["priority"],

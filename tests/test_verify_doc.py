@@ -82,5 +82,43 @@ class VerifyDocTests(unittest.TestCase):
         self.assertIn("파일 없음", p.stdout)
 
 
+class VerifyDocHardeningTests(unittest.TestCase):
+    """2026-08-29 리뷰 — 코드 펜스 위장 · 절대 경로 링크 · 지수 표기."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name).resolve()
+        (self.root / "data.csv").write_text("k,v\nloss,15000000000\np50,12.5\n", encoding="utf-8")
+        self.doc = self.root / "d.md"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_(self, *args):
+        return subprocess.run([sys.executable, VD, str(self.doc), "--root", str(self.root), *args], capture_output=True, text=True, encoding="utf-8")
+
+    def test_fenced_headings_tables_and_links_do_not_count(self):
+        self.doc.write_text("---\ntitle: t\n---\n# T\n\n```\n## Results\n| x | 999 |\n[gone](nowhere.md)\n```\n\n## Other\n본문 " + "w " * 20, encoding="utf-8")
+        p = self.run_("--sections", "Results")
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("필수 섹션 없음: Results", p.stdout)
+        p = self.run_("--sections", "Other", "--data", str(self.root / "data.csv"), "--min-words", "10")
+        self.assertEqual(p.returncode, 0, p.stdout)  # 펜스 안의 999 와 깨진 링크는 검사 대상이 아니다
+
+    def test_absolute_path_link_is_rejected(self):
+        self.doc.write_text("---\ntitle: t\n---\n# T\n[x](/etc/hosts)\n", encoding="utf-8")
+        p = self.run_()
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("절대 경로 링크", p.stdout)
+
+    def test_exponent_numbers_are_checked(self):
+        self.doc.write_text("---\ntitle: t\n---\n# T\n| k | v |\n|---|---|\n| loss | 1.5e10 |\n", encoding="utf-8")
+        self.assertEqual(self.run_("--data", str(self.root / "data.csv")).returncode, 0)
+        self.doc.write_text("---\ntitle: t\n---\n# T\n| k | v |\n|---|---|\n| loss | 2.5e10 |\n", encoding="utf-8")
+        p = self.run_("--data", str(self.root / "data.csv"))
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("표의 숫자가 데이터에 없다: 2.5e10", p.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

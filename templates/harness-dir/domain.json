@@ -3,7 +3,9 @@
   "write_scope": [
     "."
   ],
-  "_write_scope": "계약 ④ — 모델이 쓸 수 있는 경로 (repo 루트 기준). '.' 이면 repo 전체. pre-tool 훅이 밖을 거부한다 (I6)",
+  "_write_scope": "계약 ④ — 모델이 쓸 수 있는 경로 (repo 루트 기준). '.' 이면 repo 전체. pre-tool 훅이 밖을 거부한다 (I6) — 대화형에서도",
+  "human_scope": [],
+  "_human_scope": "대화형에서만 열리는 경로 — 사람이 넣는 수집함(inbox)·기록(records)·팩트. 러너 모드와 러너의 최종 판정은 write_scope 만 본다: 밤은 출처·기록을 지어낼 수 없다 (2026-08-29)",
   "tools": [],
   "_tools": "계약 ⑤ — 특수 도구. [{\"name\": \"bench\", \"cmd\": \"make bench\", \"note\": \"3분 걸림\"}] 형식으로 프롬프트에 실린다",
   "verify": {
@@ -22,9 +24,10 @@
     "max_attempts": 3,
     "starvation_minutes": 1440,
     "max_night_usd": 20,
+    "max_day_usd": null,
     "rate_limit_stop": 0.85
   },
-  "_budget": "leaf_max = 작업당 모델 타임아웃. max_attempts 실패 시 blocked. starvation_minutes 보다 오래 기다린 작업은 무조건 먼저 (P2). max_night_usd = 밤 누적 비용 상한(USD) — null 상한은 상한이 아니다, 해제는 명시적 null 로만. rate_limit_stop = 5시간 창 사용률이 이 이상이면 밤 종료 (null = 해제)",
+  "_budget": "leaf_max = 작업당 모델 타임아웃. max_attempts 실패 시 blocked. starvation_minutes 보다 오래 기다린 작업은 무조건 먼저 (P2). max_night_usd = 밤 누적 비용 상한(USD, 소프트 — 검사는 시도 사이라 마지막 시도만큼 넘을 수 있다) — null 상한은 상한이 아니다, 해제는 명시적 null 로만. max_day_usd = 일일(로컬 자정 이후) 누적 상한 — 로그 fold 라 밤·루프를 다시 띄워도 리셋되지 않는다, 기본 null(해제). night-loop --max-day-usd 는 형제 repo 합산. rate_limit_stop = 5시간 창 사용률이 이 이상이면 밤 종료 (null = 해제)",
   "driver": {
     "name": "claude",
     "model": null,

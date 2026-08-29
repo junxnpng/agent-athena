@@ -120,6 +120,7 @@ def tail(text: Optional[str], n: int = TAIL_CHARS) -> str:
 
 DOMAIN_DEFAULTS: Dict[str, Any] = {
     "write_scope": ["."],
+    "human_scope": [],           # 대화형에서만 쓸 수 있는 경로 (사람이 넣는 수집함·기록) — 러너 모드는 write_scope 만 본다 (2026-08-29)
     "tools": [],
     "verify": {"cmd": ".harness/verify", "timeout_sec": 600, "smoke_timeout_sec": 120},
     "bootstrap": {"cmd": ".harness/init.sh", "timeout_sec": 600},
@@ -130,6 +131,7 @@ DOMAIN_DEFAULTS: Dict[str, Any] = {
         "max_attempts": 3,         # 이 횟수 실패하면 blocked (P8-lite)
         "starvation_minutes": 1440,  # 이보다 오래 기다린 작업은 무조건 먼저 (P2, 등급 D)
         "max_night_usd": 20.0,       # 밤 누적 비용 상한 (USD). null 상한은 상한이 아니다 — 해제는 명시적 null 로만
+        "max_day_usd": None,         # 일일(로컬 자정 이후) 누적 상한 (USD) — 밤·루프 상한과 달리 다시 띄워도 리셋되지 않는다 (2026-08-29 $68 실측). null = 해제
         "rate_limit_stop": 0.85,     # 5시간 창 사용률이 이 이상 관측되면 밤 종료 (구독 요금제의 실질 예산; night-002 실측 67%)
     },
     "driver": {"name": "claude", "model": None, "effort": None, "max_turns": 120, "max_budget_usd": 5.0},
@@ -165,6 +167,12 @@ class Domain:
     def write_scope(self) -> List[str]:
         ws = self.raw.get("write_scope") or ["."]
         return [str(p) for p in ws]
+
+    @property
+    def human_scope(self) -> List[str]:
+        """대화형에서만 쓸 수 있는 경로 — 사람이 넣는 자료(수집함·기록·팩트). 러너 모드와 러너의 최종 판정(scope_violations)은
+        write_scope 만 본다: 밤은 출처·기록을 지어낼 수 없고, 낮에는 사람이 승인 루프에 있다 (2026-08-29)."""
+        return [str(p) for p in (self.raw.get("human_scope") or [])]
 
     @property
     def tools(self) -> List[Dict[str, Any]]:
@@ -240,6 +248,12 @@ class Domain:
     @property
     def max_night_usd(self) -> Optional[float]:
         v = self.raw["budget"].get("max_night_usd")
+        return None if v is None else float(v)
+
+    @property
+    def max_day_usd(self) -> Optional[float]:
+        """일일(로컬 자정 이후) 누적 상한 — 로그에서 파생한다(day_cost_usd). 기본 None = 해제."""
+        v = self.raw["budget"].get("max_day_usd")
         return None if v is None else float(v)
 
     @property
@@ -343,7 +357,7 @@ def network_skills(root: Optional[Path] = None) -> List[str]:
     out: List[str] = []
     for sk in sorted(base.glob("*/SKILL.md")):
         try:
-            head = "".join(sk.open(encoding="utf-8", errors="replace").readlines()[:12])
+            head = sk.read_text(encoding="utf-8", errors="replace")  # 파일 전체 — vendored frontmatter 가 길어 표시가 12줄 밖으로 밀려도 놓치지 않는다
         except OSError:
             continue
         if MODE_A_MARK in head:
@@ -357,13 +371,16 @@ def contract_missing(repo: Repo) -> List[str]:
 
 # ────────────────────────────────────────────────────────────── I6 쓰기 범위
 
-_REDIRECT_RE = re.compile(r"(?:(?<![<>&-])>>?|\btee\b(?:\s+-[a-z]+)*)\s*[\"']?([^\s\"'<>|;&()`]+)")  # `->` 는 리다이렉션이 아니다 (findings/005)
+_REDIRECT_RE = re.compile(r"(?:(?<![<>&\-=!])>>?|\btee\b(?:\s+-[a-z]+)*)\s*[\"']?([^\s\"'<>|;&()`]+)")  # `->` `=>` `!>` 는 리다이렉션이 아니다 (findings/005)
 _HEREDOC_RE = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
-_SHELL_HEREDOC_RE = re.compile(r"(?:^|[|;&(]\s*)(?:sudo\s+)?(?:\S*/)?(?:sh|bash|zsh|dash|ksh)\b[^|;&\n]*<<")  # 본문이 셸로 실행된다 — `>` 가 진짜 리다이렉션
-EXEC_HEREDOC_RE = re.compile(r"(?:^|[|;&(]\s*)(?:sudo\s+)?(?:\S*/)?(?:sh|bash|zsh|dash|ksh|python[0-9.]*|perl|ruby|node)\b[^|;&\n]*<<")  # 본문이 무엇이든 실행된다 — 거부 규칙(commit/push·네트워크)은 여기까지 본다
+# 명령 앞에 붙는 wrapper — `env X=1 curl` `time curl` `nice -n 5 python3 <<PY` `uv run python <<PY` `xargs -I{} curl {}` 는 같은 명령이다 (2026-08-29 리뷰 실측 우회)
+WRAPPER_RE = r"(?:(?:sudo|env|time|nice|nohup|stdbuf|command|exec|caffeinate|xargs|uv\s+run|poetry\s+run|pipx\s+run)(?:\s+-\S+(?:\s+\d+)?)*(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S*)*\s+|[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"  # `nice -n 5` 의 숫자 인자까지
+_SHELL_HEREDOC_RE = re.compile(r"(?:^|[|;&(]\s*)" + WRAPPER_RE + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)\b[^|;&\n]*<<")  # 본문이 셸로 실행된다 — `>` 가 진짜 리다이렉션
+EXEC_HEREDOC_RE = re.compile(r"(?:^|[|;&(]\s*)" + WRAPPER_RE + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh|python[0-9.]*|perl|ruby|node)\b[^|;&\n]*<<")  # 본문이 무엇이든 실행된다 — 거부 규칙(commit/push·네트워크)은 여기까지 본다
 _SED_I_RE = re.compile(r"\bsed\s+-i(?:\s*'')?\s+(?:-e\s+)?(?:'[^']*'|\"[^\"]*\"|\S+)\s+([^\s|;&]+)")
 _CP_MV_RE = re.compile(r"\b(?:cp|mv)\s+(?:-\S+\s+)*\S+\s+([^\s|;&]+)")
 _TOUCH_RE = re.compile(r"\b(?:touch|mkdir(?:\s+-p)?)\s+([^\s|;&]+)")
+_RM_RE = re.compile(r"(?:^|[|;&(]\s*)" + WRAPPER_RE + r"(?:rm|unlink|rmdir)((?:\s+[^\s|;&]+)+)")  # 삭제도 트리 변경이다 — `rm .harness-readonly` 가 D4 를 끄던 구멍 (2026-08-29 리뷰)
 
 
 def strip_heredoc_bodies(cmd: str, keep: "re.Pattern[str]" = _SHELL_HEREDOC_RE) -> str:
@@ -420,6 +437,8 @@ def bash_write_targets(cmd: str) -> List[str]:
         out.append(t)
     for rx in (_SED_I_RE, _CP_MV_RE, _TOUCH_RE):
         out.extend(m.group(1) for m in rx.finditer(cmd))
+    for m in _RM_RE.finditer(cmd):
+        out.extend(a for a in m.group(1).split() if not a.startswith("-"))
     return out
 
 
@@ -516,17 +535,20 @@ class Task:
 
 
 def _task_from_json(t: Dict[str, Any]) -> Task:
-    return Task(
-        id=t.get("id"),
-        title=str(t.get("title") or "").strip(),
-        goal=str(t.get("goal") or "").strip(),
-        verify=t.get("verify"),
-        estimate_minutes=int(t.get("estimate_minutes") or 0),
-        depends_on=[str(d) for d in (t.get("depends_on") or [])],
-        priority=int(t.get("priority") or 0),
-        origin=str(t.get("origin") or "plan"),
-        raw=dict(t),
-    )
+    try:
+        return Task(
+            id=t.get("id"),
+            title=str(t.get("title") or "").strip(),
+            goal=str(t.get("goal") or "").strip(),
+            verify=t.get("verify"),
+            estimate_minutes=int(t.get("estimate_minutes") or 0),
+            depends_on=[str(d) for d in (t.get("depends_on") or [])],
+            priority=int(t.get("priority") or 0),
+            origin=str(t.get("origin") or "plan"),
+            raw=dict(t),
+        )
+    except (TypeError, ValueError) as e:  # `priority: []`·`estimate_minutes: "abc"` — traceback 대신 접수 게이트의 반려 메시지
+        raise HarnessError("plan.json 작업 필드 파싱 실패 (%s): %s" % (str(t.get("title") or t.get("id") or "?")[:60], e))
 
 
 def load_plan(repo: Repo) -> Tuple[Dict[str, Any], List[Task]]:
@@ -882,19 +904,50 @@ def select_next(tasks: Sequence[Task], states: Dict[str, TaskState], domain: Dom
 
 # ────────────────────────────────────────────────────────────── 프로세스 실행 (타임아웃 = 프로세스 그룹 kill; macOS에 timeout 없음)
 
-def kill_group(proc: subprocess.Popen) -> None:
+def _group_members(pgid: int) -> List[int]:
+    """프로세스 그룹의 살아 있는 pid 들 (자기 자신 제외). `ps -A -o pid= -o pgid=` 는 BSD·procps 공통."""
     try:
-        os.killpg(proc.pid, signal.SIGTERM)
+        p = subprocess.run(["ps", "-A", "-o", "pid=", "-o", "pgid="], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    out: List[int] = []
+    for ln in p.stdout.splitlines():
+        parts = ln.split()
+        if len(parts) >= 2 and parts[1].isdigit() and int(parts[1]) == pgid and parts[0].isdigit() and int(parts[0]) != os.getpid():
+            out.append(int(parts[0]))
+    return out
+
+
+def _signal_group(proc: subprocess.Popen, sig: int) -> None:
+    """그룹 전체 + 리더 pid. killpg 가 ESRCH 면(리더가 아직 setsid 전이거나 이미 죽음) pid 로 직접 — 조용히 돌아가지 않는다."""
+    try:
+        os.killpg(proc.pid, sig)
     except (ProcessLookupError, PermissionError):
+        try:
+            os.kill(proc.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+    for pid in _group_members(proc.pid):  # fork 직후라 killpg 를 놓친 손자 — findings/006 실측 1/30
+        try:
+            os.kill(pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
+def kill_group(proc: subprocess.Popen, grace: float = 10.0) -> None:
+    """SIGTERM → grace 초 → SIGKILL, 그룹 잔존 프로세스까지 훑는다. findings/006: killpg 한 번은 fork 직후의 손자를 놓쳐(1/30)
+    `sleep 60` 이 파이프를 잡은 채 살아남았다 — 카나리아 '즉시 중단' 약속이 60초 지연되던 원인."""
+    if proc.poll() is not None and not _group_members(proc.pid):
         return
-    for _ in range(100):
-        if proc.poll() is not None:
+    _signal_group(proc, signal.SIGTERM)
+    deadline = time.monotonic() + max(0.0, grace)
+    while time.monotonic() < deadline:
+        if proc.poll() is not None and not _group_members(proc.pid):
             return
-        time.sleep(0.1)
-    try:
-        os.killpg(proc.pid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
-        pass
+        time.sleep(0.05)
+    _signal_group(proc, signal.SIGKILL)
+    time.sleep(0.05)
+    _signal_group(proc, signal.SIGKILL)  # 첫 SIGKILL 과 동시에 fork 된 것까지
 
 
 def run_shell(cmd: str, cwd: Union[str, Path], timeout_sec: float,
@@ -913,7 +966,10 @@ def run_shell(cmd: str, cwd: Union[str, Path], timeout_sec: float,
                                   timeout=timeout_sec)
     except subprocess.TimeoutExpired:
         kill_group(proc)
-        out, _ = proc.communicate()
+        try:
+            out, _ = proc.communicate(timeout=5)  # 이미 죽였다 — 잔여 출력만 최선노력으로 회수, 파이프를 잡은 손자가 있어도 매달리지 않는다
+        except subprocess.TimeoutExpired:
+            out = b""
         timed_out = True
     except BaseException:
         kill_group(proc)
@@ -1037,6 +1093,16 @@ class Git:
         self.run("commit", "-q", "-m", message)
         return self.head()
 
+    def commit_harness(self, message: str) -> Optional[str]:
+        """.harness/ 만 add + commit (SUMMARY·BLOCKED·log). 밤이 이상 종료해 트리가 더러워도 모델의 편집을 부기 커밋에 섞지 않는다 (I8)."""
+        p = subprocess.run(["git", "-C", str(self.root), "status", "--porcelain", "--", HDIR_NAME],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if not p.stdout.strip():
+            return None
+        self.run("add", "-A", "--", HDIR_NAME)
+        self.run("commit", "-q", "-m", message, "--", HDIR_NAME)
+        return self.head()
+
     def save_patch(self, path: Path) -> bool:
         """실패 시도의 diff(.harness 제외, 새 파일 포함)를 path에 남긴다. I4: 실패 흔적은 지우지 않는다."""
         self.run("add", "-A", "--", ".", EXCLUDE_HDIR)
@@ -1080,6 +1146,24 @@ class Git:
 
 
 # ────────────────────────────────────────────────────────────── P10 아침 산출물 (로그에서만 생성)
+
+def day_cost_usd(events: Sequence[Dict[str, Any]], now_dt: Optional[datetime] = None) -> float:
+    """오늘(로컬 자정 이후) 모델 비용 — model_done + plan_proposed 의 cost_usd 합. 상태 파일 없이 로그에서 파생한다 (I3).
+    일일 상한(budget.max_day_usd)은 밤·루프 상한과 달리 밤을 다시 띄워도 리셋되지 않는다 (2026-08-29 하루 $68 실측)."""
+    now_dt = now_dt or now()
+    day_start = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    total = 0.0
+    for e in events:
+        if e.get("event") not in ("model_done", "plan_proposed"):
+            continue
+        try:
+            ts = parse_iso(str(e.get("ts") or ""))
+        except ValueError:
+            continue
+        if ts >= day_start:
+            total += float(e.get("cost_usd") or 0)
+    return total
+
 
 def events_for_night(events: Sequence[Dict[str, Any]], night_id: str) -> List[Dict[str, Any]]:
     return [e for e in events if e.get("night") == night_id]
@@ -1220,7 +1304,7 @@ def render_summary(c: Dict[str, Any]) -> str:
     reason = {"budget": "예산 소진", "queue_empty": "큐 비움", "max_tasks": "작업 수 상한", "interrupted": "중단됨",
               "smoke_unrepairable": "스모크 복구 실패", "bootstrap_failed": "부트스트랩 실패",
               "machine_slept": "머신이 잠듦 (밤 중단)", "driver_unhealthy": "드라이버 무응답 연속 (밤 중단)",
-              "cost_budget": "비용 상한 도달", "rate_limited": "5시간 창 사용률 상한 도달",
+              "cost_budget": "비용 상한 도달", "cost_day": "일일 비용 상한 도달", "rate_limited": "5시간 창 사용률 상한 도달",
               "hooks_dead": "훅 미로드 (밤 중단)"}.get(
         (ended or {}).get("reason", ""), (ended or {}).get("reason", "진행 중"))
     branch = (started or {}).get("branch", "?")

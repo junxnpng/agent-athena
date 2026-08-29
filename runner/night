@@ -8,6 +8,8 @@
 
 사용:
   runner/night --repo <path> [--hours 8] [--max-tasks N] [--driver claude|fake] [--model M] [--dry-run] [--no-bootstrap]
+종료 코드: 0 정상 종료(예산·큐 비움·상한) · 2 preflight 거부(HarnessError) · 3 인프라/구조 실패(사람이 봐야 한다)
+  · 4 일일 비용 상한(budget.max_day_usd)이 이미 찼다 — 밤을 시작하지 않았다 (브랜치·로그 없음, night-loop 는 cost_day 로 멈춘다)
 """
 from __future__ import annotations
 
@@ -117,14 +119,21 @@ def run_night(args: argparse.Namespace) -> int:
         states = H.derive_states(events, tasks)
         order = H.rank(tasks, states, domain, remaining_minutes=hours * 60)
         base, note = resolve_base(git)
-        print("dry-run · 다음 밤 %s · 기점 %s (%s) · 예산 %.1fh · 드라이버 %s · (*: 밤 시작에 발급될 id)" % (
-            H.next_id("night", events), base, note, hours, driver_name))
+        print("dry-run · 다음 밤 %s · 기점 %s (%s) · 예산 %.1fh · 드라이버 %s · 오늘 비용 $%.2f / 일일 상한 %s · (*: 밤 시작에 발급될 id)" % (
+            H.next_id("night", events), base, note, hours, driver_name, H.day_cost_usd(events),
+            "없음" if domain.max_day_usd is None else "$%.0f" % domain.max_day_usd))
         for i, t in enumerate(order, 1):
             st = states.get(t.id) or H.TaskState(id=str(t.id))
             print("%2d. %s%s %s (priority %d, %d분, 실패 %d)" % (i, t.id, "*" if t.id in new_ids else "", t.title, t.priority, t.estimate_minutes, st.failures))
         if not order:
             print("(자격 있는 작업 없음)")
         return 0
+
+    if domain.max_day_usd is not None:  # 일일 상한 — 브랜치를 만들기 전에. 밤·루프 상한과 달리 다시 띄워도 리셋되지 않는다 (2026-08-29 $68)
+        day_cost = H.day_cost_usd(H.read_log(repo.log))
+        if day_cost >= domain.max_day_usd:
+            say("오늘 누적 비용 $%.2f ≥ 일일 상한 $%.2f → 밤을 시작하지 않는다 (자정 이후 다시 · budget.max_day_usd)" % (day_cost, domain.max_day_usd))
+            return 4
 
     base, note = resolve_base(git)
     if base != "HEAD":
@@ -136,8 +145,9 @@ def run_night(args: argparse.Namespace) -> int:
         raise H.HarnessError("브랜치 %s 가 이미 있다 (로그와 브랜치가 어긋남). 지우거나 병합한 뒤 다시" % branch)
     git.create_branch(branch, "HEAD")
     cost_cap = "없음" if domain.max_night_usd is None else "$%.0f" % domain.max_night_usd
-    say("%s 시작 · 기점 %s (%s) · 브랜치 %s · 예산 %.1fh · 비용 상한 %s · 드라이버 %s" % (
-        night_id, git.head(), note, branch, hours, cost_cap, driver_name))
+    day_cap = "" if domain.max_day_usd is None else " · 일일 상한 $%.0f (오늘 $%.2f)" % (domain.max_day_usd, H.day_cost_usd(events))
+    say("%s 시작 · 기점 %s (%s) · 브랜치 %s · 예산 %.1fh · 비용 상한 %s%s · 드라이버 %s" % (
+        night_id, git.head(), note, branch, hours, cost_cap, day_cap, driver_name))
 
     if not repo.gitignore.exists():
         repo.gitignore.write_text(GITIGNORE_BODY, encoding="utf-8")
@@ -147,7 +157,8 @@ def run_night(args: argparse.Namespace) -> int:
     lock.write_text("%d %s\n" % (os.getpid(), H.iso(H.now())), encoding="utf-8")
 
     start = H.now()
-    deadline = start + timedelta(hours=hours)
+    deadline = start + timedelta(hours=hours)  # 기록·훅 안내용 벽시계. 남은 예산은 단조시계로 센다 — NTP·DST 가 예산을 바꾸지 않는다
+    deadline_mono = time.monotonic() + hours * 3600.0
     log = repo.log
     ended_reason = "interrupted"
     in_flight: Optional[Tuple[H.Task, int]] = None
@@ -170,17 +181,14 @@ def run_night(args: argparse.Namespace) -> int:
         H.append_event(log, "night_started", night=night_id, branch=branch, base=git.head(), base_note=note,
                        budget_minutes=int(hours * 60), deadline=H.iso(deadline), driver=driver_name,
                        model=domain.driver.get("model"), leaf_max_minutes=domain.leaf_max, max_attempts=domain.max_attempts,
-                       max_night_usd=domain.max_night_usd, rate_limit_stop=domain.rate_limit_stop)
+                       max_night_usd=domain.max_night_usd, max_day_usd=domain.max_day_usd, rate_limit_stop=domain.rate_limit_stop)
 
-        # 지난 밤이 판정 없이 죽었으면 닫는다 (append-only로 — 지우지 않는다)
+        # 지난 밤이 판정 없이 죽었으면 닫는다 (append-only로 — 지우지 않는다). 중단은 인프라 사유 — 시도 횟수를 먹지 않는다 (findings/002 와 대칭)
         states = H.derive_states(H.read_log(log), tasks)
         for st in H.dangling_started(states):
-            H.append_event(log, "task_failed", night=night_id, task=st.id, attempt=st.attempts, stage="interrupted",
+            H.append_event(log, "task_failed", night=night_id, task=st.id, attempt=st.attempts, stage="interrupted", infra=True,
                            reason="이전 밤(%s)이 판정 없이 끝남" % (st.last_night or "?"))
-            if st.failures + 1 >= domain.max_attempts:
-                H.append_event(log, "task_blocked", night=night_id, task=st.id, attempts=st.attempts,
-                               reason="%d회 연속 검증 실패" % (st.failures + 1))
-            say("%s: 이전 밤 미판정 시도를 실패로 닫음" % st.id)
+            say("%s: 이전 밤 미판정 시도를 닫음 (인프라 — 시도 횟수 미산입)" % st.id)
 
         # 계약 ③ 부트스트랩
         if not args.no_bootstrap:
@@ -234,7 +242,7 @@ def run_night(args: argparse.Namespace) -> int:
         driver_fails = 0  # 연속 무응답(시간 초과 + 0턴) 횟수
         while True:
             now_dt = H.now()
-            remaining = (deadline - now_dt).total_seconds() / 60.0
+            remaining = (deadline_mono - time.monotonic()) / 60.0
             if remaining < domain.leaf_min:
                 ended_reason = "budget"
                 break
@@ -246,6 +254,12 @@ def run_night(args: argparse.Namespace) -> int:
                 ended_reason = "max_tasks"
                 break
             events = H.read_log(log)
+            if domain.max_day_usd is not None:
+                day_cost = H.day_cost_usd(events, now_dt)
+                if day_cost >= domain.max_day_usd:
+                    ended_reason = "cost_day"
+                    say("오늘 누적 비용 $%.2f ≥ 일일 상한 $%.2f → 밤 종료 (자정 이후 다시)" % (day_cost, domain.max_day_usd))
+                    break
             states = H.derive_states(events, tasks)
             task = H.select_next(tasks, states, domain, now_dt, remaining)
             if task is None:
@@ -362,8 +376,9 @@ def run_night(args: argparse.Namespace) -> int:
                 patch_rel = stash_attempt(str(task.id), attempt)
             except H.HarnessError as e:
                 say("되돌리기 실패: %s" % e)
-            H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage="interrupted", reason="러너 중단", patch=patch_rel)
-            say("%s 시도 %d 중단 → 실패로 기록" % (task.id, attempt))
+            H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage="interrupted", infra=True,
+                           reason="러너 중단", patch=patch_rel)
+            say("%s 시도 %d 중단 → 기록 (인프라 — 시도 횟수 미산입)" % (task.id, attempt))
         if ended_reason not in ("bootstrap_failed",):
             ended_reason = "interrupted"
     finally:
@@ -377,17 +392,17 @@ def run_night(args: argparse.Namespace) -> int:
                        cost_usd=round(sum(float(e.get("cost_usd") or 0) for e in ne if e.get("event") == "model_done"), 4))
         try:
             summary, blocked = H.write_morning_outputs(repo, night_id, domain)
-            sha = git.commit_all("[harness %s] summary" % night_id)
+            sha = git.commit_harness("[harness %s] summary" % night_id)  # .harness/ 만 — 이상 종료로 더러워진 트리를 부기 커밋에 섞지 않는다
             say("%s 종료 (%s) · 완료 %d / 실패 %d / 막힘 %d · SUMMARY %s%s" % (
                 night_id, ended_reason, counts["task_passed"], counts["task_failed"], counts["task_blocked"], summary,
                 (" · 커밋 %s" % sha) if sha else ""))
-        except H.HarnessError as e:
-            say("SUMMARY 생성 실패: %s" % e)
+        except Exception as e:  # finally 안에서 새 예외를 던지면 원래 예외(Interrupted 등)를 덮는다 — 기록하고 삼킨다
+            say("SUMMARY 생성/커밋 실패: %s: %s" % (type(e).__name__, e))
         try:
             lock.unlink()
         except FileNotFoundError:
             pass
-    return 0 if ended_reason in ("budget", "queue_empty", "max_tasks", "cost_budget", "rate_limited") else 3
+    return 0 if ended_reason in ("budget", "queue_empty", "max_tasks", "cost_budget", "cost_day", "rate_limited") else 3
 
 
 def main() -> int:

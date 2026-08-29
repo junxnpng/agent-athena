@@ -88,7 +88,7 @@ harness/
 │  ├─ run-hook            # polyglot 진입점 — 확장자 없음
 │  ├─ session-start       # 세션 시작 5단계 강제
 │  ├─ pre-tool            # 쓰기 중재 · trifecta 검사 · 예산 확인
-│  └─ post-tool           # 병리 카운터
+│  └─ (post-tool 없음)     # P9 는 stream-json 집계 — 관측이 대상 세션 안에서 돌면 I9 위반 (CONTEXT.md 해소 기록)
 ├─ runner/                # 바깥 루프
 │  ├─ night               # 진입점: 밤 하나 실행
 │  ├─ decompose           # 사양 → 계획
@@ -282,13 +282,14 @@ superpowers 방식 그대로. **콘텐츠 하나, 매니페스트 N개.**
 - [ ] 무인으로 한 밤
 
 ### Phase 3 — 분해 자동화
-- [ ] P7 분해 (리프 5~30분, 단계 3, 검증기 필수)
+> 2026-08-29: Phase 3~5 의 체크박스는 계획 당시 것이다. P7-lite(`runner/decompose --propose`, 채택은 사람/auto_accept)·P8·P9(stream-json 집계)·P3 쓰기 중재·D1~D4 는 구현됨 — 정본은 CLAUDE.md 와 CONTEXT.md 해소 기록.
+- [x] P7-lite 분해 (제안은 러너, 채택은 사람 — `decompose --propose` · `queue accept`)
 - [ ] `writing-plans` 스킬
 - [ ] 분해 결과 반려 조건 구현
 
 ### Phase 4 — 병리와 복구
 - [ ] P8 막힘 격리
-- [ ] P9 병리 카운터 (doom loop · 연속 실패 · 조기 종료)
+- [x] P9 병리 카운터 (doom loop · 연속 실패 · 조기 종료 — stream-json 집계, post-tool 훅 아님)
 - [ ] P3 쓰기 중재 + 멱등 키
 - [ ] `verification-before-completion` 스킬
 
