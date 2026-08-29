@@ -36,6 +36,8 @@
 | heredoc 본문 제외 | 조기 거부 휴리스틱은 재현율만 걱정했지만 정밀도가 낮으면 거부가 곧 우회 유도다 — 모델은 거부당하면 다른 도구로 같은 쓰기를 한다(night-003: `cat > tests/x.py <<EOF` 거부 → `Write`). heredoc 본문은 데이터라 스캔에서 빼고, 실행형(`bash <<EOF`)만 남긴다 | Claude 5 · B | `harnesslib.py: strip_heredoc_bodies`, `hooks/pre-tool: check_bash` |
 | 연속 밤 루프 | 밤이 5시간 창·예산으로 끝나면 사람이 없는 한 아무도 다음 밤을 띄우지 않는다 — 대화형 루프 스킬(/loop 류)은 러너 밖에서 세션을 반복하는 것이라 층이 틀리다. `runner/night-loop`가 밤을 잇되 밤 안은 만지지 않고, 총비용 상한·마감·밤 수로 묶는다(밤당 상한은 밤마다 새로 시작하므로) | 구조적 · A | `runner/night-loop`, `scripts/night-detached loop` |
 | P7-lite 제안 필터 | 모델이 만든 계획에는 빈 작업(이미 통과하는 검증기)·자기 참조·검증기 없는 항목이 섞인다 — 러너가 제안된 검증기를 현재 트리에서 돌려 통과하면 버리고, 계획 검증(I5·리프 크기·순환)에 걸리면 제안 전체를 반려한다. 채택·id 발급은 사람/러너(I1) | Claude 5 · C | `runner/decompose: propose`, `harnesslib.py: accept_proposed` |
+| 승인 게이트 | 모델은 사람의 결정(설계 확정·결과 해석·방향)을 대신 내릴 수 없고, 내리면 안 된다 — 승인은 검증기의 한 종류로 두어 게이트 뒤 작업이 사람 없이 시작되지 않게 한다 | 구조적 · A | `harnesslib.py: Task.is_gate, derive_states`, `runner/queue approve` |
+| 읽기 전용 하네스 | 회사 머신의 세션은 하네스 버그를 그 자리에서 고치고 싶어 한다 — 커밋할 수 없는 곳의 수정은 유실되므로 마커로 쓰기 자체를 막고 발견만 남기게 한다 | 구조적 · A | `hooks/pre-tool: readonly_reason` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)

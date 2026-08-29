@@ -106,6 +106,40 @@ def budget_message() -> Optional[str]:
     return None
 
 
+READONLY_MARKER = ".harness-readonly"  # 회사 설치: 이 파일이 하네스 루트에 있으면 하네스 안 쓰기·commit 을 대화형·무인 모두 거부 (2026-08-29 D4)
+_RO_GIT_RE = re.compile(r"\bgit\b[^|;&\n]*\b(commit|push|merge|rebase|am|cherry-pick|revert|tag)\b")
+RO_REASON = "[harness] 하네스는 이 머신에서 읽기 전용이다 (.harness-readonly) — 고칠 것은 도메인 repo 의 .harness/findings/ 에 적고 집에서 반영한다. 갱신은 git pull + scripts/plugin-refresh"
+
+
+def harness_root() -> Path:
+    return Path(os.environ.get("HARNESS_ROOT") or H.HARNESS_ROOT).resolve()
+
+
+def readonly_reason(tool: str, inp: dict, cwd: Path) -> Optional[str]:
+    root = harness_root()
+    if not (root / READONLY_MARKER).exists():
+        return None
+
+    def inside(p: str) -> bool:
+        q = Path(p).expanduser()
+        q = (q if q.is_absolute() else cwd / q).resolve()
+        return q == root or root in q.parents
+
+    if tool in WRITE_TOOLS:
+        t = str(inp.get("file_path") or inp.get("notebook_path") or "")
+        return RO_REASON if t and inside(t) else None
+    if tool == "Bash":
+        cmd = str(inp.get("command") or "")
+        base = H.leading_cd(cmd, cwd)
+        for t in H.bash_write_targets(cmd):
+            if inside(t if os.path.isabs(t) else str(base / t)):
+                return RO_REASON
+        scan = H.strip_heredoc_bodies(cmd, keep=H.EXEC_HEREDOC_RE)
+        if _RO_GIT_RE.search(scan) and (inside(str(base)) or str(root) in cmd):
+            return RO_REASON
+    return None
+
+
 def main() -> int:
     H.ensure_utf8_stdio()
     try:
@@ -113,6 +147,10 @@ def main() -> int:
     except (ValueError, OSError):
         return 0
     cwd = Path(data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+    ro = readonly_reason(str(data.get("tool_name") or ""), data.get("tool_input") or {}, cwd)
+    if ro:
+        deny(ro)
+        return 0
     repo = H.find_repo(cwd)
     if repo is None:
         return 0

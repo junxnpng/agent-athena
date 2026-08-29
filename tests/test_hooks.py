@@ -36,14 +36,14 @@ class HookTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def hook(self, name, payload, runner=False, **env_extra):
+    def hook(self, name, payload, runner=False, cwd=None, **env_extra):
         env = dict(os.environ)
         env.pop("HARNESS_NIGHT", None)
         env.pop("HARNESS_DEADLINE_EPOCH", None)
         if runner:
             env["HARNESS_NIGHT"] = "night-001"
         env.update(env_extra)
-        payload = dict({"cwd": str(self.root), "session_id": "s"}, **payload)
+        payload = dict({"cwd": str(cwd or self.root), "session_id": "s"}, **payload)
         p = subprocess.run(SH + [RUN_HOOK, name], input=json.dumps(payload), capture_output=True, text=True, encoding="utf-8", env=env)
         self.assertEqual(p.returncode, 0, p.stderr)
         return json.loads(p.stdout) if p.stdout.strip() else None
@@ -51,11 +51,28 @@ class HookTests(unittest.TestCase):
     def decision(self, out):
         return (out or {}).get("hookSpecificOutput", {}).get("permissionDecision")
 
-    def bash(self, cmd, runner=False, **env):
-        return self.decision(self.hook("pre-tool", {"tool_name": "Bash", "tool_input": {"command": cmd}}, runner, **env))
+    def bash(self, cmd, runner=False, cwd=None, **env):
+        return self.decision(self.hook("pre-tool", {"tool_name": "Bash", "tool_input": {"command": cmd}}, runner, cwd, **env))
 
-    def write(self, path, runner=False):
-        return self.decision(self.hook("pre-tool", {"tool_name": "Write", "tool_input": {"file_path": path, "content": "x"}}, runner))
+    def write(self, path, runner=False, cwd=None, **env):
+        return self.decision(self.hook("pre-tool", {"tool_name": "Write", "tool_input": {"file_path": path, "content": "x"}}, runner, cwd, **env))
+
+    def test_readonly_harness_marker_blocks_writes_and_commits(self):
+        # D4 (2026-08-29): 회사 설치 — 하네스 clone 루트에 .harness-readonly 가 있으면 그 안 쓰기·commit 을 어디서든 거부 (.harness 없는 cwd 포함)
+        htmp = tempfile.TemporaryDirectory()  # 도메인 repo 밖 — 안에 두면 쓰기 범위 규칙이 먼저 걸린다
+        self.addCleanup(htmp.cleanup)
+        hroot = Path(htmp.name).resolve()
+        (hroot / "runner").mkdir(parents=True)
+        env = {"HARNESS_ROOT": str(hroot)}
+        self.assertIsNone(self.write(str(hroot / "runner" / "night"), cwd=hroot, **env))  # 마커 없음 → 평소처럼
+        (hroot / ".harness-readonly").write_text("company\n")
+        self.assertEqual(self.write(str(hroot / "runner" / "night"), cwd=hroot, **env), "deny")
+        self.assertEqual(self.bash("echo x > runner/night", cwd=hroot, **env), "deny")
+        self.assertEqual(self.bash("cd %s && git commit -m x" % hroot, **env), "deny")
+        self.assertEqual(self.bash("git push origin main", cwd=hroot, **env), "deny")
+        self.assertIsNone(self.bash("git log --oneline -3", cwd=hroot, **env))            # 읽기는 자유
+        self.assertIsNone(self.write(str(self.root / "src" / "a.py"), **env))              # 도메인 repo 쓰기는 평소대로
+        self.assertIsNone(self.bash("git commit -m x", runner=False, **env))                # 도메인 repo 대화형 commit 은 S2 대로 허용
 
     def test_inert_outside_harness_repo(self):
         with tempfile.TemporaryDirectory() as other:
@@ -124,6 +141,15 @@ class HookTests(unittest.TestCase):
         self.assertEqual(out["hookSpecificOutput"]["hookEventName"], "SessionStart")
         for needle in ("1. 작업 디렉토리", "2. 최근 로그", "3. 현재 작업 (P2가 결정", "task-001", "4. 스모크", ": ok", "5. 기존 문제"):
             self.assertIn(needle, ctx)
+
+    def test_session_start_lists_pending_gates_with_approval_words(self):
+        (self.root / ".harness" / "plan.json").write_text(json.dumps({"tasks": [
+            {"id": "task-001", "title": "설계 승인", "goal": "g", "verify": "approval", "estimate_minutes": 0},
+            {"id": "task-002", "title": "구현", "goal": "g", "verify": "true", "estimate_minutes": 5, "depends_on": ["task-001"]}]}))
+        ctx = self.hook("session-start", {"source": "startup"})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("승인 대기 게이트: task-001 설계 승인", ctx)
+        self.assertIn("'승인'·'시작해'·'진행해'", ctx)  # 사용자의 말 → 대화형 세션이 runner/queue approve 를 대신 실행
+        self.assertIn("runner/queue approve", ctx)
 
     def test_session_start_writes_canary(self):
         canary = self.root / ".harness" / "sessions" / "night-001" / "task-001.1.stream.canary"

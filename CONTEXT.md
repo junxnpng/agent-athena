@@ -22,6 +22,8 @@
 | 훅 hook | Claude Code 이벤트에 붙는 결정론적 스크립트. md 바깥에서 강제력이 있는 유일한 지점 | 하네스 |
 | 로그 log | `.harness/log.jsonl`. append-only. 모든 상태는 여기서 파생 | 러너 (I2, I3) |
 | 쓰기 범위 write scope | 계약 ④. `domain.json: write_scope`. 밖이면 훅이 거부 | 도메인 → 훅 (I6) |
+| 게이트 gate | `verify: "approval"` 작업. 사람이 `runner/queue approve`로 여는 검증기 — 모델은 자격을 얻지 않고, 의존 작업은 승인 뒤 풀린다. 대화형에서 '승인'·'시작해'·'진행해' = 승인 | 사람 → 러너 (D1) |
+| 제안 proposal | `decompose --propose`가 쓴 `plan.proposed.json`. 채택(`queue accept`) 전까지 계획이 아니다 | 러너 (P7-lite) |
 
 ## 금지어 · 헷갈리는 말
 
@@ -56,3 +58,5 @@
 - **2026-08-29 · 밤을 잇는 것은 스킬이 아니라 러너다** — "아침까지 반복"은 `runner/night-loop`(`scripts/night-detached loop`)가 한다: budget·max_tasks면 바로, rate_limited·cost_budget면 쉬고 다음 밤, queue_empty·인프라/구조 실패·마감·밤 수·**총비용 상한**이면 멈춘다. 루프는 log.jsonl에 쓰지 않는다(밤 preflight가 보는 트리를 더럽히지 않게). 같은 밤(night-003)의 발견으로 heredoc 본문은 훅 스캔에서 뺀다(실행형 제외) — `findings/005`.
 - **2026-08-29 · 배송 결정 실행(Phase A-2) — 전역 설치가 정본, 러너는 `--plugin-dir` 유지** — 08-27 "전역 설치하면 훅이 두 번 뜬다"를 뒤집는다: 카나리아 실측 전역만 1줄 · 전역+`--plugin-dir` 1줄 · 러너 설정(`--setting-sources project,local`) 1줄 — Claude Code 2.1.248은 같은 이름의 플러그인을 하나로 합친다. 대화형은 `claude plugin install harness@harness-local`(repo의 `.claude-plugin/marketplace.json`), 무인은 `--plugin-dir`(항상 live 코드). 설치본은 **스냅샷 복사**라 스킬·훅 커밋 뒤 `scripts/plugin-refresh`. 중복 3건: `code-review`→`review-changes` rename(3중 이름 충돌), `frontend-design`·`skill-creator`는 vendored가 정본이고 공식 플러그인 2개는 비활성화(감사 고정 커밋 단일 출처, Codex 대비 `skills/`에 유지).
 - **2026-08-29 · P7-lite: 제안은 러너, 채택은 사람(옵션으로 자동)** — v0 "계획은 사람이 쓴다"를 절반만 연다. `runner/decompose --propose`가 사양·계획 상태·지난 SUMMARY로 리프를 제안해 `plan.proposed.json`에 쓰고(plan.json 불변), 제안된 검증기를 **지금 트리에서 돌려 이미 통과하면 빈 작업으로 버린다**(모델의 계획에는 빈 작업이 섞인다 — 기계로 거른다). 채택은 `queue accept`(id 발급은 여기서, I1). `domain.json plan.auto_propose/auto_accept`가 켜진 repo만 night-loop가 큐가 빌 때 제안→채택→다음 밤(무인 "완성도 반복"), 기본은 꺼짐이라 아침에 사람이 본다(`proposal_pending`). 제안 세션은 러너 모드 훅 + Write/Edit 금지 + 트리 변경 되돌리기. to-tickets는 대화형 분해용으로 승격.
+- **2026-08-29 · D1 승인 게이트 = 검증기의 한 종류** — 12개 장기 목표 중 연구(단계마다 '네 승인')·코딩(해결안/PR 승인)을 하네스에 넣기 위해. `verify: "approval"`, `estimate_minutes: 0` 작업은 상태 `gate`로 시작해 모델 자격이 없고, `runner/queue approve task-NNN`(`task_approved` 이벤트)으로만 `passed`가 된다. SUMMARY '승인 대기' 절·DAG 🔒·세션 시작 훅이 안내. 사용자의 말('승인'·'시작해'·'진행해')은 대화형 세션이 명령으로 옮긴다 — 부기는 프로그램, 결정은 사람. 모델 채점은 P6과 충돌하므로 넣지 않는다.
+- **2026-08-29 · D4 회사 설치 = 읽기 전용 하네스** — 하네스 clone 루트의 `.harness-readonly` 마커를 pre-tool이 보면 하네스 안 쓰기·commit/push를 대화형·무인 모두, `.harness/` 없는 cwd에서도 거부한다. 회사에서는 태그 고정 clone + 전역 설치, 갱신은 `git pull` + `scripts/plugin-refresh`, 발견한 구멍은 도메인 repo의 `.harness/findings/`에 적어 집에서 반영. 연구 repo는 기밀 구분 없이 회사에 둔다(사용자 결정).

@@ -6,6 +6,7 @@
   runner/queue load   [--repo .]            # id 없는 작업에 발급 + 계획 검증 + plan.json 갱신
   runner/queue unblock task-NNN --reason "..." [--repo .]   # 막힌 작업을 사람이 푼다 (task_unblocked 이벤트 append)
   runner/queue accept (--all | 인덱스...) [--repo .]        # decompose --propose 의 제안(plan.proposed.json)을 plan.json 에 넣는다 (id 발급·검증)
+  runner/queue approve task-NNN [--note "..."] [--repo .]   # 승인 게이트(verify: "approval")를 사람이 연다 → task_approved (대화형에서 '승인'·'시작해'·'진행해')
 """
 from __future__ import annotations
 
@@ -21,8 +22,9 @@ import harnesslib as H  # noqa: E402
 def main() -> int:
     H.ensure_utf8_stdio()
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["status", "next", "load", "unblock", "accept"])
-    ap.add_argument("args", nargs="*", help="unblock: task-NNN · accept: 제안 인덱스(0부터)")
+    ap.add_argument("cmd", choices=["status", "next", "load", "unblock", "accept", "approve"])
+    ap.add_argument("args", nargs="*", help="unblock/approve: task-NNN · accept: 제안 인덱스(0부터)")
+    ap.add_argument("--note", default="", help="approve: 승인 메모")
     ap.add_argument("--reason", default="")
     ap.add_argument("--all", action="store_true", help="accept: 제안 전부")
     ap.add_argument("--by", default="human", help="accept 주체 기록 (human | auto)")
@@ -57,6 +59,24 @@ def main() -> int:
             return 1
         H.append_event(repo.log, "task_unblocked", task=task_id, reason=a.reason or "사람이 해제", by="human")
         print("%s 해제 — 다음 밤에 다시 자격을 얻는다 (실패 횟수 0)" % task_id)
+        return 0
+    if a.cmd == "approve":
+        task_id = a.args[0] if a.args else ""
+        t = next((x for x in tasks if x.id == task_id), None)
+        st = states.get(task_id)
+        if t is None or not t.is_gate:
+            print("approve: %s 는 승인 게이트(verify: approval)가 아니다" % (task_id or "(없음)"), file=sys.stderr)
+            return 1
+        if st is None or st.state != "gate":
+            print("approve: %s 는 이미 %s 상태다" % (task_id, st.state if st else "없음"), file=sys.stderr)
+            return 1
+        git = H.Git(repo.root)
+        was_clean = git.is_clean()
+        H.append_event(repo.log, "task_approved", task=task_id, note=a.note or None, by=a.by)
+        sha = git.commit_all("[harness] approve %s" % task_id) if was_clean else None
+        unlocked = [x.id for x in tasks if task_id in x.depends_on]
+        print("승인: %s %s%s%s" % (task_id, t.title, (" → 자격: %s" % ", ".join(map(str, unlocked))) if unlocked else "",
+                                  (" · 부기 커밋 %s" % sha) if sha else (" · (트리가 clean 이 아니어서 커밋하지 않음)" if not was_clean else "")))
         return 0
     if a.cmd == "accept":
         if not a.all and not a.args:

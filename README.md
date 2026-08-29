@@ -45,6 +45,8 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 | `scripts/plugin-refresh` | 전역 설치본(스냅샷)을 repo 현재 상태로 갱신 |
 | `skills/diagram/` | 자작 2호 — 요소 셋 이상이 엮이면 mermaid 를 먼저 (팩 §3 초안, 2026-08-29) |
 | `runner/decompose --propose` | P7-lite: 사양·계획 상태·지난 SUMMARY 로 리프 제안 → `.harness/plan.proposed.json` (이미 통과하는 검증기는 버림) |
+| `runner/queue approve task-NNN` | 승인 게이트(`verify: "approval"`)를 사람이 연다 — 대화형에서 '승인'·'시작해'·'진행해' |
+| `.harness-readonly` (하네스 루트) | 회사 설치: 마커가 있으면 훅이 하네스 안 쓰기·commit 을 거부. `git clone --branch <tag>` → `touch .harness-readonly` → 전역 설치, 갱신은 `git pull` + `scripts/plugin-refresh` |
 | `runner/queue accept` | 제안을 plan.json 에 편입 (id 발급·검증). `domain.json plan.auto_propose/auto_accept` 가 켜진 repo 는 night-loop 가 큐가 빌 때 자동으로 |
 | `scripts/check` | 하네스 자가 검증 (테스트 + CLAUDE.md 60줄 + 훅·플러그인 JSON + 이식성 린트) |
 

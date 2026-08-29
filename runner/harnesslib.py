@@ -29,6 +29,7 @@ HARNESS_ROOT = Path(__file__).resolve().parent.parent
 HDIR_NAME = ".harness"
 CONTRACT_FILES = ("spec.md", "verify", "init.sh", "domain.json", "plan.json")
 BOOKKEEPING_OUTPUTS = ("log.jsonl", "SUMMARY.md", "BLOCKED.md", "plan.proposed.json")
+APPROVAL_VERIFY = "approval"  # 게이트 작업의 검증기 값 — 사람의 승인(task_approved 이벤트)만 통과시킨다
 PROPOSED_NAME = "plan.proposed.json"  # P7-lite: 러너가 제안한 리프 — 사람이(또는 plan.auto_accept 로) 받아들여야 plan.json 에 들어간다
 ID_RE = re.compile(r"^(night|task)-(\d{3,})$")
 NIGHT_BRANCH_PREFIX = "harness/"
@@ -464,6 +465,11 @@ class Task:
     def verify_cmd(self) -> str:
         return normalize_verify(self.verify)[0]
 
+    @property
+    def is_gate(self) -> bool:
+        """승인 게이트 — 검증기가 'approval': 사람이 runner/queue approve 로 exit 0 을 준다. 모델은 자격을 얻지 않는다 (D1, 2026-08-29)."""
+        return self.verify_cmd == APPROVAL_VERIFY
+
     def to_json(self) -> Dict[str, Any]:
         d = dict(self.raw)
         d.update({
@@ -628,7 +634,7 @@ def validate_plan(tasks: Sequence[Task], domain: Domain) -> List[str]:
             errors.append("%s: goal 없음" % label)
         if not t.verify_cmd:
             errors.append("%s: verify 없음 — 검증기 없는 작업은 큐에 못 들어간다 (I5)" % label)
-        lo = domain.leaf_min if t.origin != "repair" else 1
+        lo = 0 if t.is_gate else (domain.leaf_min if t.origin != "repair" else 1)  # 게이트는 모델 시간을 쓰지 않는다
         if not (lo <= t.estimate_minutes <= domain.leaf_max):
             errors.append("%s: estimate_minutes=%s, 리프는 %d~%d분" % (label, t.estimate_minutes, lo, domain.leaf_max))
         for d in t.depends_on:
@@ -720,10 +726,14 @@ class TaskState:
     last_model: Optional[Dict[str, Any]] = None
     commit: Optional[str] = None
     blocked_reason: Optional[str] = None
+    approved_at: Optional[str] = None                        # 게이트 승인 시각 (task_approved)
 
 
 def derive_states(events: Sequence[Dict[str, Any]], tasks: Sequence[Task]) -> Dict[str, TaskState]:
     states: Dict[str, TaskState] = {t.id: TaskState(id=t.id) for t in tasks if t.id}
+    for t in tasks:
+        if t.id and t.is_gate:
+            states[t.id].state = "gate"  # 사람이 열기 전까지 — 모델 자격 없음, 의존 작업도 막힘
     for ev in events:
         tid = ev.get("task")
         if not tid:
@@ -747,6 +757,9 @@ def derive_states(events: Sequence[Dict[str, Any]], tasks: Sequence[Task]) -> Di
             st.state = "failed"
             st.last_failure = ev
             st.failure_history.append(ev)
+        elif e == "task_approved":  # 사람이 게이트를 연다 (runner/queue approve). 승인 = 게이트의 검증 통과
+            st.state = "passed"
+            st.approved_at = ev.get("ts")
         elif e == "task_unblocked":  # 사람이 푼다 (runner/queue unblock). 로그는 append-only 이므로 이벤트로 남긴다
             st.state = "pending"
             st.failures = 0
@@ -790,7 +803,7 @@ def eligible(tasks: Sequence[Task], states: Dict[str, TaskState], domain: Domain
         if not t.id:
             continue
         st = states.get(t.id) or TaskState(id=t.id)
-        if st.state in ("passed", "blocked", "started"):
+        if st.state in ("passed", "blocked", "started", "gate"):
             continue
         if st.failures >= domain.max_attempts:
             continue
@@ -1137,7 +1150,7 @@ def _error_line(text: Optional[str]) -> str:
     return lines[-1][:160]
 
 
-DAG_BADGE = {"passed": "✅", "blocked": "⛔", "failed": "🔁", "started": "🏃", "pending": "⬜"}
+DAG_BADGE = {"passed": "✅", "blocked": "⛔", "failed": "🔁", "started": "🏃", "pending": "⬜", "gate": "🔒"}
 
 
 def _dag_node(tid: Any) -> str:
@@ -1215,6 +1228,12 @@ def render_summary(c: Dict[str, Any]) -> str:
             out.append("- %s %s — %d회 실패 (%s: %s)" % (tid, _title(by_id, tid), st.failures, lf.get("stage", "?"), lf.get("reason", "?")))
     else:
         out.append("- (없음)")
+    gates = [t for t in by_id.values() if t.id and t.is_gate and (states.get(t.id) or TaskState(id=t.id)).state == "gate"]
+    if gates:
+        out += ["", "## 승인 대기 — 사람이 연다 (`runner/queue approve task-NNN`, 대화형에서는 '승인'·'시작해'·'진행해')"]
+        for t in gates:
+            waiting = [d.id for d in by_id.values() if t.id in d.depends_on]
+            out.append("- %s %s%s" % (t.id, t.title, (" — 뒤에 %s" % ", ".join(map(str, waiting))) if waiting else ""))
     out += ["", "## 다음 밤에 할 것 (P2가 선택)"]
     if c["next"]:
         for i, t in enumerate(c["next"], 1):

@@ -137,6 +137,9 @@ def propose(repo: H.Repo, driver_name: str, count: int, model: str = "") -> int:
     kept_idx: List[int] = []
     dropped: List[Dict[str, str]] = []
     for i, t in enumerate(proposed):
+        if t.is_gate:  # 승인 게이트는 사람이 여는 것 — 지금 실패하는 게 정상
+            kept_idx.append(i)
+            continue
         vr = H.run_verify(repo, t.verify, min(domain.verify_timeout, 120))
         if vr.ok:
             dropped.append({"title": t.title, "reason": "검증기가 지금 이미 통과한다 — 빈 작업"})

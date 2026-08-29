@@ -61,6 +61,11 @@ def build(cwd: Path) -> str:
             "" if runner_mode else " · (대화형: 러너가 돌리면 이 작업이 먼저 선택된다)"))
     else:
         lines.append("3. 현재 작업: 없음 — %s" % ("; ".join(plan_err) if plan_err else "자격 있는 작업이 없다 (계획을 채우거나 BLOCKED.md 확인)"))
+    gates = [t for t in tasks if t.id and t.is_gate and (states.get(t.id) or H.TaskState(id=str(t.id))).state == "gate"]
+    if gates:
+        lines.append("   승인 대기 게이트: " + ", ".join("%s %s" % (t.id, t.title) for t in gates) + (
+            " — 사람만 연다 (runner/queue approve)" if runner_mode else
+            " — 사용자가 '승인'·'시작해'·'진행해' 라고 하면 `runner/queue approve <id> --note '…'` 를 실행한다 (부기는 프로그램, 결정은 사람)"))
 
     if runner_mode:
         smoke = next((e for e in reversed(events) if e.get("event") == "smoke" and e.get("night") == os.environ["HARNESS_NIGHT"]), None)
