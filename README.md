@@ -60,3 +60,6 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 ## 대화형으로 훅 쓰기
 `claude --plugin-dir /path/to/agent-athena` — `.harness/`가 있는 repo에서만 훅이 켜진다 (다른 repo에서는 무해).
 전역 설치와 러너를 같이 쓰지 않는다 — 훅이 두 번 뜬다.
+
+## 아침 다이제스트 (선택)
+`scripts/morning-digest --dry-run` 이 `~/workspace/*/.harness/SUMMARY.md` 의 결론·승인 대기·막힘·이상 징후를 한 통으로 만든다. 텔레그램으로 받으려면 `~/.config/my-secrets/tokens.env` 에 `HARNESS_BOT_TOKEN`·`HARNESS_CHAT_ID` 를 두고 `templates/launchd/com.harness.morning-digest.plist` 를 등록한다(07:30). 모델은 개입하지 않는다 — 실시간 알림이 아니라 아침 SUMMARY 의 배달이다.

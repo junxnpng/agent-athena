@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""morning-digest — 아침 한 통. 워크스페이스의 모든 <repo>/.harness/SUMMARY.md 에서 결론·승인 대기·막힘·이상 징후를 모아
+텔레그램으로 보낸다. 결정론 스크립트(모델 없음) — 실시간 알림이 아니라 아침 SUMMARY 의 *배달*이다
+(.out-of-scope/realtime-alerts.md 의 탈출구는 아침 SUMMARY 다). I7: 모델이 개입하지 않으므로 인젝션 경로가 없고,
+보내는 곳은 사용자 자신의 채팅뿐이다 (HARNESS_BOT_TOKEN · HARNESS_CHAT_ID, 없으면 exit 2).
+
+사용: scripts/morning-digest [--root <workspace>] [--hours 24] [--dry-run]
+  --root    <repo>/.harness/ 를 찾을 상위 디렉토리 (기본: 하네스의 부모 = ~/workspace)
+  --hours   이 시간 안에 끝난 밤만 자세히, 더 오래된 밤은 한 줄 (기본 24)
+  --dry-run 보내지 않고 출력만 (토큰 불필요)
+launchd 템플릿: templates/launchd/com.harness.morning-digest.plist (07:30)
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+import urllib.request
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+HARNESS_ROOT = Path(__file__).resolve().parent.parent
+TELEGRAM_LIMIT = 4000  # 실제 상한 4096 — 여유
+HEAD_RE = re.compile(r"^#\s+(night-\d+)\s+·\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+→\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})")
+SECTIONS = {"gates": "승인 대기", "blocked": "막힘", "failed": "실패", "anomalies": "이상 징후", "conclusion": "결론"}
+
+
+def parse_summary(text: str) -> Dict[str, Any]:
+    """SUMMARY.md → {night, start, end, conclusion, gates, blocked, failed, anomalies}. 형식은 harnesslib.write_morning_outputs 가 쓴다."""
+    out: Dict[str, Any] = {"night": None, "start": None, "end": None, "conclusion": "", "gates": [], "blocked": [], "failed": [], "anomalies": []}
+    lines = text.splitlines()
+    if lines:
+        m = HEAD_RE.match(lines[0])
+        if m:
+            out["night"], out["start"], out["end"] = m.group(1), m.group(2), m.group(3)
+    current: Optional[str] = None
+    for ln in lines[1:]:
+        if ln.startswith("## "):
+            title = ln[3:].strip()
+            current = next((k for k, prefix in SECTIONS.items() if title.startswith(prefix)), None)
+            continue
+        if current is None:
+            continue
+        s = ln.strip()
+        if current == "conclusion":
+            if s and not out["conclusion"]:
+                out["conclusion"] = re.sub(r"\s*·\s*브랜치\s+`[^`]*`", "", s)
+        elif s.startswith("- ") and "(없음)" not in s:
+            out[current].append(s[2:].strip())
+    return out
+
+
+def parse_local(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+
+
+def collect(root: Path, now: datetime, hours: float) -> List[Dict[str, Any]]:
+    """root/*/.harness/ 를 가진 repo 마다 한 항목. SUMMARY 가 없으면 밤 없음."""
+    items: List[Dict[str, Any]] = []
+    for hdir in sorted(root.glob("*/.harness")):
+        if not hdir.is_dir():
+            continue
+        repo = hdir.parent.name
+        summary = hdir / "SUMMARY.md"
+        if not summary.exists():
+            items.append({"repo": repo, "night": None, "fresh": False})
+            continue
+        info = parse_summary(summary.read_text(encoding="utf-8", errors="replace"))
+        end = parse_local(info.get("end"))
+        info["repo"] = repo
+        info["fresh"] = bool(end and now - end <= timedelta(hours=hours))
+        items.append(info)
+    return items
+
+
+def render(items: List[Dict[str, Any]], now: datetime) -> str:
+    lines = ["🌅 하네스 아침 다이제스트 · %s" % now.strftime("%Y-%m-%d %H:%M")]
+    nights = 0
+    gates = 0
+    cost = 0.0
+    for it in items:
+        if not it.get("night"):
+            lines.append("■ %s — 밤 없음" % it["repo"])
+            continue
+        gates += len(it["gates"])
+        if it["fresh"]:
+            nights += 1
+            m = re.search(r"\$(\d+(?:\.\d+)?)", it.get("conclusion") or "")
+            cost += float(m.group(1)) if m else 0.0
+            lines.append("■ %s — %s (%s→%s) %s" % (it["repo"], it["night"], (it["start"] or "")[-5:], (it["end"] or "")[-5:], it["conclusion"]))
+        else:
+            lines.append("■ %s — 최근 밤 없음 (마지막 %s, %s)" % (it["repo"], it["night"], (it["end"] or "?")[:10]))
+        for key, mark in (("gates", "🔒 승인 대기"), ("blocked", "⛔ 막힘"), ("failed", "🔁 실패"), ("anomalies", "⚠ 이상 징후")):
+            for entry in it[key]:
+                lines.append("  %s: %s" % (mark, entry))
+    lines.append("합계: 지난 밤 %d개 · $%.2f · 승인 대기 %d개" % (nights, cost, gates))
+    return "\n".join(lines)
+
+
+def split_message(text: str, limit: int = TELEGRAM_LIMIT) -> List[str]:
+    """줄 경계로 나눈다. 한 줄이 limit 를 넘으면 그 줄만 잘라 보낸다."""
+    parts: List[str] = []
+    cur = ""
+    for ln in text.splitlines():
+        while len(ln) > limit:
+            if cur:
+                parts.append(cur)
+                cur = ""
+            parts.append(ln[:limit])
+            ln = ln[limit:]
+        if cur and len(cur) + 1 + len(ln) > limit:
+            parts.append(cur)
+            cur = ln
+        else:
+            cur = ln if not cur else cur + "\n" + ln
+    if cur:
+        parts.append(cur)
+    return parts
+
+
+def send(token: str, chat_id: str, text: str, timeout: float = 20.0) -> int:
+    """sendMessage (parse_mode 없음 — 제목에 어떤 문자가 와도 그대로). 돌려주는 값: 보낸 조각 수. 실패는 예외."""
+    url = "https://api.telegram.org/bot%s/sendMessage" % token
+    parts = split_message(text)
+    for part in parts:
+        data = json.dumps({"chat_id": chat_id, "text": part, "disable_web_page_preview": True}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 — 고정 호스트(api.telegram.org)
+            body = json.loads(resp.read().decode("utf-8", errors="replace"))
+        if not body.get("ok"):
+            raise RuntimeError("telegram: %r" % body)
+    return len(parts)
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="아침 SUMMARY 다이제스트를 텔레그램으로")
+    ap.add_argument("--root", default=str(HARNESS_ROOT.parent))
+    ap.add_argument("--hours", type=float, default=24.0)
+    ap.add_argument("--dry-run", action="store_true")
+    a = ap.parse_args(argv)
+    now = datetime.now()
+    items = collect(Path(a.root).expanduser().resolve(), now, a.hours)
+    text = render(items, now)
+    if a.dry_run:
+        print(text)
+        return 0
+    token, chat = os.environ.get("HARNESS_BOT_TOKEN", ""), os.environ.get("HARNESS_CHAT_ID", "")
+    if not token or not chat:
+        print(text)
+        print("morning-digest: HARNESS_BOT_TOKEN / HARNESS_CHAT_ID 가 없다 — 출력만 했다 (~/.config/my-secrets/tokens.env)", file=sys.stderr)
+        return 2
+    n = send(token, chat, text)
+    print("morning-digest: %d개 조각 전송 · repo %d개" % (n, len(items)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

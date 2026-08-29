@@ -15,7 +15,7 @@ for f in hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.
 done
 grep -q '\.sh"' hooks/hooks.json && fail "hooks.json 명령에 .sh 가 들어 있다 (Windows 자동감지 함정)"
 
-for f in runner/night runner/queue runner/id runner/summary runner/init runner/decompose hooks/run-hook hooks/session-start hooks/pre-tool templates/harness-dir/verify templates/harness-dir/init.sh scripts/check scripts/night-detached scripts/portable-lint; do
+for f in runner/night runner/queue runner/id runner/summary runner/init runner/decompose runner/verify-doc hooks/run-hook hooks/session-start hooks/pre-tool templates/harness-dir/verify templates/harness-dir/init.sh scripts/check scripts/night-detached scripts/portable-lint scripts/morning-digest; do
   [ -x "$f" ] || fail "$f 에 실행 권한이 없다"
 done
 

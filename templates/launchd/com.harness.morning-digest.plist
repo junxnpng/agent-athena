@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 하네스 아침 다이제스트 (07:30). 설치: cp 뒤 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.harness.morning-digest.plist
+         토큰: ~/.config/my-secrets/tokens.env 에 export HARNESS_BOT_TOKEN=... HARNESS_CHAT_ID=... -->
+    <key>Label</key>
+    <string>com.harness.morning-digest</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>. "$HOME/.config/my-secrets/tokens.env" 2>/dev/null; exec python3 "$HOME/workspace/agent-athena/scripts/morning-digest" --root "$HOME/workspace" >> "$HOME/.local/share/harness/morning-digest.log" 2>&amp;1</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
