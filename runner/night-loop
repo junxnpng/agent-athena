@@ -27,7 +27,7 @@ DECOMPOSE = Path(__file__).resolve().parent / "decompose"
 QUEUE = Path(__file__).resolve().parent / "queue"
 CONTINUE_NOW = ("budget", "max_tasks")
 CONTINUE_AFTER_WAIT = ("rate_limited", "cost_budget")
-STOP_OK = ("queue_empty", "deadline", "max_nights", "cost_cap", "signal", "proposal_pending")  # 루프 exit 0 — 나머지는 사람이 봐야 한다 (exit 3)
+STOP_OK = ("queue_empty", "deadline", "max_nights", "cost_cap", "signal", "proposal_pending", "max_rounds")  # 루프 exit 0 — 나머지는 사람이 봐야 한다 (exit 3)
 
 
 def decide(reason: str, rc: int) -> str:
@@ -141,6 +141,9 @@ def main() -> int:
             else:
                 why = "propose_failed"
                 break
+        elif reason == "queue_empty" and p.returncode == 0 and domain.plan_auto_propose:
+            why = "max_rounds"  # 제안 상한 — 큐가 빈 것과 구분해 남긴다 (상한을 올리면 더 돈다). 채택 직후가 아니라 제안을 못 할 때만
+            break
         if total >= args.max_total_usd:
             why = "cost_cap"
             break

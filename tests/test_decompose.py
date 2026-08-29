@@ -142,6 +142,12 @@ class LoopProposeE2E(unittest.TestCase):
         self.assertEqual([(t.id, t.origin) for t in tasks], [("task-001", "proposal")])
         self.assertEqual(H.derive_states(events, tasks)["task-001"].state, "passed")
 
+    def test_round_cap_is_reported_as_max_rounds(self):
+        make_repo(self.root, tasks=[], domain={"plan": {"auto_propose": True, "auto_accept": True, "max_rounds": 1}})
+        p = self.loop()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("루프 종료 (max_rounds) · 밤 2개", p.stdout)  # 1회 제안·채택·실행 뒤 상한
+
     def test_without_auto_accept_loop_stops_pending_for_human(self):
         make_repo(self.root, tasks=[], domain={"plan": {"auto_propose": True, "auto_accept": False}})
         p = self.loop()
