@@ -164,7 +164,7 @@ class HookTests(unittest.TestCase):
             {"id": "task-001", "title": "설계 승인", "goal": "g", "verify": "approval", "estimate_minutes": 0},
             {"id": "task-002", "title": "구현", "goal": "g", "verify": "true", "estimate_minutes": 5, "depends_on": ["task-001"]}]}))
         ctx = self.hook("session-start", {"source": "startup"})["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("승인 대기 게이트: task-001 설계 승인", ctx)
+        self.assertIn("승인 대기 게이트(지금 열 수 있다): task-001 설계 승인", ctx)
         self.assertIn("'승인'·'시작해'·'진행해'", ctx)  # 사용자의 말 → 대화형 세션이 runner/queue approve 를 대신 실행
         self.assertIn("runner/queue approve", ctx)
 

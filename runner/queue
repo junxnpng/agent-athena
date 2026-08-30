@@ -71,6 +71,10 @@ def main() -> int:
         if st is None or st.state != "gate":
             print("approve: %s 는 이미 %s 상태다" % (task_id, st.state if st else "없음"), file=sys.stderr)
             return 1
+        if not H.gate_openable(t, states):  # 검문소를 건너뛰어 열지 않는다 — 선행 작업이 통과해야 열린다
+            pending = [d for d in t.depends_on if (states.get(d) or H.TaskState(id=d)).state != "passed"]
+            print("approve: %s 는 아직 열 수 없다 — 선행 작업이 남았다: %s" % (task_id, ", ".join(pending)), file=sys.stderr)
+            return 1
         git = H.Git(repo.root)
         was_clean = git.is_clean()
         H.append_event(repo.log, "task_approved", task=task_id, note=a.note or None, by=a.by)

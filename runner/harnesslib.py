@@ -825,6 +825,12 @@ def derive_states(events: Sequence[Dict[str, Any]], tasks: Sequence[Task]) -> Di
     return states
 
 
+def gate_openable(t: Task, states: Dict[str, TaskState]) -> bool:
+    """게이트를 지금 열 수 있나 — 의존 작업이 전부 통과했을 때만. 선행 작업이 남은 게이트는 SUMMARY '뒤에 올 게이트' 로 따로 보이고
+    `queue approve` 가 거부한다 (게이트는 검문소다 — 순서를 건너뛰어 열면 검문이 아니다, 2026-08-30)."""
+    return all((states.get(d) or TaskState(id=d)).state == "passed" for d in t.depends_on)
+
+
 def dangling_started(states: Dict[str, TaskState]) -> List[TaskState]:
     """판정 없이 끝난 시도 (지난 밤이 죽은 경우). 러너가 밤 시작에 task_failed(interrupted)로 닫는다."""
     return [st for st in states.values() if st.state == "started"]
@@ -1343,11 +1349,18 @@ def render_summary(c: Dict[str, Any]) -> str:
     else:
         out.append("- (없음)")
     gates = [t for t in by_id.values() if t.id and t.is_gate and (states.get(t.id) or TaskState(id=t.id)).state == "gate"]
-    if gates:
-        out += ["", "## 승인 대기 — 사람이 연다 (`runner/queue approve task-NNN`, 대화형에서는 '승인'·'시작해'·'진행해')"]
-        for t in gates:
+    now_gates = [t for t in gates if gate_openable(t, states)]
+    later_gates = [t for t in gates if not gate_openable(t, states)]
+    if now_gates:
+        out += ["", "## 승인 대기 — 지금 열 수 있다 (`runner/queue approve task-NNN`, 대화형에서는 '승인'·'시작해'·'진행해')"]
+        for t in now_gates:
             waiting = [d.id for d in by_id.values() if t.id in d.depends_on]
             out.append("- %s %s%s" % (t.id, t.title, (" — 뒤에 %s" % ", ".join(map(str, waiting))) if waiting else ""))
+    if later_gates:  # 선행 작업이 남은 게이트는 아침 목록을 어지럽히지 않게 따로 — 다이제스트는 위 절만 센다
+        out += ["", "## 뒤에 올 게이트 (선행 작업이 끝나야 열린다)"]
+        for t in later_gates:
+            pending = [d for d in t.depends_on if (states.get(d) or TaskState(id=d)).state != "passed"]
+            out.append("- %s %s — 앞에 %s" % (t.id, t.title, ", ".join(pending)))
     out += ["", "## 다음 밤에 할 것 (P2가 선택)"]
     if c["next"]:
         for i, t in enumerate(c["next"], 1):

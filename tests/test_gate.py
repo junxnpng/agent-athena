@@ -91,5 +91,50 @@ class GateE2E(unittest.TestCase):
         self.assertIn("task-001  passed", status)
 
 
+class GateOrderTests(unittest.TestCase):
+    """2026-08-30 — 게이트는 검문소다: 선행 작업이 통과해야 열 수 있고, SUMMARY 는 지금 열 수 있는 것과 뒤에 올 것을 나눈다."""
+
+    def test_gate_openable_only_after_deps_pass(self):
+        g1 = task("task-001", "게이트 1", verify="approval", est=0)
+        work = task("task-002", "일", deps=["task-001"])
+        g2 = task("task-003", "게이트 2", verify="approval", est=0, deps=["task-002"])
+        st = H.derive_states([], [g1, work, g2])
+        self.assertTrue(H.gate_openable(g1, st))
+        self.assertFalse(H.gate_openable(g2, st))
+        st = H.derive_states([ev("task_approved", task="task-001", by="human"), ev("task_passed", task="task-002", commit="x")], [g1, work, g2])
+        self.assertTrue(H.gate_openable(g2, st))
+
+    def test_summary_splits_now_and_later_gates(self):
+        g1 = task("task-001", "게이트 1", verify="approval", est=0)
+        work = task("task-002", "일", deps=["task-001"])
+        g2 = task("task-003", "게이트 2", verify="approval", est=0, deps=["task-002"])
+        n = "night-001"
+        events = [ev("night_started", night=n, branch="b"), ev("night_ended", night=n, reason="queue_empty", passed=0, failed=0, blocked=0, cost_usd=0)]
+        text = H.render_summary(H.collect_night(events, [g1, work, g2], H.Domain({}), n))
+        now = text.split("## 승인 대기")[1].split("##")[0]
+        later = text.split("## 뒤에 올 게이트")[1].split("##")[0]
+        self.assertIn("task-001 게이트 1", now)
+        self.assertNotIn("task-003", now)
+        self.assertIn("task-003 게이트 2 — 앞에 task-002", later)
+
+
+class GateOrderE2E(unittest.TestCase):
+    def test_approve_refuses_gate_whose_deps_are_not_passed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d).resolve()
+            plan = [
+                {"title": "게이트 1", "goal": "g", "verify": "approval", "estimate_minutes": 0, "priority": 3},
+                {"title": "[add-mul] 일", "goal": "g", "verify": "python3 -c \"import calc; assert calc.mul(3,4)==12\"", "estimate_minutes": 5, "priority": 2, "depends_on": ["#0"]},
+                {"title": "게이트 2", "goal": "g", "verify": "approval", "estimate_minutes": 0, "priority": 1, "depends_on": ["#1"]},
+            ]
+            make_repo(root, tasks=plan)
+            sh("python3", QUEUE, "load", "--repo", str(root))
+            p = sh("python3", QUEUE, "approve", "task-003", "--repo", str(root), check=False)
+            self.assertEqual(p.returncode, 1)
+            self.assertIn("선행 작업이 남았다: task-002", p.stderr)
+            p = sh("python3", QUEUE, "approve", "task-001", "--repo", str(root), check=False)
+            self.assertEqual(p.returncode, 0, p.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
