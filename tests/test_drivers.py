@@ -84,6 +84,18 @@ class ClaudeCanaryTests(unittest.TestCase):
         stream = self.root / "repo" / ".harness" / "sessions" / "night-001" / "task-001.1.stream.jsonl"
         return D.run_claude(ctx, "p", "s", stream), stream
 
+    def test_build_env_keeps_python_bytecode_out_of_the_tree(self):
+        """findings/010: macOS 시스템 Python 의 pyc 캐시가 HOME 아래(Library/Caches/com.apple.python)에 떨어져
+        트리에 HOME 을 둔 세션에서 범위 위반이 됐다 — 세션 env 가 바이트코드 쓰기를 끄고 캐시 접두를 sessions/ 로."""
+        task = H.Task(id="task-001", title="t", goal="g", verify="true", estimate_minutes=5)
+        ctx = D.TaskContext(repo=H.Repo(self.root / "repo"), domain=H.Domain({}), night_id="night-001",
+                            task=task, state=H.TaskState(id="task-001"), attempt=1,
+                            timeout_minutes=0.3, deadline_epoch=time.time() + 600, spec_text="")
+        env = D.build_env(ctx)
+        self.assertEqual(env["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertTrue(env["PYTHONPYCACHEPREFIX"].startswith(str(self.root / "repo" / ".harness" / "sessions")))
+        self.assertNotIn("CLAUDECODE", env)
+
     def test_canary_present_runs_to_completion(self):
         self.fake_claude([self.ASSISTANT, self.RESULT], touch_canary=True)
         run, stream = self.run_claude()

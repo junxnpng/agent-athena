@@ -125,6 +125,11 @@ def build_env(ctx: TaskContext) -> Dict[str, str]:
         "HARNESS_TASK_ID": str(ctx.task.id),
         "HARNESS_ATTEMPT": str(ctx.attempt),
         "HARNESS_DEADLINE_EPOCH": str(int(ctx.deadline_epoch)),
+        # 세션 안의 어떤 Python 도 트리에 바이트코드를 쓰지 못하게 — macOS 시스템 Python 은 stdlib 의 .pyc 를
+        # $HOME/Library/Caches/com.apple.python/ 에 쓰는데, 세션이 HOME 을 트리 안으로 두면 그게 범위 위반이 된다
+        # (athena-research night-002 task-021 시도 1, findings/010). 캐시 접두는 sessions/ 아래로.
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPYCACHEPREFIX": str(ctx.repo.sessions / "pycache"),
     })
     return env
 

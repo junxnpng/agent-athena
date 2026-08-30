@@ -49,6 +49,7 @@
 | 플러그인 배송 갱신 | `claude plugin update` 는 plugin.json version 이 같으면 복사하지 않는다(실측: 18커밋 정체, findings/008). 갱신은 uninstall+install 강제 복사이고, 완료 메시지가 아니라 설치본↔repo 파일 대조가 판정이다 | 구조적 · 모델 무관 | `scripts/plugin-refresh` |
 | human_scope 반입 커밋 | 낮에 스케줄러·사람이 human_scope 에 남긴 미추적 파일은 밤 preflight 가 `[harness] human_scope 반입` 으로 커밋하고 시작한다(러너만 커밋한다). human_scope 밖 dirt 가 섞이면 사람 작업이므로 전부 거부. 반입 커밋은 HEAD 에 남는다 — HEAD 가 미병합 밤의 조상이면 다음 기점 판정이 분기로 거부(findings/009) | 구조적 · 모델 무관 | `runner/night: preflight`, `harnesslib.human_scope_paths`, `Git.commit_paths` |
 | 예약 밤(launchd) | 밤을 달력에 묶는 것은 하네스 밖(launchd)이고 하네스는 `night-loop` 만 준다. 가정: LaunchAgent(GUI 세션)라 Keychain 의 claude 인증이 열려 있다 · `pmset sleep 0` · 일·수 23:00 3h/$10 → 월·목 07:00 리포트(도메인) | 구조적 · 모델 무관 | `templates/launchd/com.harness.night.ai-brief.plist` |
+| 세션 환경 부산물 | 세션 안의 도구가 HOME·CWD 기준으로 남기는 캐시(macOS 시스템 Python 의 `~/Library/Caches/com.apple.python`)가 트리에 떨어지면 범위 판정이 오염된다 — 러너 env 가 바이트코드 쓰기를 끄고 캐시 접두를 sessions/ 로 보낸다(findings/010) | 구조적 · 모델 무관 | `drivers.build_env` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)
