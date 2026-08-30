@@ -463,6 +463,18 @@ def scope_violations(domain: Domain, changed_paths: Sequence[str]) -> List[str]:
     return bad
 
 
+def human_scope_paths(domain: Domain, changed_paths: Sequence[str]) -> List[str]:
+    """changed_paths 중 human_scope 안의 것 — 낮에 스케줄러·사람이 넣은 자료(수집함·기록). 밤 preflight 는 dirt 가 이것뿐이면
+    반입 커밋하고 시작한다 (미추적인 채 두면 시작을 거부하거나, 실패 되돌리기의 git clean 이 지운다 — findings/009)."""
+    scopes = [s.strip("/") for s in domain.human_scope]
+    out: List[str] = []
+    for raw in changed_paths:
+        p = raw.strip("/")
+        if any(p == s or p.startswith(s + "/") for s in scopes):
+            out.append(p)
+    return out
+
+
 # ────────────────────────────────────────────────────────────── log.jsonl (I2 append-only)
 
 def read_log(path: Path) -> List[Dict[str, Any]]:
@@ -1107,6 +1119,14 @@ class Git:
             return None
         self.run("add", "-A", "--", HDIR_NAME)
         self.run("commit", "-q", "-m", message, "--", HDIR_NAME)
+        return self.head()
+
+    def commit_paths(self, paths: Sequence[str], message: str) -> Optional[str]:
+        """지정 경로만 add + commit (human_scope 반입). 변경이 없으면 None. push는 하지 않는다."""
+        self.run("add", "-A", "--", *paths)
+        if subprocess.run(["git", "-C", str(self.root), "diff", "--cached", "--quiet", "--", *paths]).returncode == 0:
+            return None
+        self.run("commit", "-q", "-m", message, "--", *paths)
         return self.head()
 
     def save_patch(self, path: Path) -> bool:

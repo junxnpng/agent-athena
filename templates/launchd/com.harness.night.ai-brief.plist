@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 예약 밤 — athena-ai-brief, 일요일 23:00: night-loop 가 큐가 비면 제안→자동 채택(domain.json plan.auto_accept)→다음 밤, 3시간·$10 상한.
+         월요일 07:00 의 주간 메일(athena-ai-brief scripts/weekly.py)이 이 밤이 통과시킨 브리프 초안을 보낸다.
+         설치: cp 뒤 launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.harness.night.ai-brief.plist
+         해제: launchctl bootout "gui/$(id -u)/com.harness.night.ai-brief"
+         다른 repo 에 쓰려면 파일명·Label·- -repo 만 바꾼다. claude 인증은 Keychain 이라 LaunchAgent(GUI 세션)여야 한다(cron 불가).
+         낮에 스케줄러가 human_scope(inbox 등)에 남긴 파일은 밤 preflight 가 반입 커밋한다 (findings/009). -->
+    <key>Label</key>
+    <string>com.harness.night.ai-brief</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>PATH="$HOME/.local/bin:$PATH"; mkdir -p "$HOME/.local/share/harness"; exec caffeinate -i python3 "$HOME/workspace/agent-athena/runner/night-loop" --repo "$HOME/workspace/athena-ai-brief" --until-hours 3 --max-total-usd 10 >> "$HOME/.local/share/harness/night.ai-brief.log" 2>&amp;1</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>23</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

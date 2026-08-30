@@ -66,7 +66,15 @@ def preflight(repo: H.Repo, domain: H.Domain, driver_name: str) -> Tuple[H.Git, 
     if errors:
         raise H.HarnessError("계획 반려 (접수 게이트):\n - " + "\n - ".join(errors))
     if not git.is_clean():
-        raise H.HarnessError("작업 트리가 clean이 아니다. 커밋하거나 stash한 뒤 다시 (사람 작업과 밤 작업을 섞지 않는다)")
+        dirty = git.changed_paths()
+        human = H.human_scope_paths(domain, dirty)
+        if not human or len(human) != len(dirty):
+            raise H.HarnessError("작업 트리가 clean이 아니다. 커밋하거나 stash한 뒤 다시 (사람 작업과 밤 작업을 섞지 않는다)")
+        # dirt 가 낮에 스케줄러·사람이 human_scope 에 넣은 자료뿐이면 러너가 반입 커밋하고 시작한다 (러너만 커밋한다 — findings/009)
+        dirs = sorted({p.split("/", 1)[0] for p in human})
+        sha = git.commit_paths(human, "[harness] human_scope 반입: %d개 (%s)" % (len(human), ", ".join(dirs)))
+        H.append_event(repo.log, "human_intake", paths=human, commit=sha)
+        say("human_scope 반입 커밋 %s: %d개 (%s)" % (sha, len(human), ", ".join(dirs)))
     lock = repo.sessions / "lock"
     if lock.exists():
         try:

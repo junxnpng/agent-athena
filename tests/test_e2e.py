@@ -232,6 +232,30 @@ class NightE2E(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn("clean", p.stderr)
 
+    def test_human_scope_dirt_is_committed_by_preflight(self):
+        """낮에 스케줄러(06:30 수집기)가 human_scope 에 남긴 미추적 파일 — 밤은 거부하지 않고 반입 커밋한 뒤 시작한다.
+        범위 밖 dirt 가 섞이면 여전히 전부 거부하고 아무것도 커밋하지 않는다 (findings/009)."""
+        make_repo(self.root, tasks=PLAN[:1], domain={"human_scope": ["inbox"]})
+        (self.root / "inbox").mkdir()
+        (self.root / "inbox" / "2026-08-30-item.md").write_text("---\ntitle: x\n---\n")
+        p = self.night("--max-tasks", "1")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("human_scope 반입 커밋", p.stdout)
+        subjects = sh("git", "-C", str(self.root), "log", "--format=%s", "--", "inbox/2026-08-30-item.md").stdout
+        self.assertIn("[harness] human_scope 반입: 1개 (inbox)", subjects)
+        events = H.read_log(H.Repo(self.root).log)
+        intake = [e for e in events if e["event"] == "human_intake"]
+        self.assertEqual(intake[0]["paths"], ["inbox/2026-08-30-item.md"])
+        self.assertEqual(sh("git", "-C", str(self.root), "status", "--porcelain").stdout, "")
+        (self.root / "inbox" / "2026-08-31-item.md").write_text("x")
+        (self.root / "stray.txt").write_text("x")
+        p = self.night(check=False)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("clean", p.stderr)
+        status = sh("git", "-C", str(self.root), "status", "--porcelain").stdout
+        self.assertIn("inbox/2026-08-31-item.md", status)
+        self.assertIn("stray.txt", status)
+
 
 if __name__ == "__main__":
     unittest.main()
