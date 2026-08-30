@@ -45,6 +45,7 @@
 | 프로세스 그룹 청소 | killpg 한 번으로 그룹이 다 죽는다는 가정은 틀렸다 — fork 직후의 손자가 시그널을 놓쳐 파이프를 잡고 살아남는다(1/30, findings/006). 리더 종료 뒤 `ps` 로 그룹 잔존을 훑어 SIGKILL 한다 | 구조적 · 모델 무관 | `harnesslib.kill_group` |
 | 훅 fail-closed | 가드가 예외로 죽으면 통과가 아니라 거부다 — Claude Code 는 훅 exit 1 을 비차단으로 보고 도구를 실행한다. domain.json 이 깨져도 public 이 아니라 private 로 닫는다 | 구조적 · 모델 무관 | `hooks/pre-tool` |
 | 대화형 전용 경로(human_scope) | I6 는 대화형에서도 강제다(사람이 매 쓰기를 보지 않는다 — bypass). 사람이 넣는 자료(수집함·기록)는 write_scope 가 아니라 human_scope 로 열어, 밤은 지어낼 수 없고 낮에는 승인 루프 안에서 쓴다 | 구조적 · 모델 무관 | `hooks/pre-tool: check_path`, `harnesslib.Domain.human_scope` |
+| 체크포인트 스킬 | 컴팩션 요약은 모델의 관성(틀린 가정)을 컨텍스트에 남긴다 — 세션을 갈아탈 때는 파일에 *일부러 쓴 것*만 넘긴다. 모델이 대화를 사실 그대로 여섯 칸으로 정리하고 파일(git·로그)로 대조할 수 있다는 가정 | Claude 5 · B | `skills/checkpoint/SKILL.md` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)
