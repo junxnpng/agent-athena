@@ -1,8 +1,27 @@
 #!/bin/sh
 # plugin-refresh — 전역 설치본을 이 repo 의 현재 상태로 갱신한다 (설치는 스냅샷 복사라 커밋해도 저절로 바뀌지 않는다).
 # 사용: scripts/plugin-refresh   (스킬·훅을 고친 커밋 뒤에 한 번. 러너는 --plugin-dir 로 항상 live 코드를 쓰므로 무관)
+# findings/008: `claude plugin update` 는 plugin.json 의 version 이 같으면 "already at the latest version" 으로 아무것도 복사하지 않는다 —
+# 18커밋 동안 설치본이 멈춰 있었다. 그래서 uninstall + install 로 강제 복사하고, 끝에 설치본과 repo 를 파일 단위로 대조해 다르면 실패한다.
 set -e
-claude plugin marketplace update harness-local
-claude plugin update harness@harness-local
-claude plugin details harness@harness-local | sed -n '/Component inventory/,/Hooks/p'
-printf 'plugin-refresh: 완료 — 열려 있는 대화형 세션은 재시작해야 반영된다\n'
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+cd "$ROOT"
+claude plugin marketplace update harness-local >/dev/null
+claude plugin uninstall harness@harness-local >/dev/null 2>&1 || true
+claude plugin install harness@harness-local >/dev/null
+IP=$(python3 - <<'PY'
+import json, pathlib
+d = json.loads((pathlib.Path.home() / ".claude/plugins/installed_plugins.json").read_text(encoding="utf-8"))
+v = (d.get("plugins") or d)["harness@harness-local"]
+v = v[0] if isinstance(v, list) else v
+print(v["installPath"])
+PY
+)
+[ -d "$IP" ] || { echo "plugin-refresh: 설치 경로가 없다: $IP" >&2; exit 1; }
+bad=0
+for f in $(git ls-files hooks runner skills .claude-plugin | grep -v '/vendor/'); do
+  if [ ! -f "$IP/$f" ] || ! cmp -s "$IP/$f" "$f"; then echo "plugin-refresh: 설치본과 다름: $f" >&2; bad=1; fi
+done
+[ "$bad" -eq 0 ] || { echo "plugin-refresh: 설치본이 repo 와 다르다 — 위 파일 확인" >&2; exit 1; }
+n=$(git ls-files hooks runner skills .claude-plugin | grep -vc '/vendor/')
+printf 'plugin-refresh: 완료 — 설치본 = repo (%s 파일 일치, %s) · 열려 있는 대화형 세션은 재시작해야 반영된다\n' "$n" "$IP"
