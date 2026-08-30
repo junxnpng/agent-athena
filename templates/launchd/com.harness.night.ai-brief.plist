@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- 예약 밤 — athena-ai-brief, 일요일 23:00: night-loop 가 큐가 비면 제안→자동 채택(domain.json plan.auto_accept)→다음 밤, 3시간·$10 상한.
+    <!-- 예약 밤 — athena-ai-brief, 일요일·수요일 23:00: night-loop 가 큐가 비면 제안→자동 채택(domain.json plan.auto_accept)→다음 밤, 3시간·$10 상한.
          월요일 07:00 의 주간 메일(athena-ai-brief scripts/weekly.py)이 이 밤이 통과시킨 브리프 초안을 보낸다.
          설치: cp 뒤 launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.harness.night.ai-brief.plist
          해제: launchctl bootout "gui/$(id -u)/com.harness.night.ai-brief"
@@ -16,15 +16,26 @@
         <string>-c</string>
         <string>PATH="$HOME/.local/bin:$PATH"; mkdir -p "$HOME/.local/share/harness"; exec caffeinate -i python3 "$HOME/workspace/agent-athena/runner/night-loop" --repo "$HOME/workspace/athena-ai-brief" --until-hours 3 --max-total-usd 10 >> "$HOME/.local/share/harness/night.ai-brief.log" 2>&amp;1</string>
     </array>
+    <!-- 일요일·수요일 23:00 — 월·목 07:00 리포트(athena-ai-brief)의 앞 단 (2026-08-30 주 2회 결정) -->
     <key>StartCalendarInterval</key>
-    <dict>
-        <key>Weekday</key>
-        <integer>0</integer>
-        <key>Hour</key>
-        <integer>23</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    <array>
+        <dict>
+            <key>Weekday</key>
+            <integer>0</integer>
+            <key>Hour</key>
+            <integer>23</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key>
+            <integer>3</integer>
+            <key>Hour</key>
+            <integer>23</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+    </array>
     <key>RunAtLoad</key>
     <false/>
     <key>EnvironmentVariables</key>

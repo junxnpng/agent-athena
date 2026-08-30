@@ -48,7 +48,7 @@
 | 체크포인트 스킬 | 컴팩션 요약은 모델의 관성(틀린 가정)을 컨텍스트에 남긴다 — 세션을 갈아탈 때는 파일에 *일부러 쓴 것*만 넘긴다. 모델이 대화를 사실 그대로 여섯 칸으로 정리하고 파일(git·로그)로 대조할 수 있다는 가정 | Claude 5 · B | `skills/checkpoint/SKILL.md` |
 | 플러그인 배송 갱신 | `claude plugin update` 는 plugin.json version 이 같으면 복사하지 않는다(실측: 18커밋 정체, findings/008). 갱신은 uninstall+install 강제 복사이고, 완료 메시지가 아니라 설치본↔repo 파일 대조가 판정이다 | 구조적 · 모델 무관 | `scripts/plugin-refresh` |
 | human_scope 반입 커밋 | 낮에 스케줄러·사람이 human_scope 에 남긴 미추적 파일은 밤 preflight 가 `[harness] human_scope 반입` 으로 커밋하고 시작한다(러너만 커밋한다). human_scope 밖 dirt 가 섞이면 사람 작업이므로 전부 거부. 반입 커밋은 HEAD 에 남는다 — HEAD 가 미병합 밤의 조상이면 다음 기점 판정이 분기로 거부(findings/009) | 구조적 · 모델 무관 | `runner/night: preflight`, `harnesslib.human_scope_paths`, `Git.commit_paths` |
-| 예약 밤(launchd) | 밤을 달력에 묶는 것은 하네스 밖(launchd)이고 하네스는 `night-loop` 만 준다. 가정: LaunchAgent(GUI 세션)라 Keychain 의 claude 인증이 열려 있다 · `pmset sleep 0` · 일요일 23:00 3h/$10 → 월요일 07:00 주간 메일(도메인) | 구조적 · 모델 무관 | `templates/launchd/com.harness.night.ai-brief.plist` |
+| 예약 밤(launchd) | 밤을 달력에 묶는 것은 하네스 밖(launchd)이고 하네스는 `night-loop` 만 준다. 가정: LaunchAgent(GUI 세션)라 Keychain 의 claude 인증이 열려 있다 · `pmset sleep 0` · 일·수 23:00 3h/$10 → 월·목 07:00 리포트(도메인) | 구조적 · 모델 무관 | `templates/launchd/com.harness.night.ai-brief.plist` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)
