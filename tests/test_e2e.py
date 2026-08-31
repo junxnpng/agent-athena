@@ -199,6 +199,15 @@ class NightE2E(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn("clean", p.stderr)
 
+    def test_preflight_warns_about_scope_paths_missing_from_tree(self):
+        """2026-08-31: 디렉토리를 옮기고 domain.json 을 안 고치면 밤이 조용히 아무것도 못 쓴다 — preflight 가 경고한다."""
+        make_repo(self.root, tasks=PLAN[:1], domain={"write_scope": ["src", "gone"], "human_scope": ["inbox"]})
+        p = self.night("--dry-run")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("트리에 없는 scope 경로", p.stdout)
+        self.assertIn("gone", p.stdout)
+        self.assertIn("inbox", p.stdout)
+
     def test_human_intake_on_unmerged_branch_does_not_diverge(self):
         """findings/012: 미병합 밤 브랜치를 두고 main 에서 낮을 보낸 뒤 human_scope dirt 가 생기면,
         반입 커밋이 main 이 아니라 (기점으로 뽑히는) 밤 브랜치 위에 앉아 다음 밤이 '분기'로 거부되지 않는다."""

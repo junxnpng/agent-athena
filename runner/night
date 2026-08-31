@@ -68,6 +68,12 @@ def preflight(repo: H.Repo, domain: H.Domain, driver_name: str) -> Tuple[H.Git, 
         raise H.HarnessError("fake 드라이버는 HARNESS_FAKE_MODEL 이 필요하다")
     if repo.log.exists() and H.close_orphaned_proposals(repo):
         say("끝 이벤트 없이 죽은 제안을 ok=False 로 닫았다 (비용 미상 — 스트림 참조)")
+    # write_scope·human_scope 가 실제 트리와 어긋나면 밤이 조용히 아무것도 못 쓴다 (2026-08-31 research 실측:
+    # 멀티 주제 재구성 뒤 write_scope 를 갱신하지 않아 리뷰 리프 5개가 산출물 0 으로 '통과'했다). 경고로 띄운다.
+    ghosts = [p for p in list(domain.write_scope) + list(domain.human_scope)
+              if p != "." and not (repo.root / p).exists()]
+    if ghosts:
+        say("경고: 트리에 없는 scope 경로 %s — 디렉토리를 옮겼다면 domain.json 을 갱신하라 (밤이 못 쓴다)" % ", ".join(ghosts))
     _, tasks = H.load_plan(repo)
     errors = H.validate_plan(tasks, domain)
     if errors:
