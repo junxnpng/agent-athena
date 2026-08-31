@@ -12,7 +12,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "runner"))
 sys.path.insert(0, str(HERE))
 import harnesslib as H  # noqa: E402
-from test_e2e import FAKE, make_repo, sh  # noqa: E402
+from fixtures import FAKE, make_repo, sh  # noqa: E402
 from test_harnesslib import ev, task  # noqa: E402
 
 NIGHT = str(ROOT / "runner" / "night")

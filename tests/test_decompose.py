@@ -13,7 +13,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "runner"))
 sys.path.insert(0, str(HERE))
 import harnesslib as H  # noqa: E402
-from test_e2e import FAKE, make_repo, sh  # noqa: E402
+from fixtures import FAKE, make_repo, sh  # noqa: E402
 
 DECOMPOSE = str(ROOT / "runner" / "decompose")
 QUEUE = str(ROOT / "runner" / "queue")
@@ -168,6 +168,24 @@ class LoopProposeE2E(unittest.TestCase):
         p = self.loop()
         self.assertIn("루프 종료 (queue_empty) · 밤 1개", p.stdout)
         self.assertFalse(H.Repo(self.root).proposed.exists())
+
+
+class OrphanedProposalTests(unittest.TestCase):
+    def test_close_orphaned_proposals_is_idempotent(self):
+        """제안이 이벤트 없이 죽으면 비용이 합산에서 빠진다 — 시작만 있는 라운드를 ok=False 로 닫는다."""
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d).resolve()
+            make_repo(root, tasks=[{"title": "t", "goal": "g", "verify": "true", "estimate_minutes": 5}])
+            repo = H.Repo(root)
+            H.append_event(repo.log, "plan_propose_started", round=1, stream="x.jsonl")
+            self.assertEqual(H.close_orphaned_proposals(repo), 1)
+            events = H.read_log(repo.log)
+            closed = [e for e in events if e.get("event") == "plan_proposed"]
+            self.assertEqual((closed[0]["ok"], closed[0]["round"]), (False, 1))
+            self.assertEqual(H.close_orphaned_proposals(repo), 0)      # 멱등
+            H.append_event(repo.log, "plan_propose_started", round=2, stream="y.jsonl")
+            H.append_event(repo.log, "plan_proposed", ok=True, round=2)
+            self.assertEqual(H.close_orphaned_proposals(repo), 0)      # 끝난 라운드는 안 닫는다
 
 
 if __name__ == "__main__":

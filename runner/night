@@ -66,6 +66,8 @@ def preflight(repo: H.Repo, domain: H.Domain, driver_name: str) -> Tuple[H.Git, 
             raise H.HarnessError("claude %d.%d — 2.1 미만은 플러그인 훅이 이중 발화한다. 업데이트 후 다시" % ver)
     if driver_name == "fake" and not (os.environ.get("HARNESS_FAKE_MODEL") or domain.driver.get("fake_cmd")):
         raise H.HarnessError("fake 드라이버는 HARNESS_FAKE_MODEL 이 필요하다")
+    if repo.log.exists() and H.close_orphaned_proposals(repo):
+        say("끝 이벤트 없이 죽은 제안을 ok=False 로 닫았다 (비용 미상 — 스트림 참조)")
     _, tasks = H.load_plan(repo)
     errors = H.validate_plan(tasks, domain)
     if errors:

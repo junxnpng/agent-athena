@@ -106,7 +106,12 @@ def propose(repo: H.Repo, driver_name: str, count: int, model: str = "") -> int:
     })
     timeout_min = float(domain.leaf_max)
     ctx = D.propose_context(repo, domain, timeout_min)
+    closed = H.close_orphaned_proposals(repo)
+    if closed:
+        print("경고: 끝 이벤트 없이 죽은 제안 %d개를 ok=False 로 닫았다 (비용 미상)" % closed)
+        round_no += closed
     stream = repo.sessions / "propose" / ("propose-%03d.stream.jsonl" % round_no)
+    H.append_event(repo.log, "plan_propose_started", round=round_no, stream=repo.rel(stream))
     print("제안 %d회 · 드라이버 %s · 상한 %d분 · 계획 %d개 작업" % (round_no, driver_name, int(timeout_min), len(tasks)), flush=True)
     run = D.run_propose(ctx, driver_name, prompt, stream)
     changed = git.changed_paths()

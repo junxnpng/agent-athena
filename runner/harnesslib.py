@@ -1031,6 +1031,22 @@ def _last_float(text: str) -> Optional[float]:
     return None
 
 
+def close_orphaned_proposals(repo: "Repo") -> int:
+    """시작 이벤트(plan_propose_started)만 있고 끝(plan_proposed)이 없는 제안을 ok=False 로 닫는다.
+
+    제안 세션이 이벤트 없이 죽으면(강제 종료·잠듦) 비용이 로그에 안 남는다 — 정확한 비용은 복원할 수 없으므로
+    사실만 기록해 아침에 보이게 한다 (리뷰 라운드 1 잔여). 반환: 닫은 개수. 멱등."""
+    events = read_log(repo.log)
+    started = {e.get("round"): e for e in events if e.get("event") == "plan_propose_started"}
+    finished = {e.get("round") for e in events if e.get("event") == "plan_proposed"}
+    n = 0
+    for rnd in sorted(r for r in started if r is not None and r not in finished):
+        append_event(repo.log, "plan_proposed", ok=False, round=rnd, cost_usd=None,
+                     error="시작 이벤트만 있음 — 제안 프로세스가 끝 이벤트 없이 죽었다. 비용 미상", stream=started[rnd].get("stream"))
+        n += 1
+    return n
+
+
 _CLAUDE_VER_RE = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
 
 
