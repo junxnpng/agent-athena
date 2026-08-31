@@ -86,12 +86,40 @@ def build(cwd: Path) -> str:
         if last_pass:
             lines.append("   마지막 green 커밋: %s (%s)" % (last_pass.get("commit"), last_pass.get("task")))
     else:
-        vr = H.run_verify(repo, domain.verify_cmd, min(domain.smoke_timeout, 540))
-        last = [ln for ln in vr.tail.splitlines() if ln.strip()][-3:]
-        lines.append("4. 스모크 `%s`: %s (exit %s, %.1fs)%s" % (vr.cmd, "ok" if vr.ok else "실패 — " + vr.reason, vr.exit, vr.seconds,
-                                                          ("\n   " + "\n   ".join(last)) if (last and not vr.ok) else ""))
+        head = git.run("rev-parse", "HEAD", check=False)
+        clean = git.run("status", "--porcelain", check=False) == ""
+        cache_path = repo.sessions / "verify-cache.json"
+        cached = None
+        if clean and head:
+            try:
+                c = json.loads(cache_path.read_text(encoding="utf-8"))
+                if c.get("head") == head and c.get("cmd") == domain.verify_cmd and c.get("ok") is True:
+                    cached = c
+            except (OSError, ValueError):
+                cached = None
+        if cached:  # 같은 HEAD·clean 트리에서 이미 통과 — 매 세션 재실행하지 않는다 (캐시는 sessions/ 안, I9 무해. 실패는 캐시하지 않는다)
+            lines.append("4. 스모크 `%s`: ok (캐시 — HEAD %s 에서 %s 통과. 트리가 바뀌면 다시 돈다)" % (domain.verify_cmd, head[:7], cached.get("ts", "?")))
+        else:
+            vr = H.run_verify(repo, domain.verify_cmd, min(domain.smoke_timeout, 540))
+            last = [ln for ln in vr.tail.splitlines() if ln.strip()][-3:]
+            lines.append("4. 스모크 `%s`: %s (exit %s, %.1fs)%s" % (vr.cmd, "ok" if vr.ok else "실패 — " + vr.reason, vr.exit, vr.seconds,
+                                                              ("\n   " + "\n   ".join(last)) if (last and not vr.ok) else ""))
+            if clean and head and vr.ok:
+                try:
+                    repo.sessions.mkdir(parents=True, exist_ok=True)
+                    cache_path.write_text(json.dumps({"head": head, "cmd": domain.verify_cmd, "ok": True, "ts": H.iso(H.now())}), encoding="utf-8")
+                except OSError:
+                    pass
     lines.append("5. 기존 문제(4가 실패면 그것, 로그의 failed/blocked)를 먼저 해결한 뒤 새 작업을 시작한다.")
     lines.append("규칙: .harness/ 부기 파일 쓰기 금지 · git commit/push 금지 · ID·카운터 계산 금지 · 판정은 검증기가 한다 (당신의 done 아님).")
+    marker = Path(__file__).resolve().parent.parent / ".installed-from"  # plugin-refresh 가 설치 때 쓴다 (repo 에서 직접 돌면 없음)
+    try:
+        sha, hroot = marker.read_text(encoding="utf-8").split()[:2]
+        head = H.Git(Path(hroot)).run("rev-parse", "HEAD", check=False)
+        if head and head != sha:
+            lines.append("⚠ 하네스 설치본(%s)이 repo HEAD(%s)보다 뒤 — `scripts/plugin-refresh` 후 세션 재시작 (findings/008)" % (sha[:7], head[:7]))
+    except (OSError, ValueError, IndexError):
+        pass
     return "\n".join(lines)
 
 

@@ -232,6 +232,18 @@ class NightE2E(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn("clean", p.stderr)
 
+    def test_preflight_lock_pid_reuse_is_stale(self):
+        """리뷰 라운드 1 잔여: lock 의 pid 가 살아 있어도 시작 시각이 다르면 재사용된 PID — stale 로 지우고 진행."""
+        make_repo(self.root, tasks=PLAN[:1])
+        sessions = self.root / ".harness" / "sessions"; sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "lock").write_text("%d 2026-08-31T00:00:00+09:00\nBOGUS START TIME\n" % os.getpid())
+        p = self.night("--max-tasks", "1")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)      # stale → 진행
+        (sessions / "lock").write_text("%d now\n%s\n" % (os.getpid(), H.proc_start(os.getpid())))
+        p = self.night(check=False)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("다른 밤", p.stderr)
+
     def test_human_scope_dirt_is_committed_by_preflight(self):
         """낮에 스케줄러(06:30 수집기)가 human_scope 에 남긴 미추적 파일 — 밤은 거부하지 않고 반입 커밋한 뒤 시작한다.
         범위 밖 dirt 가 섞이면 여전히 전부 거부하고 아무것도 커밋하지 않는다 (findings/009)."""

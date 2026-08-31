@@ -1031,6 +1031,29 @@ def _last_float(text: str) -> Optional[float]:
     return None
 
 
+_CLAUDE_VER_RE = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
+
+
+def parse_claude_version(text: Optional[str]) -> Optional[Tuple[int, int]]:
+    """`claude --version` 출력 → (major, minor). 못 읽으면 None — 확신 없이 거부하지 않는다."""
+    m = _CLAUDE_VER_RE.search(text or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def claude_version(binary: str) -> Optional[Tuple[int, int]]:
+    try:
+        p = subprocess.run([binary, "--version"], capture_output=True, text=True, encoding="utf-8", timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return parse_claude_version((p.stdout or "") + " " + (p.stderr or ""))
+
+
+def proc_start(pid: int) -> str:
+    """프로세스 시작 시각 문자열 (`ps -o lstart=`, macOS·Ubuntu 공통) — lock 의 PID 재사용 판별."""
+    p = subprocess.run(["ps", "-p", str(pid), "-o", "lstart="], capture_output=True, text=True, encoding="utf-8")
+    return p.stdout.strip() if p.returncode == 0 else ""
+
+
 def run_verify(repo: Repo, spec: Any, timeout_sec: float, env: Optional[Dict[str, str]] = None) -> VerifyResult:
     """모델의 'done'과 무관하게 검증기를 돌려 판정한다. ASSUMPTIONS: P6 (Claude 5 · B)."""
     cmd, metric = normalize_verify(spec)

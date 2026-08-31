@@ -23,5 +23,6 @@ for f in $(git ls-files hooks runner skills .claude-plugin | grep -v '/vendor/')
   if [ ! -f "$IP/$f" ] || ! cmp -s "$IP/$f" "$f"; then echo "plugin-refresh: 설치본과 다름: $f" >&2; bad=1; fi
 done
 [ "$bad" -eq 0 ] || { echo "plugin-refresh: 설치본이 repo 와 다르다 — 위 파일 확인" >&2; exit 1; }
+printf '%s %s\n' "$(git rev-parse HEAD)" "$(pwd)" > "$IP/.installed-from"  # 세션 시작 훅이 sha 를 대조해 낡은 설치본을 경고한다
 n=$(git ls-files hooks runner skills .claude-plugin | grep -vc '/vendor/')
 printf 'plugin-refresh: 완료 — 설치본 = repo (%s 파일 일치, %s) · 열려 있는 대화형 세션은 재시작해야 반영된다\n' "$n" "$IP"

@@ -142,6 +142,25 @@ class HookTests(unittest.TestCase):
         for needle in ("1. 작업 디렉토리", "2. 최근 로그", "3. 현재 작업 (P2가 결정", "task-001", "4. 스모크", ": ok", "5. 기존 문제"):
             self.assertIn(needle, ctx)
 
+    def test_session_start_verify_cache_skips_rerun_on_same_head(self):
+        """리뷰 라운드 1 잔여: 대화형 세션마다 verify 재실행 → clean 트리·같은 HEAD 면 캐시. 실패는 캐시 안 함."""
+        outdir = tempfile.TemporaryDirectory(); self.addCleanup(outdir.cleanup)   # repo 밖 — 안이면 count 파일이 트리를 dirty 로 만든다
+        outside = Path(outdir.name) / "count"
+        (self.root / ".harness" / "verify").write_text("#!/bin/sh\necho run >> %s\necho smoke-ok\n" % outside)
+        os.chmod(self.root / ".harness" / "verify", 0o755)
+        (self.root / ".harness" / ".gitignore").write_text("sessions/\n")
+        subprocess.run(["git", "-C", str(self.root), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(self.root), "commit", "-q", "-m", "init"], check=True, capture_output=True)
+        ctx1 = self.hook("session-start", {"source": "startup"})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(": ok", ctx1); self.assertNotIn("캐시", ctx1)
+        ctx2 = self.hook("session-start", {"source": "startup"})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("캐시", ctx2)
+        self.assertEqual(outside.read_text().count("run"), 1)
+        (self.root / "src" / "y.py").write_text("x")            # 트리가 바뀌면(dirty) 다시 돈다
+        ctx3 = self.hook("session-start", {"source": "startup"})["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("캐시", ctx3)
+        self.assertEqual(outside.read_text().count("run"), 2)
+
     def tool(self, name, inp, runner=False):
         return self.decision(self.hook("pre-tool", {"tool_name": name, "tool_input": inp}, runner))
 

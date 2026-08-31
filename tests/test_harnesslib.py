@@ -442,3 +442,18 @@ class KillGroupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VersionAndProcTests(unittest.TestCase):
+    def test_parse_claude_version(self):
+        self.assertEqual(H.parse_claude_version("2.1.248 (Claude Code)"), (2, 1))
+        self.assertEqual(H.parse_claude_version("claude version 1.0.9"), (1, 0))
+        self.assertIsNone(H.parse_claude_version("no digits here"))
+        self.assertIsNone(H.parse_claude_version(None))
+
+    def test_proc_start_is_stable_for_live_pid(self):
+        import os as _os
+        a = H.proc_start(_os.getpid()); b = H.proc_start(_os.getpid())
+        self.assertTrue(a); self.assertEqual(a, b)
+        self.assertEqual(H.proc_start(99999999), "")
+
