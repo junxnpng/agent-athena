@@ -130,9 +130,11 @@ DOMAIN_DEFAULTS: Dict[str, Any] = {
         "leaf_max_minutes": 30,    # 리프 상한 = 작업당 모델 타임아웃 (ASSUMPTIONS: 30분 이상에서 일관성 상실)
         "max_attempts": 3,         # 이 횟수 실패하면 blocked (P8-lite)
         "starvation_minutes": 1440,  # 이보다 오래 기다린 작업은 무조건 먼저 (P2, 등급 D)
-        "max_night_usd": 20.0,       # 밤 누적 비용 상한 (USD). null 상한은 상한이 아니다 — 해제는 명시적 null 로만
-        "max_day_usd": None,         # 일일(로컬 자정 이후) 누적 상한 (USD) — 밤·루프 상한과 달리 다시 띄워도 리셋되지 않는다 (2026-08-29 $68 실측). null = 해제
-        "rate_limit_stop": 0.85,     # 5시간 창 사용률이 이 이상 관측되면 밤 종료 (구독 요금제의 실질 예산; night-002 실측 67%)
+        # 2026-08-31: 구독 요금제에서 $ 는 나가지 않는다 — 진짜 한도는 5시간 창·주간 창이고, cost_usd 는 API 정가 환산 *계기판*이다.
+        # $ 상한을 벽으로 쓰면 실재하지 않는 벽에 부딪힌다(08-31 research 가 두 번 막혔다). 기본은 해제, 벽은 rate_limit_stop.
+        "max_night_usd": None,       # 밤 누적 비용 상한 (USD). null = 해제 (기록·SUMMARY 표시는 계속)
+        "max_day_usd": None,         # 일일 누적 상한 (USD) — null = 해제. 폭주 백스톱이 필요하면 숫자를 넣는다 (2026-08-29 $68 실측)
+        "rate_limit_stop": 0.85,     # **실질 예산** — 5시간 창 사용률이 이 이상이면 밤 종료 (창을 다 태우면 사람도 대화형을 못 쓴다)
     },
     "driver": {"name": "claude", "model": None, "effort": None, "max_turns": 120, "max_budget_usd": 5.0},
     "data_class": "public",      # public | private — private 면 대화형에서도 네트워크(curl 류·WebFetch/WebSearch·네트워크 스킬)를 훅이 거부 (D2, trifecta 를 구조로 끊는다)
@@ -1291,8 +1293,9 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
             anomalies.append("훅 이중 발화 %d회: %s (시도 %s) — 전역 플러그인 설치와 --plugin-dir 주입이 겹쳤는지 확인 (배송 결정)" % (
                 int(e["hook_fires"]), e["task"], e.get("attempt")))
     rl = max((float(e.get("rate_limit") or 0) for e in ne if e.get("event") == "model_done"), default=0.0)
-    if rl >= 0.5:
-        anomalies.append("5시간 창 사용률 최대 %d%% — 다음 밤 창이 겹치면 느려진다" % round(rl * 100))
+    if rl >= 0.5:  # 구독제의 실질 예산 — 맨 앞에 세운다 (2026-08-31: $ 상한을 걷어내고 창이 벽이 됐다)
+        anomalies.insert(0, "5시간 창 사용률 최대 %d%%%s" % (
+            round(rl * 100), " — 창이 곧 찬다, 대화형도 느려진다" if rl >= 0.75 else " — 다음 밤 창이 겹치면 느려진다"))
     for e in ne:
         if e.get("event") == "scope_violation":
             anomalies.append("쓰기 범위 위반: %s (시도 %s) — %s" % (e["task"], e.get("attempt"), ", ".join(e.get("paths") or [])[:120]))

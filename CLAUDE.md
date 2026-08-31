@@ -9,7 +9,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 - 계획(`plan.json`)은 재생성 가능. 불변인 것은 실행 이력(`log.jsonl`, append-only). 상태는 로그를 fold해서 파생한다.
 
 ## 레이아웃
-- `runner/night` 밤 하나 실행(진입점) · `runner/night-loop` 밤 여러 개 잇기(창·예산 종료 시, 총비용 상한) · `runner/queue` 선택 정책·`accept`·`approve`(승인 게이트 `verify: "approval"`) · `runner/id` ID 발급 · `runner/summary` 아침 산출물
+- `runner/night` 밤 하나 실행(진입점) · `runner/night-loop` 밤 여러 개 잇기(창·예산 종료 시; 예산 단위는 5시간 창 `rate_limit_stop` — $ 상한은 기본 해제, 계기판) · `runner/queue` 선택 정책·`accept`·`approve`(승인 게이트 `verify: "approval"`) · `runner/id` ID 발급 · `runner/summary` 아침 산출물
 - `runner/init` 대상 repo 골격 · `runner/verify-doc` 산출물 검증기(형식·참조·숫자 — 품질은 게이트) · `runner/decompose --check` 계획 검증 · `--propose` 리프 제안(P7-lite: 제안은 러너, 채택은 사람 또는 `plan.auto_accept`; 검증기는 지금 실패해야 채택)
 - `runner/harnesslib.py` 공용 부기(로그 fold·상태 파생·P2 정책·검증기·git·SUMMARY) · `runner/drivers.py` 모델 드라이버(claude/fake)
 - `hooks/run-hook` 진입점 → `session-start`(P4) · `pre-tool`(쓰기 중재·trifecta·예산·`.harness-readonly` 회사 읽기전용). 확장자 없음 — Windows 자동감지 회피

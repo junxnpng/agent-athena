@@ -52,6 +52,7 @@
 | 세션 환경 부산물 | 세션 안의 도구가 HOME·CWD 기준으로 남기는 캐시(macOS 시스템 Python 의 `~/Library/Caches/com.apple.python`)가 트리에 떨어지면 범위 판정이 오염된다 — 러너 env 가 바이트코드 쓰기를 끄고 캐시 접두를 sessions/ 로 보낸다(findings/010) | 구조적 · 모델 무관 | `drivers.build_env` |
 | 실패 시도 되돌리기(.harness 포함) | 시도 중 러너가 쓰는 것은 log.jsonl·sessions/ 뿐 — 그 밖의 .harness 조작(domain.json·verify)은 되돌려야 다음 세션의 run_verify 로 실행되지 않는다(findings/011). revert_worktree 가 .harness 도 복원하되 둘만 보존 | 구조적 · 모델 무관 | `harnesslib.Git.revert_worktree` |
 | 커밋은 기점 확정 뒤 | 트리를 바꾸는 preflight 단계(human_scope 반입)는 resolve_base·checkout 뒤라야 커밋이 옳은 브랜치에 앉는다(findings/012). 시크릿 이름은 모델 세션 env 에서 제외(findings/013) | 구조적 · 모델 무관 | `runner/night: intake_human_scope`, `drivers._is_secret` |
+| 예산의 단위 = 창, $ 는 계기판 | 구독 요금제에서 `cost_usd` 는 API 정가 환산치일 뿐 실제 지출이 아니다 — 진짜 한도는 5시간 창·주간 창이고, 창을 다 태우면 사람의 대화형까지 느려진다. $ 상한은 실재하지 않는 벽이라 작업을 막았다(08-31 research 2회) → 기본 해제, 벽은 `rate_limit_stop`(스트림의 rate_limit_event 실측). 비용은 계속 기록·SUMMARY 표시(폭주 사후 진단). API 키로 돌리면 다시 숫자를 넣는다 | 요금제 의존 · 모델 무관 | `harnesslib.DOMAIN_DEFAULTS.budget`, `runner/night: rate_limit_stop` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)
