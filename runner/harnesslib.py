@@ -1180,11 +1180,19 @@ class Git:
         return True
 
     def revert_worktree(self) -> None:
-        """작업 트리를 HEAD로 되돌린다. .harness/는 건드리지 않는다 (로그 보존).
-        ASSUMPTIONS: 실패 시도 되돌리기 (Claude 5 · C)."""
+        """실패 시도를 HEAD로 되돌린다 — 코드(.harness 밖) 전부 + .harness 조작(log.jsonl·sessions/ 만 보존).
+
+        시도 중 러너가 쓰는 것은 log.jsonl 과 sessions/ 뿐이므로, 그 밖의 .harness 변경(domain.json·plan.json·
+        verify 조작)은 되돌린다 — 범위 위반으로 잡히지만 되돌리지 않으면 뒤 작업의 commit_all(add -A)이나 밤 끝
+        commit_harness 가 커밋해 다음 세션의 run_verify 가 실행한다(findings/011). ASSUMPTIONS: 실패 시도 되돌리기.
+        """
         self.run("reset", "-q", "--", ".", EXCLUDE_HDIR)
         self.run("checkout", "-q", "--", ".", EXCLUDE_HDIR)
         self.run("clean", "-fdq", "--", ".", EXCLUDE_HDIR)
+        keep = ["--", HDIR_NAME, ":(exclude)%s/log.jsonl" % HDIR_NAME, ":(exclude)%s/sessions" % HDIR_NAME]
+        self.run("reset", "-q", *keep)
+        self.run("checkout", "-q", *keep)
+        self.run("clean", "-fdq", *keep)
 
     def changed_paths(self) -> List[str]:
         """작업 트리의 변경 경로 (추적 변경 + 미추적, ignore 제외). 이름 변경은 새 경로만."""

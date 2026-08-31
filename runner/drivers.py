@@ -115,8 +115,21 @@ def build_task_prompt(ctx: TaskContext) -> str:
     })
 
 
+_SECRET_RE = re.compile(r"TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE_KEY|_KEY$|APIKEY", re.I)
+
+
+def _is_secret(name: str) -> bool:
+    """부모 환경에서 모델 세션으로 넘기면 안 되는 시크릿 이름 — 모델은 신뢰 경계 밖이고 write_scope 에 쓸 수 있다(findings/013).
+    ANTHROPIC_*(드라이버가 모델 호출에 필요) · HARNESS_*(러너가 다시 설정) 는 예외."""
+    # ANTHROPIC_*: 모델 호출에 필요. HARNESS_* 는 예외로 두지 않는다 — 드라이버가 필요한 HARNESS_ROOT/REPO/… 는
+    # 스크럽 뒤 다시 설정하고, HARNESS_BOT_TOKEN·HARNESS_CHAT_ID(텔레그램 시크릿)는 모델에 넘기면 안 된다(테스트가 잡았다).
+    if name.upper().startswith("ANTHROPIC"):
+        return False
+    return bool(_SECRET_RE.search(name))
+
+
 def build_env(ctx: TaskContext) -> Dict[str, str]:
-    env = dict(os.environ)
+    env = {k: v for k, v in os.environ.items() if not _is_secret(k)}  # 시크릿은 모델 세션에 넘기지 않는다 (findings/013)
     env.pop("CLAUDECODE", None)  # Claude Code 안에서 러너를 띄워도 중첩 실행으로 취급되지 않게
     env.update({
         "HARNESS_ROOT": str(H.HARNESS_ROOT),

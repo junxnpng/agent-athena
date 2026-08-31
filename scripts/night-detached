@@ -17,6 +17,10 @@ done
 [ -d "$REPO/.harness" ] || { printf 'night-detached: %s 에 .harness/ 가 없다\n' "$REPO" >&2; exit 2; }
 mkdir -p "$REPO/.harness/sessions"
 LOG="$REPO/.harness/sessions/runner.log"
+# 모델이 세션 중 runner.log 를 심볼릭 링크로 바꿔둘 수 있다 — 이 스크립트는 훅 밖(plain sh)이라 >> 가 링크를 따라간다.
+# 임의 파일 쓰기 프리미티브를 막는다 (findings/012 아님 — 보안 리뷰 R2). TOCTOU 잔여는 문서화.
+if [ -L "$LOG" ]; then printf 'night-detached: %s 가 심볼릭 링크 — 거부 (로그로 임의 파일에 쓰지 않는다)\n' "$LOG" >&2; exit 1; fi
+if [ -e "$LOG" ] && [ ! -f "$LOG" ]; then printf 'night-detached: %s 가 일반 파일이 아니다 — 거부\n' "$LOG" >&2; exit 1; fi
 KEEPAWAKE=""
 if command -v caffeinate >/dev/null 2>&1; then
   KEEPAWAKE="caffeinate -i"

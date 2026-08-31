@@ -8,7 +8,10 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 claude plugin marketplace update harness-local >/dev/null
 claude plugin uninstall harness@harness-local >/dev/null 2>&1 || true
-claude plugin install harness@harness-local >/dev/null
+if ! claude plugin install harness@harness-local >/dev/null; then
+  echo "plugin-refresh: ⚠⚠ 설치 실패 — 하네스 플러그인이 지금 제거된 상태다(훅 전부 없음, '뒤처짐'보다 나쁘다). 다시 실행하거나 'claude plugin install harness@harness-local' 를 수동으로. (findings/008 후속)" >&2
+  exit 1
+fi
 IP=$(python3 - <<'PY'
 import json, pathlib
 d = json.loads((pathlib.Path.home() / ".claude/plugins/installed_plugins.json").read_text(encoding="utf-8"))

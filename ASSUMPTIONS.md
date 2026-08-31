@@ -50,6 +50,8 @@
 | human_scope 반입 커밋 | 낮에 스케줄러·사람이 human_scope 에 남긴 미추적 파일은 밤 preflight 가 `[harness] human_scope 반입` 으로 커밋하고 시작한다(러너만 커밋한다). human_scope 밖 dirt 가 섞이면 사람 작업이므로 전부 거부. 반입 커밋은 HEAD 에 남는다 — HEAD 가 미병합 밤의 조상이면 다음 기점 판정이 분기로 거부(findings/009) | 구조적 · 모델 무관 | `runner/night: preflight`, `harnesslib.human_scope_paths`, `Git.commit_paths` |
 | 예약 밤(launchd) | 밤을 달력에 묶는 것은 하네스 밖(launchd)이고 하네스는 `night-loop` 만 준다. 가정: LaunchAgent(GUI 세션)라 Keychain 의 claude 인증이 열려 있다 · `pmset sleep 0` · 일·수 23:00 3h/$10 → 월·목 07:00 리포트(도메인) | 구조적 · 모델 무관 | `templates/launchd/com.harness.night.ai-brief.plist` |
 | 세션 환경 부산물 | 세션 안의 도구가 HOME·CWD 기준으로 남기는 캐시(macOS 시스템 Python 의 `~/Library/Caches/com.apple.python`)가 트리에 떨어지면 범위 판정이 오염된다 — 러너 env 가 바이트코드 쓰기를 끄고 캐시 접두를 sessions/ 로 보낸다(findings/010) | 구조적 · 모델 무관 | `drivers.build_env` |
+| 실패 시도 되돌리기(.harness 포함) | 시도 중 러너가 쓰는 것은 log.jsonl·sessions/ 뿐 — 그 밖의 .harness 조작(domain.json·verify)은 되돌려야 다음 세션의 run_verify 로 실행되지 않는다(findings/011). revert_worktree 가 .harness 도 복원하되 둘만 보존 | 구조적 · 모델 무관 | `harnesslib.Git.revert_worktree` |
+| 커밋은 기점 확정 뒤 | 트리를 바꾸는 preflight 단계(human_scope 반입)는 resolve_base·checkout 뒤라야 커밋이 옳은 브랜치에 앉는다(findings/012). 시크릿 이름은 모델 세션 env 에서 제외(findings/013) | 구조적 · 모델 무관 | `runner/night: intake_human_scope`, `drivers._is_secret` |
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)

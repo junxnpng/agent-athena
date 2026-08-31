@@ -199,6 +199,22 @@ class NightE2E(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn("clean", p.stderr)
 
+    def test_human_intake_on_unmerged_branch_does_not_diverge(self):
+        """findings/012: 미병합 밤 브랜치를 두고 main 에서 낮을 보낸 뒤 human_scope dirt 가 생기면,
+        반입 커밋이 main 이 아니라 (기점으로 뽑히는) 밤 브랜치 위에 앉아 다음 밤이 '분기'로 거부되지 않는다."""
+        make_repo(self.root, tasks=PLAN[:1], domain={"human_scope": ["inbox"], "budget": {"hours": 0.5, "max_attempts": 3}})
+        p = self.night("--max-tasks", "1")                       # 밤 1 → harness/night-001 (미병합)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        sh("git", "-C", str(self.root), "checkout", "-q", "main")  # 사람이 main 으로 (SUMMARY 안내대로)
+        (self.root / "inbox").mkdir(exist_ok=True)
+        (self.root / "inbox" / "x.md").write_text("---\ntitle: x\n---\n")   # 낮의 스케줄러 dirt
+        p = self.night("--max-tasks", "1")                       # 밤 2 — 분기 거부 없이 night-001 에서 잇는다
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("분기", p.stderr)
+        self.assertIn("night-002", p.stdout)
+        subj = sh("git", "-C", str(self.root), "log", "harness/night-002", "--format=%s").stdout
+        self.assertIn("[harness] human_scope 반입: 1개 (inbox)", subj)
+
     def test_preflight_lock_pid_reuse_is_stale(self):
         """리뷰 라운드 1 잔여: lock 의 pid 가 살아 있어도 시작 시각이 다르면 재사용된 PID — stale 로 지우고 진행."""
         make_repo(self.root, tasks=PLAN[:1])

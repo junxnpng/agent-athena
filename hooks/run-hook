@@ -18,6 +18,11 @@ for c in python3 python; do
 done
 if [ -z "$PY" ]; then
   printf 'run-hook: python >= 3.8 not found; harness hooks disabled\n' >&2
+  # pre-tool 은 fail-closed 여야 한다 — 인터프리터가 없다고 쓰기 중재·trifecta 가드가 통째로 빠지면 안 된다 (보안 리뷰 R4).
+  if [ "$NAME" = "pre-tool" ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"harness hook interpreter (python>=3.8) not found — failing closed"}}\n'
+    exit 0
+  fi
   exit 1
 fi
 exec "$PY" "$HERE/$NAME"

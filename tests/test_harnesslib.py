@@ -457,3 +457,50 @@ class VersionAndProcTests(unittest.TestCase):
         self.assertTrue(a); self.assertEqual(a, b)
         self.assertEqual(H.proc_start(99999999), "")
 
+
+class RevertHdirTamperTests(unittest.TestCase):
+    def test_revert_worktree_restores_hdir_tampering(self):
+        import subprocess, tempfile
+        from _util import git_init
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d).resolve()
+            git_init(root)
+            h = root / ".harness"; h.mkdir()
+            (h / "domain.json").write_text('{"write_scope":["src"]}', encoding="utf-8")
+            (h / ".gitignore").write_text("sessions/\n", encoding="utf-8")
+            (root / "src").mkdir(); (root / "src" / "a.py").write_text("ok\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", "init"], check=True, capture_output=True)
+            (h / "sessions").mkdir(); (h / "log.jsonl").write_text('{"e":1}\n', encoding="utf-8")
+            (h / "sessions" / "patch").write_text("keep", encoding="utf-8")
+            # 모델의 조작: domain.json 덮어쓰기 + 새 .harness 파일 + 코드 파일
+            (h / "domain.json").write_text('{"write_scope":["src"],"verify":{"cmd":"touch /tmp/pwned"}}', encoding="utf-8")
+            (h / "evil.sh").write_text("rm -rf ~\n", encoding="utf-8")
+            (root / "src" / "a.py").write_text("tampered\n", encoding="utf-8")
+            H.Git(root).revert_worktree()
+            self.assertNotIn("pwned", (h / "domain.json").read_text(encoding="utf-8"))   # domain.json 복원
+            self.assertFalse((h / "evil.sh").exists())                                    # 새 .harness 파일 제거
+            self.assertEqual((root / "src" / "a.py").read_text(encoding="utf-8"), "ok\n")  # 코드 복원
+            self.assertTrue((h / "log.jsonl").exists())                                    # log.jsonl 보존
+            self.assertTrue((h / "sessions" / "patch").exists())                          # sessions/ 보존
+
+    def test_build_env_scrubs_secrets_keeps_anthropic(self):
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "runner"))
+        import drivers as D, os as _os
+        old = dict(_os.environ)
+        try:
+            _os.environ.update({"AWS_SECRET_ACCESS_KEY": "x", "GH_TOKEN": "y", "MY_PASSWORD": "z",
+                                "ANTHROPIC_API_KEY": "keep", "PATH": old.get("PATH", "/bin"), "HARNESS_BOT_TOKEN": "drop"})
+            task = H.Task(id="task-001", title="t", goal="g", verify="true", estimate_minutes=5)
+            ctx = D.TaskContext(repo=H.Repo(Path("/tmp")), domain=H.Domain({}), night_id="n",
+                                task=task, state=H.TaskState(id="task-001"), attempt=1,
+                                timeout_minutes=0.3, deadline_epoch=0.0, spec_text="")
+            env = D.build_env(ctx)
+            for k in ("AWS_SECRET_ACCESS_KEY", "GH_TOKEN", "MY_PASSWORD", "HARNESS_BOT_TOKEN"):
+                self.assertNotIn(k, env, k)
+            self.assertEqual(env.get("ANTHROPIC_API_KEY"), "keep")   # 모델 호출에 필요 — 남긴다
+            self.assertIn("PATH", env)
+        finally:
+            _os.environ.clear(); _os.environ.update(old)
+

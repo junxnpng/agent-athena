@@ -72,16 +72,7 @@ def preflight(repo: H.Repo, domain: H.Domain, driver_name: str) -> Tuple[H.Git, 
     errors = H.validate_plan(tasks, domain)
     if errors:
         raise H.HarnessError("계획 반려 (접수 게이트):\n - " + "\n - ".join(errors))
-    if not git.is_clean():
-        dirty = git.changed_paths()
-        human = H.human_scope_paths(domain, dirty)
-        if not human or len(human) != len(dirty):
-            raise H.HarnessError("작업 트리가 clean이 아니다. 커밋하거나 stash한 뒤 다시 (사람 작업과 밤 작업을 섞지 않는다)")
-        # dirt 가 낮에 스케줄러·사람이 human_scope 에 넣은 자료뿐이면 러너가 반입 커밋하고 시작한다 (러너만 커밋한다 — findings/009)
-        dirs = sorted({p.split("/", 1)[0] for p in human})
-        sha = git.commit_paths(human, "[harness] human_scope 반입: %d개 (%s)" % (len(human), ", ".join(dirs)))
-        H.append_event(repo.log, "human_intake", paths=human, commit=sha)
-        say("human_scope 반입 커밋 %s: %d개 (%s)" % (sha, len(human), ", ".join(dirs)))
+    # human_scope 반입은 여기서 하지 않는다 — base 확정·checkout 뒤라야 커밋이 옳은 브랜치에 앉는다 (findings/012). intake_human_scope 참조.
     lock = repo.sessions / "lock"
     if lock.exists():
         raw = lock.read_text(encoding="utf-8", errors="replace")
@@ -105,6 +96,24 @@ def _alive(pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def intake_human_scope(repo: H.Repo, domain: H.Domain, git: H.Git) -> None:
+    """dirt 가 human_scope(낮에 스케줄러·사람이 넣은 자료)뿐이면 러너가 반입 커밋한다. base 확정·checkout 뒤에 부른다.
+
+    미병합 밤 브랜치를 두고 main 에서 낮을 보낸 상태에서 main 에 먼저 커밋하면 다음 밤 기점이 '분기'로 거부됐다
+    (findings/012) — 그래서 base 브랜치 위에서 커밋한다. human_scope 밖 dirt 가 섞이면 사람 작업이므로 전부 거부.
+    """
+    if git.is_clean():
+        return
+    dirty = git.changed_paths()
+    human = H.human_scope_paths(domain, dirty)
+    if not human or len(human) != len(dirty):
+        raise H.HarnessError("작업 트리가 clean이 아니다. 커밋하거나 stash한 뒤 다시 (사람 작업과 밤 작업을 섞지 않는다)")
+    dirs = sorted({p.split("/", 1)[0] for p in human})
+    sha = git.commit_paths(human, "[harness] human_scope 반입: %d개 (%s)" % (len(human), ", ".join(dirs)))
+    H.append_event(repo.log, "human_intake", paths=human, commit=sha)
+    say("human_scope 반입 커밋 %s: %d개 (%s)" % (sha, len(human), ", ".join(dirs)))
 
 
 def resolve_base(git: H.Git) -> Tuple[str, str]:
@@ -156,6 +165,7 @@ def run_night(args: argparse.Namespace) -> int:
     base, note = resolve_base(git)
     if base != "HEAD":
         git.checkout(base)
+    intake_human_scope(repo, domain, git)  # base 위에서 반입 커밋 — 다음 밤 기점이 분기로 거부되지 않게 (findings/012)
     events = H.read_log(repo.log)
     night_id = H.next_id("night", events)
     branch = H.NIGHT_BRANCH_PREFIX + night_id

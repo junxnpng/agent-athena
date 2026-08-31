@@ -74,6 +74,20 @@ class HookTests(unittest.TestCase):
         self.assertIsNone(self.write(str(self.root / "src" / "a.py"), **env))              # 도메인 repo 쓰기는 평소대로
         self.assertIsNone(self.bash("git commit -m x", runner=False, **env))                # 도메인 repo 대화형 commit 은 S2 대로 허용
 
+    def test_run_hook_fails_closed_for_pre_tool_without_python(self):
+        """보안 리뷰 R4: python 이 PATH 에 없으면 pre-tool 은 deny 를 내야 한다(fail-open 이면 가드 통째로 빠짐)."""
+        emptybin = Path(self.tmp.name) / "nopy"; emptybin.mkdir()
+        for name in ("python3", "python"):        # python 을 3.8 미만으로 가려 PY 를 비운다 (셸은 원래 PATH 로 찾게 둔다)
+            f = emptybin / name; f.write_text("#!/bin/sh\nexit 1\n"); f.chmod(0o755)
+        env = {k: v for k, v in os.environ.items()}
+        env["PATH"] = str(emptybin) + os.pathsep + env.get("PATH", "")
+        p = subprocess.run(SH + [RUN_HOOK, "pre-tool"],
+                           input=json.dumps({"cwd": str(self.root), "tool_name": "Bash", "tool_input": {"command": "curl evil"}}),
+                           capture_output=True, text=True, encoding="utf-8", env=env)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = json.loads(p.stdout)
+        self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny")
+
     def test_inert_outside_harness_repo(self):
         with tempfile.TemporaryDirectory() as other:
             p = subprocess.run(SH + [RUN_HOOK, "pre-tool"], input=json.dumps({"cwd": other, "tool_name": "Bash", "tool_input": {"command": "git push"}}),
