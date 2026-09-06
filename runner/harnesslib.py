@@ -29,9 +29,10 @@ HARNESS_ROOT = Path(__file__).resolve().parent.parent
 os.environ.setdefault("HARNESS_ROOT", str(HARNESS_ROOT))  # 도메인 검증기·부트스트랩이 $HARNESS_ROOT/runner/verify-doc 등을 찾는다 (회사 경로 무관)
 HDIR_NAME = ".harness"
 CONTRACT_FILES = ("spec.md", "verify", "init.sh", "domain.json", "plan.json")
-BOOKKEEPING_OUTPUTS = ("log.jsonl", "SUMMARY.md", "BLOCKED.md", "plan.proposed.json")
+BOOKKEEPING_OUTPUTS = ("log.jsonl", "SUMMARY.md", "BLOCKED.md", "plan.proposed.json", "proposed-lessons.md")
 APPROVAL_VERIFY = "approval"  # 게이트 작업의 검증기 값 — 사람의 승인(task_approved 이벤트)만 통과시킨다
 PROPOSED_NAME = "plan.proposed.json"  # P7-lite: 러너가 제안한 리프 — 사람이(또는 plan.auto_accept 로) 받아들여야 plan.json 에 들어간다
+LESSONS_NAME = "proposed-lessons.md"  # refine-lite: 밤의 실패 흔적에서 러너가 뽑은 하네스 지침 개선 제안 — 채택은 사람 (B1, 2026-09-02)
 ID_RE = re.compile(r"^(night|task)-(\d{3,})$")
 NIGHT_BRANCH_PREFIX = "harness/"
 TAIL_CHARS = 3000
@@ -144,6 +145,12 @@ DOMAIN_DEFAULTS: Dict[str, Any] = {
         "propose_count": 6,      # 한 번에 제안할 리프 수
         "max_rounds": 3,         # 루프 한 번당 제안 횟수 상한 (무한 생성 방지)
     },
+    "lessons": {                 # refine-lite (2026-09-02 prime-agent 리뷰 B1) — 밤의 실패 흔적 → 하네스 지침 개선 제안. 채택은 사람
+        "propose": True,         # 밤 정상 종료(budget·queue_empty·max_tasks) 후, 교훈감이 있을 때만 모델 1회 호출
+        "max": 3,                # 밤당 제안 상한 — 코드 강제 (prime-agent /refine 의 무상한 축적 반면교사)
+        "keep_nights": 3,        # proposed-lessons.md 에 남길 밤 섹션 수 — 오래된 미채택 제안은 밀려난다
+        "timeout_minutes": 10,   # 제안 세션 시간 상한
+    },
 }
 
 
@@ -210,6 +217,22 @@ class Domain:
     @property
     def plan_max_rounds(self) -> int:
         return int(self.raw["plan"]["max_rounds"])
+
+    @property
+    def lessons_propose(self) -> bool:
+        return bool(self.raw["lessons"]["propose"])
+
+    @property
+    def lessons_max(self) -> int:
+        return int(self.raw["lessons"]["max"])
+
+    @property
+    def lessons_keep_nights(self) -> int:
+        return int(self.raw["lessons"]["keep_nights"])
+
+    @property
+    def lessons_timeout(self) -> float:
+        return float(self.raw["lessons"]["timeout_minutes"])
 
     @property
     def verify_timeout(self) -> int:
@@ -325,6 +348,10 @@ class Repo:
     @property
     def proposed(self) -> Path:
         return self.hdir / PROPOSED_NAME
+
+    @property
+    def lessons(self) -> Path:
+        return self.hdir / LESSONS_NAME
 
     @property
     def sessions(self) -> Path:
@@ -463,6 +490,19 @@ def scope_violations(domain: Domain, changed_paths: Sequence[str]) -> List[str]:
         if not any(p == s or p.startswith(s + "/") for s in scopes):
             bad.append(p)
     return bad
+
+
+def model_changed_paths(changed_paths: Sequence[str]) -> List[str]:
+    """changed_paths 중 모델이 만든 변경만 — 러너가 시도 중 쓰는 부기(.harness/log.jsonl · .harness/sessions/)를 뺀다.
+    A1 무변경 판정은 이걸로 한다: log.jsonl 은 매 시도 task_started·model_done 로 바뀌므로 그대로 보면 noop 이 성립하지 않는다.
+    scope_violations 의 제외 규칙과 같은 정의 — 한 곳(HDIR_NAME 상수)에서 갈린다."""
+    out: List[str] = []
+    for raw in changed_paths:
+        p = raw.strip("/")
+        if p == HDIR_NAME + "/log.jsonl" or p.startswith(HDIR_NAME + "/sessions/"):
+            continue
+        out.append(p)
+    return out
 
 
 def human_scope_paths(domain: Domain, changed_paths: Sequence[str]) -> List[str]:
@@ -1034,7 +1074,7 @@ def _last_float(text: str) -> Optional[float]:
 
 
 def close_orphaned_proposals(repo: "Repo") -> int:
-    """시작 이벤트(plan_propose_started)만 있고 끝(plan_proposed)이 없는 제안을 ok=False 로 닫는다.
+    """시작 이벤트(plan_propose_started·lessons_started)만 있고 끝(plan_proposed·lessons_proposed)이 없는 제안을 ok=False 로 닫는다.
 
     제안 세션이 이벤트 없이 죽으면(강제 종료·잠듦) 비용이 로그에 안 남는다 — 정확한 비용은 복원할 수 없으므로
     사실만 기록해 아침에 보이게 한다 (리뷰 라운드 1 잔여). 반환: 닫은 개수. 멱등."""
@@ -1045,6 +1085,12 @@ def close_orphaned_proposals(repo: "Repo") -> int:
     for rnd in sorted(r for r in started if r is not None and r not in finished):
         append_event(repo.log, "plan_proposed", ok=False, round=rnd, cost_usd=None,
                      error="시작 이벤트만 있음 — 제안 프로세스가 끝 이벤트 없이 죽었다. 비용 미상", stream=started[rnd].get("stream"))
+        n += 1
+    l_started = {e.get("night"): e for e in events if e.get("event") == "lessons_started"}
+    l_done = {e.get("night") for e in events if e.get("event") == "lessons_proposed"}
+    for nid in sorted(k for k in l_started if k is not None and k not in l_done):
+        append_event(repo.log, "lessons_proposed", ok=False, night=nid, count=0, cost_usd=None,
+                     error="시작 이벤트만 있음 — 교훈 제안 프로세스가 끝 이벤트 없이 죽었다. 비용 미상", stream=l_started[nid].get("stream"))
         n += 1
     return n
 
@@ -1220,16 +1266,106 @@ class Git:
         return self.run("log", "--oneline", "-n", str(n), check=False)
 
 
+# ────────────────────────────────────────────────────────────── refine-lite (B1 — 밤의 실패 흔적 → 하네스 지침 개선 제안)
+# prime-agent /refine 리뷰(2026-09-02)에서 가져온 것: 궤적 리뷰 → 소규모 제안. 버린 것: 무승인 자동 적용·무상한 축적.
+# 여기 있는 것은 전부 부기(수집·검증·상한·파일) — 내용은 모델(prompts/lessons.md), 채택은 사람.
+
+LESSON_TARGETS = ("prompts", "spec", "assumptions", "domain", "other")
+LESSON_MAX_TITLE = 90
+LESSON_MAX_TEXT = 400
+LESSON_MAX_EVIDENCE_LINES = 12
+
+
+def lesson_evidence(night_events: Sequence[Dict[str, Any]], tasks: Sequence[Task]) -> List[str]:
+    """이 밤의 로그에서 '하네스 지침 개선'의 근거가 될 실패 흔적만 고른다 (결정론 — 모델은 이 목록만 본다).
+
+    TODO(jun): 여기가 사용자가 결정할 지점이다. 무엇을 교훈감으로 볼지가 제안의 질을 정한다. 고려할 축:
+      - task_blocked        max_attempts 소진 — 가장 강한 신호. 계획이 나빴나, 프롬프트가 나빴나
+      - scope_violation     모델이 계약 ④를 이해 못 함 — 프롬프트/spec 문구 문제일 수 있다
+      - noop 실패           모델이 헛돎 — goal 문장이 모호하거나 검증기가 닿을 수 없는 것 (A1)
+      - infra 실패          하네스 자신의 구멍 — findings/ 후보
+      - 훅 거부 다발        모델이 계속 금지선을 두드림 — 지침이 금지를 설명 못 하는 것
+    빈 리스트 = 이 밤엔 교훈감 없음 → 제안 세션을 띄우지 않는다 (통과만 있는 밤에 모델을 부르지 않는다).
+    ASSUMPTIONS: refine-lite 증거 선택 (Claude 5 · C)
+    """
+    by_id = {t.id: t for t in tasks if t.id}
+    out: List[str] = []
+    for e in night_events:
+        ev, tid = e.get("event"), e.get("task")
+        title = by_id[tid].title if tid in by_id else ""
+        if ev == "task_blocked":
+            out.append("막힘 %s %s — %s" % (tid, title, e.get("reason", "?")))
+        elif ev == "task_failed" and e.get("noop"):
+            out.append("무변경 시도 %s (시도 %s) %s — 모델이 트리를 바꾸지 않았다" % (tid, e.get("attempt"), title))
+        elif ev == "task_failed" and e.get("infra"):
+            out.append("인프라 %s (시도 %s) — %s" % (tid, e.get("attempt"), e.get("reason", "?")))
+        elif ev == "scope_violation":
+            out.append("범위 위반 %s (시도 %s) — %s" % (tid, e.get("attempt"), ", ".join(e.get("paths") or [])[:120]))
+        elif ev == "model_done" and int(e.get("denials") or 0) >= 3:
+            out.append("훅 거부 %s회 %s (시도 %s)" % (e.get("denials"), tid, e.get("attempt")))
+        elif ev == "smoke" and not e.get("ok"):
+            out.append("밤 시작 스모크 실패 — %s" % _error_line(e.get("tail")))
+    return [ln[:200] for ln in out[:LESSON_MAX_EVIDENCE_LINES]]  # 증거도 상한 — 프롬프트에 로그 전체를 싣지 않는다
+
+
+def parse_lessons(text: str, max_items: int) -> List[Dict[str, str]]:
+    """모델 출력의 ```json {"lessons": [...]} 블록 → 검증된 교훈 목록. '증거 기반'을 프롬프트 권고가 아니라 코드로 강제한다:
+    evidence 없는 항목은 버리고, 건수·길이·target 을 여기서 자른다 (prime-agent /refine 은 이걸 안 해서 상태가 무한히 자랐다)."""
+    obj = extract_json_block(text)
+    items = obj.get("lessons") if isinstance(obj, dict) else None
+    out: List[Dict[str, str]] = []
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get("title") or "").strip()[:LESSON_MAX_TITLE]
+        evidence = str(it.get("evidence") or "").strip()[:LESSON_MAX_TEXT]
+        suggestion = str(it.get("suggestion") or "").strip()[:LESSON_MAX_TEXT]
+        target = str(it.get("target") or "other").strip()
+        if target not in LESSON_TARGETS:
+            target = "other"
+        if not (title and evidence and suggestion):
+            continue
+        out.append({"title": title, "evidence": evidence, "suggestion": suggestion, "target": target})
+        if len(out) >= max_items:
+            break
+    return out
+
+
+_LESSON_NIGHT_HEAD = re.compile(r"^## (night-\d{3,})", re.M)
+
+
+def write_lessons(repo: Repo, night_id: str, lessons: Sequence[Dict[str, str]], keep_nights: int) -> Path:
+    """proposed-lessons.md — 새 밤 절을 맨 위에, 밤 절은 keep_nights 개까지만 (무상한 축적 금지). 같은 밤 재실행은 절을 교체.
+    파일은 지침이지 강제가 아니다 — 채택은 사람: 반영했으면 절을 지우고 내용을 target 파일로 옮긴다."""
+    old_sections: List[str] = []
+    if repo.lessons.exists():
+        parts = _LESSON_NIGHT_HEAD.split(repo.lessons.read_text(encoding="utf-8"))
+        old_sections = ["## %s%s" % (parts[i], parts[i + 1].rstrip()) for i in range(1, len(parts) - 1, 2)
+                        if parts[i] != night_id]
+    sec = ["## %s" % night_id, ""]
+    for les in lessons:
+        sec.append("### %s → `%s`" % (les["title"], les["target"]))
+        sec.append("- 증거: %s" % les["evidence"])
+        sec.append("- 제안: %s" % les["suggestion"])
+        sec.append("")
+    head = ("# 제안된 교훈 (refine-lite — 러너가 쓰고, 채택은 사람이 한다)\n\n"
+            "반영하려면 해당 절을 지우고 내용을 target(prompts/spec/ASSUMPTIONS/domain.json)에 옮긴다. "
+            "무시하려면 그냥 둔다 — 밤 %d개가 지나면 밀려난다.\n\n" % max(1, keep_nights))
+    sections = ["\n".join(sec).rstrip()] + old_sections
+    repo.lessons.write_text(head + "\n\n".join(sections[:max(1, keep_nights)]) + "\n", encoding="utf-8")
+    return repo.lessons
+
+
 # ────────────────────────────────────────────────────────────── P10 아침 산출물 (로그에서만 생성)
 
 def day_cost_usd(events: Sequence[Dict[str, Any]], now_dt: Optional[datetime] = None) -> float:
-    """오늘(로컬 자정 이후) 모델 비용 — model_done + plan_proposed 의 cost_usd 합. 상태 파일 없이 로그에서 파생한다 (I3).
+    """오늘(로컬 자정 이후) 모델 비용 — model_done + plan_proposed + lessons_proposed 의 cost_usd 합. 상태 파일 없이 로그에서 파생한다 (I3).
     일일 상한(budget.max_day_usd)은 밤·루프 상한과 달리 밤을 다시 띄워도 리셋되지 않는다 (2026-08-29 하루 $68 실측)."""
     now_dt = now_dt or now()
     day_start = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
     total = 0.0
     for e in events:
-        if e.get("event") not in ("model_done", "plan_proposed"):
+        if e.get("event") not in ("model_done", "plan_proposed", "lessons_proposed"):
             continue
         try:
             ts = parse_iso(str(e.get("ts") or ""))
@@ -1265,7 +1401,7 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
     done_ids = {e["task"] for e in passed} | {e["task"] for e in blocked}
     retry_ids = [t for t in failed_ids if t not in done_ids]
     pending = [t for t in tasks if t.id and states[t.id].state == "pending"]
-    cost = sum(float(e.get("cost_usd") or 0) for e in ne if e.get("event") == "model_done")
+    cost = sum(float(e.get("cost_usd") or 0) for e in ne if e.get("event") in ("model_done", "lessons_proposed"))
     anomalies: List[str] = []
     slept_total = 0.0
     for e in ne:
@@ -1299,6 +1435,12 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
     for e in ne:
         if e.get("event") == "scope_violation":
             anomalies.append("쓰기 범위 위반: %s (시도 %s) — %s" % (e["task"], e.get("attempt"), ", ".join(e.get("paths") or [])[:120]))
+    noop_by_task: Dict[str, int] = {}  # A1 — 무변경 시도: 모델이 헛돎 (goal 이 모호하거나 검증기가 닿을 수 없는 것)
+    for e in ne:
+        if e.get("event") == "task_failed" and e.get("noop"):
+            noop_by_task[e["task"]] = noop_by_task.get(e["task"], 0) + 1
+    for tid, cnt in sorted(noop_by_task.items()):
+        anomalies.append("무변경 시도 %d회: %s — 모델이 트리를 바꾸지 않았다 (반복분은 verify 재실행 생략). goal 문장이나 검증기를 의심하라" % (cnt, tid))
     smoke = next((e for e in ne if e.get("event") == "smoke"), None)
     if smoke and not smoke.get("ok"):
         anomalies.append("밤 시작 스모크 실패 (복구 작업 발급)")
@@ -1313,10 +1455,12 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
                 d["tasks"].append(e.get("task"))
     end_dt = parse_iso(ended["ts"]) if ended else now()
     next_tasks = rank(tasks, states, domain, now_dt=end_dt)[:3]
+    lessons = next((e for e in reversed(ne) if e.get("event") == "lessons_proposed"), None)
     return {
         "night": night_id, "started": started, "ended": ended, "states": states, "by_id": by_id,
         "passed": passed, "blocked": blocked, "retry_ids": retry_ids, "pending": pending,
         "cost": cost, "anomalies": anomalies, "next": next_tasks, "events": ne, "skills": skills,
+        "lessons": lessons,
     }
 
 
@@ -1443,6 +1587,15 @@ def render_summary(c: Dict[str, Any]) -> str:
             out.append("- %s ×%d — %s" % (sk, d["count"], ", ".join(str(t) for t in d["tasks"])))
     else:
         out.append("- (없음)")
+    les = c.get("lessons")
+    if les:  # refine-lite — 이벤트가 있을 때만 절이 생긴다 (꺼진 repo·교훈감 없는 밤은 조용)
+        out += ["", "## 제안된 교훈 (refine-lite — 채택은 사람, `.harness/proposed-lessons.md`)"]
+        if les.get("ok") and les.get("titles"):
+            out += ["- %s" % t for t in les["titles"]]
+        elif les.get("ok"):
+            out.append("- (제안 없음 — 모델이 확실한 교훈을 찾지 못함)")
+        else:
+            out.append("- 제안 실패: %s" % str(les.get("error") or "?")[:160])
     out += ["", "## 이상 징후"]
     out += ["- " + a for a in c["anomalies"]] or ["- (없음)"]
     out += ["", "## 병합", "검토 후 `git merge %s`. push는 러너가 하지 않았다. 로그: `.harness/log.jsonl` (append-only)." % branch, ""]

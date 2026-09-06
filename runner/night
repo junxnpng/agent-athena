@@ -21,7 +21,7 @@ import sys
 import time
 from datetime import timedelta
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import harnesslib as H  # noqa: E402
@@ -120,6 +120,46 @@ def intake_human_scope(repo: H.Repo, domain: H.Domain, git: H.Git) -> None:
     sha = git.commit_paths(human, "[harness] human_scope 반입: %d개 (%s)" % (len(human), ", ".join(dirs)))
     H.append_event(repo.log, "human_intake", paths=human, commit=sha)
     say("human_scope 반입 커밋 %s: %d개 (%s)" % (sha, len(human), ", ".join(dirs)))
+
+
+def propose_lessons(repo: H.Repo, domain: H.Domain, git: H.Git, night_id: str, driver_name: str,
+                    sessions_dir: Path, tasks: List[H.Task]) -> None:
+    """B1 refine-lite — 이 밤의 실패 흔적 → 하네스 지침 개선 제안 → .harness/proposed-lessons.md (채택은 사람, P7-lite 패턴).
+
+    실패해도 밤의 결과에는 영향이 없다: 예외는 기록하고 삼킨다. 교훈감(증거)이 없으면 모델을 부르지 않는다.
+    """
+    evidence = H.lesson_evidence(H.events_for_night(H.read_log(repo.log), night_id), tasks)
+    if not evidence:
+        say("교훈 제안 생략 — 이 밤에 교훈감(실패 흔적)이 없다")
+        return
+    stream = sessions_dir / "lessons.stream.jsonl"
+    H.append_event(repo.log, "lessons_started", night=night_id, stream=repo.rel(stream))
+    say("교훈 제안 (refine-lite) · 증거 %d줄 · 상한 %d건 · %s" % (len(evidence), domain.lessons_max, driver_name))
+    try:
+        prompt = D.render("lessons.md", {
+            "night_id": night_id, "max": domain.lessons_max, "evidence": "\n".join("- " + e for e in evidence),
+            "harness_root": H.HARNESS_ROOT, "repo": repo.root,
+        })
+        ctx = D.lessons_context(repo, domain, night_id, domain.lessons_timeout)
+        run = D.run_lessons(ctx, driver_name, prompt, stream)
+        changed = H.model_changed_paths(git.changed_paths())  # 밤 내내 append 된 log.jsonl 은 뺀다 — 교훈 세션이 실제로 쓴 것만
+        if changed:  # 제안은 읽기 전용 — 뭔가 바꿨으면 되돌리고 기록한다 (decompose --propose 와 같은 방어)
+            git.revert_worktree()
+        lessons = H.parse_lessons(run.result_text, domain.lessons_max) if run.ok else []
+        if lessons:
+            H.write_lessons(repo, night_id, lessons, domain.lessons_keep_nights)
+        H.append_event(repo.log, "lessons_proposed", night=night_id, ok=bool(run.ok), count=len(lessons),
+                       titles=[les["title"] for les in lessons] or None, cost_usd=round(run.cost_usd, 4),
+                       seconds=round(run.seconds, 1), error=(run.error or None) if not run.ok else None,
+                       reverted=changed or None, stream=repo.rel(stream))
+        if lessons:
+            say("  교훈 %d건 → %s" % (len(lessons), repo.rel(repo.lessons)))
+        else:
+            say("  교훈 제안 없음" + ((" (모델 오류: %s)" % run.error) if run.error else ""))
+    except Exception as e:  # 교훈 제안 실패가 밤을 오염시키지 않는다 — SUMMARY '제안 실패' 로만 보인다
+        H.append_event(repo.log, "lessons_proposed", night=night_id, ok=False, count=0,
+                       error="%s: %s" % (type(e).__name__, e), stream=repo.rel(stream))
+        say("  교훈 제안 실패 (밤 결과 무관): %s" % e)
 
 
 def resolve_base(git: H.Git) -> Tuple[str, str]:
@@ -274,6 +314,9 @@ def run_night(args: argparse.Namespace) -> int:
         tasks_run = 0
         night_cost = 0.0  # 이 밤의 누적 비용 (USD) — model_done 합계와 같아야 한다
         driver_fails = 0  # 연속 무응답(시간 초과 + 0턴) 횟수
+        # A1 (prime-agent unchanged-workspace 억제 이식, 2026-09-02): 무변경 시도에서 실패한 leaf verify 를 (검증기, HEAD) 로 캐시.
+        # 실패 시도는 되돌려지므로 같은 HEAD·무변경이면 재실행 결과가 보장된다 — verify_timeout 을 태우지 않고 시도만 소진시킨다.
+        noop_fail_cache: Dict[Tuple[str, str], H.VerifyResult] = {}
         while True:
             now_dt = H.now()
             remaining = (deadline_mono - time.monotonic()) / 60.0
@@ -351,16 +394,27 @@ def run_night(args: argparse.Namespace) -> int:
                 continue
 
             # I6 쓰기 범위 — 도구와 무관하게 git 이 본 변경으로 최종 판정한다. 위반이면 검증기도 돌리지 않는다
-            violations = H.scope_violations(domain, git.changed_paths())
+            changed = git.changed_paths()
+            violations = H.scope_violations(domain, changed)
+            noop = not H.model_changed_paths(changed)  # A1 — 무변경 시도: 러너 부기(log·sessions) 를 뺀 모델의 변경이 0
+            cache_key = (task.verify_cmd, git.head())
             leaf: Optional[H.VerifyResult] = None
             glob: Optional[H.VerifyResult] = None
             if violations:
                 H.append_event(log, "scope_violation", night=night_id, task=task.id, attempt=attempt, paths=violations)
+            elif noop and cache_key in noop_fail_cache:
+                # 무변경 + 같은 HEAD 에서 이미 실패한 leaf verify — 재실행해도 같은 실패다 (시도는 소진, 검증기 생략)
+                leaf = noop_fail_cache[cache_key]
+                H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="leaf", ok=False, exit=leaf.exit,
+                               seconds=0, cached=True, metric=leaf.metric, tail=leaf.tail, cmd=leaf.cmd)
+                say("  무변경 시도 — 같은 트리에서 실패한 leaf verify 재사용 (재실행 생략)")
             else:
                 # P6 판정 — 모델 결과와 무관하게 검증기가 정한다
                 leaf = H.run_verify(repo, task.verify, domain.verify_timeout)
                 H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="leaf", ok=leaf.ok, exit=leaf.exit,
                                seconds=round(leaf.seconds, 1), timed_out=leaf.timed_out, metric=leaf.metric, tail=leaf.tail, cmd=leaf.cmd)
+                if noop and not leaf.ok:
+                    noop_fail_cache[cache_key] = leaf
                 if leaf.ok and task.verify_cmd != domain.verify_cmd:
                     glob = H.run_verify(repo, domain.verify_cmd, domain.verify_timeout)
                     H.append_event(log, "verify", night=night_id, task=task.id, attempt=attempt, stage="global", ok=glob.ok, exit=glob.exit,
@@ -380,6 +434,8 @@ def run_night(args: argparse.Namespace) -> int:
                     vr = leaf if not leaf.ok else glob
                     assert vr is not None
                     reason = "%s verify %s" % (stage, vr.reason or "실패")
+                    if noop:  # A2 — 다음 시도의 failure_history 가 '헛돎'을 명시하게 (drivers._history 가 읽는다)
+                        reason = "무변경 시도 — 모델이 트리를 바꾸지 않았다; " + reason
                     vr_exit, vr_tail = vr.exit, vr.tail
                 patch_rel = stash_attempt(str(task.id), attempt)
                 if run.timed_out:
@@ -387,7 +443,7 @@ def run_night(args: argparse.Namespace) -> int:
                 elif run.error:
                     reason = "드라이버 오류; " + reason
                 H.append_event(log, "task_failed", night=night_id, task=task.id, attempt=attempt, stage=stage, reason=reason,
-                               exit=vr_exit, tail=vr_tail, patch=patch_rel)
+                               exit=vr_exit, tail=vr_tail, patch=patch_rel, noop=(True if (noop and not violations) else None))
                 failures = st.failures + 1
                 say("  검증 실패 (%s) → 되돌림%s · 실패 %d/%d" % (reason, ", 패치 보존" if patch_rel else "", failures, domain.max_attempts))
                 if failures >= domain.max_attempts:
@@ -402,6 +458,10 @@ def run_night(args: argparse.Namespace) -> int:
                 ended_reason = "rate_limited"
                 say("  5시간 창 사용률 %d%% ≥ 상한 %d%% → 밤 종료 (창이 풀린 뒤 다시)" % (round(rl * 100), round(domain.rate_limit_stop * 100)))
                 break
+
+        # B1 refine-lite — 정상 종료한 밤만 (창 상한·비용 상한·인프라 중단 뒤에는 모델을 더 부르지 않는다)
+        if domain.lessons_propose and ended_reason in ("budget", "queue_empty", "max_tasks"):
+            propose_lessons(repo, domain, git, night_id, driver_name, sessions_dir, tasks)
     except Interrupted:
         if in_flight:
             task, attempt = in_flight
@@ -423,7 +483,8 @@ def run_night(args: argparse.Namespace) -> int:
         counts = {k: sum(1 for e in ne if e.get("event") == k) for k in ("task_passed", "task_failed", "task_blocked")}
         H.append_event(log, "night_ended", night=night_id, reason=ended_reason, passed=counts["task_passed"],
                        failed=counts["task_failed"], blocked=counts["task_blocked"],
-                       cost_usd=round(sum(float(e.get("cost_usd") or 0) for e in ne if e.get("event") == "model_done"), 4))
+                       cost_usd=round(sum(float(e.get("cost_usd") or 0) for e in ne
+                                          if e.get("event") in ("model_done", "lessons_proposed")), 4))
         try:
             summary, blocked = H.write_morning_outputs(repo, night_id, domain)
             sha = git.commit_harness("[harness %s] summary" % night_id)  # .harness/ 만 — 이상 종료로 더러워진 트리를 부기 커밋에 섞지 않는다

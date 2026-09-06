@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """가짜 모델 — e2e 테스트용 드라이버 스크립트. 작업 JSON을 stdin으로 받아 제목의 태그대로 트리를 바꾼다.
 
-태그: [add-mul] [add-sub] [hopeless] [break-global] [repair] [cost:N]
+태그: [add-mul] [add-sub] [hopeless] [break-global] [repair] [cost:N] — 모르는 태그는 아무것도 안 바꾼다(무변경 시도, A1 테스트용).
 제안 모드: task.id == "propose" 면 HARNESS_FAKE_PROPOSAL(JSON 문자열)을, 없으면 기본 제안(mul 작업 + 이미 통과하는 빈 작업)을 ```json 블록으로 낸다.
+교훈 모드: task.id == "lessons" 면 HARNESS_FAKE_LESSONS(JSON 문자열)을, 없으면 기본 교훈 1건을 ```json 블록으로 낸다.
 출력 규약: "EDIT <path>" 줄 = 편집 1회 (P9 카운터), "COST <usd>" 줄 = 비용 보고, "SKILL <이름>" 줄 = 스킬 자동 호출 1회, 마지막 줄 "RESULT: ..." = 자기 보고 (판정 아님).
 """
 import json
@@ -23,6 +24,10 @@ if t.get("id") == "propose":
         {"title": "빈 작업 — 검증기가 이미 통과한다", "goal": "x", "verify": "true", "estimate_minutes": 5, "priority": 0},
     ]}
     print("탐색 끝.\n```json\n%s\n```\nRESULT: done — 제안" % (os.environ.get("HARNESS_FAKE_PROPOSAL") or json.dumps(default, ensure_ascii=False)))
+    sys.exit(0)
+if t.get("id") == "lessons":
+    default = {"lessons": [{"title": "fake 교훈", "evidence": "막힘 작업에서", "suggestion": "프롬프트에 한 줄", "target": "prompts"}]}
+    print("```json\n%s\n```\nRESULT: done — 교훈" % (os.environ.get("HARNESS_FAKE_LESSONS") or json.dumps(default, ensure_ascii=False)))
     sys.exit(0)
 if "[add-mul]" in title:
     calc.write_text(calc.read_text() + "\n\ndef mul(a, b):\n    return a * b\n")

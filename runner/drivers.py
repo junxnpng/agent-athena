@@ -87,13 +87,22 @@ def _history(ctx: TaskContext) -> str:
     if not hist:
         return "없음 (첫 시도)"
     parts: List[str] = []
-    for f in hist[-3:]:
+    shown = hist[-3:]
+    for f in shown:
         head = "시도 %s (%s): %s — %s" % (f.get("attempt", "?"), f.get("night", "?"), f.get("stage", "?"), f.get("reason", "?"))
         body = (f.get("tail") or "").strip()
         block = "```\n%s\n```" % "\n".join(body.splitlines()[-25:]) if body else ""
         patch = ("이전 시도의 diff: `%s` (필요하면 `git apply <경로>`로 되살릴 수 있다)" % f["patch"]) if f.get("patch") else "이전 시도의 diff 없음"
-        parts.append("\n".join(x for x in (head, block, patch) if x))
-    return "\n\n".join(parts) + "\n\n실패 흔적은 지우지 말고, 같은 접근을 그대로 반복하지 마라."
+        notes: List[str] = []
+        if f.get("noop"):  # A1/A2 — 무변경 시도: 모델이 그 사실을 모르면 같은 헛돎을 반복한다 (prime-agent 억제 메시지의 이식)
+            notes.append("이 시도는 트리를 전혀 바꾸지 않았다 — 빈 시도도 실패로 세고, 무변경이면 검증기 재실행 없이 실패 처리된다.")
+        if f.get("infra") or f.get("stage") == "interrupted":  # A3 — 판정 없이 끝난 시도의 흔적
+            notes.append("이 시도는 판정 없이 중단됐다(인프라, 시도 횟수 미산입) — 트리는 되돌렸지만 트리 밖 부작용(설치·캐시·임시 파일)이 남았을 수 있다.")
+        parts.append("\n".join(x for x in (head, block, patch, *notes) if x))
+    closing = "실패 흔적은 지우지 말고, 같은 접근을 그대로 반복하지 마라."
+    if any(f.get("noop") for f in shown):
+        closing += " 이번에는 검증기를 통과시키는 실제 변경을 만들어라."
+    return "\n\n".join(parts) + "\n\n" + closing
 
 
 def build_task_prompt(ctx: TaskContext) -> str:
@@ -171,6 +180,26 @@ def propose_context(repo: H.Repo, domain: H.Domain, timeout_minutes: float) -> T
 def run_propose(ctx: TaskContext, driver_name: str, prompt: str, stream_path: Path) -> ModelRun:
     if driver_name == "claude":
         return run_claude(ctx, prompt, build_system_prompt(), stream_path, extra_disallowed=PROPOSE_DISALLOWED)
+    if driver_name == "fake":
+        return run_fake(ctx, prompt, stream_path)
+    raise H.HarnessError("모르는 드라이버: %s (가능: %s)" % (driver_name, ", ".join(KNOWN_DRIVERS)))
+
+
+# 교훈 제안(refine-lite)은 순수 읽기(Read·Grep·Glob)다 — 증거(로그 tail)는 밤 세션들의 산출물이라 신뢰불가 콘텐츠로 취급,
+# 쓰기·실행·위임 채널(Bash·Task·Skill)을 도구 수준에서 없앤다 (I7 재검사: 신뢰불가 콘텐츠 + 쓰기/egress 동시 성립 X)
+LESSONS_DISALLOWED = PROPOSE_DISALLOWED + ",Bash,Task,Skill"
+
+
+def lessons_context(repo: H.Repo, domain: H.Domain, night_id: str, timeout_minutes: float) -> TaskContext:
+    """refine-lite 교훈 제안용 컨텍스트 — 밤 끝의 'lessons' 세션. 훅은 러너 모드(HARNESS_NIGHT=밤 id)로 뜬다."""
+    task = H.Task(id="lessons", title="교훈 제안 (refine-lite)", goal="", verify="true", estimate_minutes=domain.leaf_min, origin="plan")
+    return TaskContext(repo=repo, domain=domain, night_id=night_id, task=task, state=H.TaskState(id="lessons"), attempt=1,
+                       timeout_minutes=timeout_minutes, deadline_epoch=time.time() + timeout_minutes * 60.0, spec_text="")
+
+
+def run_lessons(ctx: TaskContext, driver_name: str, prompt: str, stream_path: Path) -> ModelRun:
+    if driver_name == "claude":
+        return run_claude(ctx, prompt, build_system_prompt(), stream_path, extra_disallowed=LESSONS_DISALLOWED)
     if driver_name == "fake":
         return run_fake(ctx, prompt, stream_path)
     raise H.HarnessError("모르는 드라이버: %s (가능: %s)" % (driver_name, ", ".join(KNOWN_DRIVERS)))
