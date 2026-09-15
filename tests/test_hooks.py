@@ -57,6 +57,35 @@ class HookTests(unittest.TestCase):
     def write(self, path, runner=False, cwd=None, **env):
         return self.decision(self.hook("pre-tool", {"tool_name": "Write", "tool_input": {"file_path": path, "content": "x"}}, runner, cwd, **env))
 
+    def test_codex_patch_checks_every_path(self):
+        for patch, expected in [
+            ("*** Add File: src/new.py\n+x", None),
+            ("*** Update File: src/a.py\n@@\n-x\n+y", None),
+            ("*** Delete File: CLAUDE.md", "deny"),
+            ("*** Add File: src/a.py\n+x\n*** Add File: .harness/log.jsonl\n+x", "deny"),
+            ("*** Update File: src/a.py\n*** Move to: outside.py\n@@\n-x\n+y", "deny"),
+            ("*** Update File: outside.py\n*** Move to: src/a.py\n@@\n-x\n+y", "deny"),
+            ("*** Add File: src/../outside.py\n+x", "deny"),
+        ]:
+            with self.subTest(patch=patch):
+                out = self.hook("pre-tool", {"tool_name": "apply_patch", "tool_input": {
+                    "command": "*** Begin Patch\n" + patch + "\n*** End Patch"}})
+                self.assertEqual(self.decision(out), expected)
+
+    def test_codex_patch_malformed_fails_closed(self):
+        for command in ["", "not a patch", "*** Begin Patch\n*** Add File: \n+x\n*** End Patch"]:
+            out = self.hook("pre-tool", {"tool_name": "apply_patch", "tool_input": {"command": command}})
+            self.assertEqual(self.decision(out), "deny")
+
+    def test_codex_patch_readonly_without_domain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / ".harness-readonly").touch()
+            out = self.hook("pre-tool", {"tool_name": "apply_patch", "tool_input": {
+                "command": "*** Begin Patch\n*** Add File: a.py\n+x\n*** End Patch"}},
+                cwd=root, HARNESS_ROOT=str(root))
+            self.assertEqual(self.decision(out), "deny")
+
     def test_readonly_harness_marker_blocks_writes_and_commits(self):
         # D4 (2026-08-29): 회사 설치 — 하네스 clone 루트에 .harness-readonly 가 있으면 그 안 쓰기·commit 을 어디서든 거부 (.harness 없는 cwd 포함)
         htmp = tempfile.TemporaryDirectory()  # 도메인 repo 밖 — 안에 두면 쓰기 범위 규칙이 먼저 걸린다

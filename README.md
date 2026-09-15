@@ -63,3 +63,29 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 
 ## 아침 다이제스트 (선택)
 `scripts/morning-digest --dry-run` 이 `~/workspace/*/.harness/SUMMARY.md` 의 결론·승인 대기·막힘·이상 징후를 한 통으로 만든다. 텔레그램으로 받으려면 `~/.config/my-secrets/tokens.env` 에 `HARNESS_BOT_TOKEN`·`HARNESS_CHAT_ID` 를 두고 `templates/launchd/com.harness.morning-digest.plist` 를 등록한다(07:30). 모델은 개입하지 않는다 — 실시간 알림이 아니라 아침 SUMMARY 의 배달이다.
+
+## Codex 대화형 환경
+
+Codex CLI 0.154.0에서 기존 Claude 플러그인을 직접 설치한다. `AGENTS.md`는
+`CLAUDE.md`를 가리키며, 스킬과 `hooks/run-hook`을 공유한다.
+
+```sh
+codex plugin marketplace add /path/to/agent-athena2
+codex plugin add harness@harness-local
+codex -C /path/to/your-repo
+```
+
+같은 marketplace가 다른 복제본을 가리키면 `codex plugin marketplace remove harness-local`
+후 위 명령으로 다시 등록한다. 소스를 갱신한 뒤에도 `codex plugin add harness@harness-local`로
+재설치하고 새 대화를 연다. `scripts/plugin-refresh`는 Claude 설치본용이다.
+
+CLI의 `/hooks`에서 harness의 SessionStart와 PreToolUse 정의를 검토하고 신뢰해야 훅이 실행된다.
+설치·활성화만으로는 훅이 신뢰되지 않는다. PreToolUse는 Codex의 Bash와 MCP 호출 및
+`apply_patch`의 추가·수정·삭제·이동 대상 모두를 검사한다. `.harness/`가 없는 프로젝트에서는
+도메인 제한을 적용하지 않는다(`.harness-readonly`는 별도 적용).
+
+Codex의 호스팅 웹 검색과 일부 도구 경로에는 PreToolUse가 적용되지 않는다.
+따라서 이 구성만으로 비공개 데이터의 외부 통신 차단(I7)을 보장하지 않는다.
+밤샘 러너는 여전히 Claude/fake 드라이버만 지원한다. Codex 무인 실행은 미지원이다.
+공식 동작 근거: [Codex Hooks](https://learn.chatgpt.com/docs/hooks).
+비교·적용 내역: [Codex 환경 이식 보고서](docs/codex-environment.md).
