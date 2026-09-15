@@ -118,7 +118,9 @@ def propose(repo: H.Repo, driver_name: str, count: int, model: str = "") -> int:
     if changed:  # 제안은 읽기 전용이다 — 모델이 뭔가 바꿨으면 되돌리고 기록한다
         git.revert_worktree()
         print("경고: 제안 중 트리 변경 %d개 → 되돌림 (%s)" % (len(changed), ", ".join(changed[:5])))
-    base: Dict[str, Any] = {"round": round_no, "driver": driver_name, "cost_usd": round(run.cost_usd, 4), "turns": run.turns,
+    base: Dict[str, Any] = {"round": round_no, "driver": driver_name,
+                            "cost_usd": round(run.cost_usd, 4) if run.cost_known else None,
+                            "cost_known": run.cost_known, "usage": run.usage or None, "turns": run.turns,
                             "stream": repo.rel(stream), "reverted": changed or None}
     if not run.ok:
         H.append_event(repo.log, "plan_proposed", ok=False, error=run.error or "모델 실패", **base)
@@ -156,12 +158,13 @@ def propose(repo: H.Repo, driver_name: str, count: int, model: str = "") -> int:
             if proposed[i] not in kept:
                 dropped.append({"title": proposed[i].title, "reason": "버린 작업에 의존한다"})
     data = {"version": 1, "source": "decompose", "round": round_no, "rationale": str(obj.get("rationale") or ""),
-            "model_cost_usd": round(run.cost_usd, 4), "dropped": dropped, "tasks": [t.to_json() for t in kept]}
+            "model_cost_usd": round(run.cost_usd, 4) if run.cost_known else None,
+            "dropped": dropped, "tasks": [t.to_json() for t in kept]}
     repo.proposed.write_text(H.json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     H.append_event(repo.log, "plan_proposed", ok=True, proposed=len(proposed), kept=len(kept), dropped=len(dropped), deps_base=deps_base, **base)
     sha = git.commit_all("[harness] plan proposal %d (%d 리프)" % (round_no, len(kept))) if was_clean else None
-    print("제안 %d개 중 채택 후보 %d개 → %s · 버림 %d개 · 비용 $%.2f%s" % (
-        len(proposed), len(kept), H.PROPOSED_NAME, len(dropped), run.cost_usd,
+    print("제안 %d개 중 채택 후보 %d개 → %s · 버림 %d개 · %s%s" % (
+        len(proposed), len(kept), H.PROPOSED_NAME, len(dropped), "$%.2f" % run.cost_usd if run.cost_known else "비용 미상",
         (" · 부기 커밋 %s" % sha) if sha else (" · (트리가 clean 이 아니어서 커밋하지 않음)" if not was_clean else "")))
     for t in kept:
         print("  + %s (%d분) — `%s`" % (t.title, t.estimate_minutes, t.verify_cmd[:80]))

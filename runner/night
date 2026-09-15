@@ -7,7 +7,7 @@
   → 예산(P5)/큐 소진 시 종료 → SUMMARY.md/BLOCKED.md (P10)
 
 사용:
-  runner/night --repo <path> [--hours 8] [--max-tasks N] [--driver claude|fake] [--model M] [--dry-run] [--no-bootstrap]
+  runner/night --repo <path> [--hours 8] [--max-tasks N] [--driver claude|fake|codex] [--model M] [--dry-run] [--no-bootstrap]
 종료 코드: 0 정상 종료(예산·큐 비움·상한) · 2 preflight 거부(HarnessError) · 3 인프라/구조 실패(사람이 봐야 한다)
   · 4 일일 비용 상한(budget.max_day_usd)이 이미 찼다 — 밤을 시작하지 않았다 (브랜치·로그 없음, night-loop 는 cost_day 로 멈춘다)
 """
@@ -57,6 +57,9 @@ def preflight(repo: H.Repo, domain: H.Domain, driver_name: str) -> Tuple[H.Git, 
             raise H.HarnessError("%s 에 실행 권한이 없다 → chmod +x %s" % (path, path))
     if driver_name not in D.KNOWN_DRIVERS:
         raise H.HarnessError("모르는 드라이버: %s" % driver_name)
+    if driver_name == "codex":
+        from codex_driver import preflight as codex_preflight
+        codex_preflight(repo, domain)
     if driver_name == "claude":
         binary = H.find_claude()
         if not binary:
@@ -149,7 +152,8 @@ def propose_lessons(repo: H.Repo, domain: H.Domain, git: H.Git, night_id: str, d
         if lessons:
             H.write_lessons(repo, night_id, lessons, domain.lessons_keep_nights)
         H.append_event(repo.log, "lessons_proposed", night=night_id, ok=bool(run.ok), count=len(lessons),
-                       titles=[les["title"] for les in lessons] or None, cost_usd=round(run.cost_usd, 4),
+                       titles=[les["title"] for les in lessons] or None, cost_usd=round(run.cost_usd, 4) if run.cost_known else None,
+                       cost_known=run.cost_known, usage=run.usage or None,
                        seconds=round(run.seconds, 1), error=(run.error or None) if not run.ok else None,
                        reverted=changed or None, stream=repo.rel(stream))
         if lessons:
@@ -357,15 +361,17 @@ def run_night(args: argparse.Namespace) -> int:
             tasks_run += 1
             night_cost += run.cost_usd
             H.append_event(log, "model_done", night=night_id, task=task.id, attempt=attempt, ok=run.ok, timed_out=run.timed_out,
-                           seconds=round(run.seconds, 1), turns=run.turns, cost_usd=round(run.cost_usd, 4),
+                           seconds=round(run.seconds, 1), turns=run.turns, cost_usd=round(run.cost_usd, 4) if run.cost_known else None,
+                           cost_known=run.cost_known, usage=run.usage or None,
                            edits=run.edits or None, tool_counts=run.tool_counts or None, skills=run.skills or None, denials=run.denials or None,
                            self_report=run.self_report or None, error=run.error or None,
                            slept_seconds=round(run.slept_seconds) if run.slept_seconds >= 30 else None,
                            rate_limit=run.rate_limit_utilization, hooks_dead=run.hooks_dead or None,
                            hook_fires=run.hook_fires if run.hook_fires > 1 else None,
                            result_tail=H.tail(run.result_text, 1500), stream=repo.rel(stream_path))
-            say("  모델 %s · %s · %d턴 · $%.2f · 자기보고 %s%s%s" % (
-                "ok" if run.ok else "오류", H.fmt_duration(run.seconds), run.turns, run.cost_usd, run.self_report or "-",
+            say("  모델 %s · %s · %d턴 · %s · 자기보고 %s%s%s" % (
+                "ok" if run.ok else "오류", H.fmt_duration(run.seconds), run.turns,
+                "$%.2f" % run.cost_usd if run.cost_known else "비용 미상", run.self_report or "-",
                 (" · 스킬 " + ", ".join(sorted(run.skills))) if run.skills else "",
                 (" · " + run.error) if run.error else ""))
 
@@ -484,7 +490,9 @@ def run_night(args: argparse.Namespace) -> int:
         H.append_event(log, "night_ended", night=night_id, reason=ended_reason, passed=counts["task_passed"],
                        failed=counts["task_failed"], blocked=counts["task_blocked"],
                        cost_usd=round(sum(float(e.get("cost_usd") or 0) for e in ne
-                                          if e.get("event") in ("model_done", "lessons_proposed")), 4))
+                                          if e.get("event") in ("model_done", "lessons_proposed")), 4)
+                       if all(e.get("cost_known", True) for e in ne) else None,
+                       cost_known=all(e.get("cost_known", True) for e in ne))
         try:
             summary, blocked = H.write_morning_outputs(repo, night_id, domain)
             sha = git.commit_harness("[harness %s] summary" % night_id)  # .harness/ 만 — 이상 종료로 더러워진 트리를 부기 커밋에 섞지 않는다

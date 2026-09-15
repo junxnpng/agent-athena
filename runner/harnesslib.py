@@ -1419,8 +1419,10 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
             anomalies.append("머신 잠듦 %s: %s (시도 %s) — caffeinate 는 유휴 잠자기만 막는다. 뚜껑을 열어두거나 서버에서 돌린다" % (
                 fmt_duration(float(e["slept_seconds"])), e["task"], e.get("attempt")))
         elif e.get("timed_out"):
-            anomalies.append("모델 시간 초과: %s (시도 %s, %d턴, $%.2f)%s" % (
-                e["task"], e.get("attempt"), turns, float(e.get("cost_usd") or 0), " — 0턴 = 무응답" if turns == 0 else " — 느림, 상한을 올리거나 작업을 쪼갠다"))
+            anomalies.append("모델 시간 초과: %s (시도 %s, %d턴, %s)%s" % (
+                e["task"], e.get("attempt"), turns,
+                "$%.2f" % float(e.get("cost_usd") or 0) if e.get("cost_known", True) else "비용 미상",
+                " — 0턴 = 무응답" if turns == 0 else " — 느림, 상한을 올리거나 작업을 쪼갠다"))
         elif e.get("error"):
             anomalies.append("드라이버 오류: %s (시도 %s) — %s" % (e["task"], e.get("attempt"), str(e["error"])[:120]))
         if e.get("denials"):
@@ -1459,7 +1461,8 @@ def collect_night(events: Sequence[Dict[str, Any]], tasks: Sequence[Task], domai
     return {
         "night": night_id, "started": started, "ended": ended, "states": states, "by_id": by_id,
         "passed": passed, "blocked": blocked, "retry_ids": retry_ids, "pending": pending,
-        "cost": cost, "anomalies": anomalies, "next": next_tasks, "events": ne, "skills": skills,
+        "cost": cost, "cost_known": all(e.get("cost_known", True) for e in ne),
+        "anomalies": anomalies, "next": next_tasks, "events": ne, "skills": skills,
         "lessons": lessons,
     }
 
@@ -1530,8 +1533,9 @@ def render_summary(c: Dict[str, Any]) -> str:
     branch = (started or {}).get("branch", "?")
     out = ["# %s · %s → %s (%s)" % (c["night"], fmt_clock(s_ts), fmt_clock(e_ts), dur), ""]
     out += ["## 결론",
-            "완료 %d / 실패(재시도 예정) %d / 막힘 %d / 미착수 %d · 종료: %s · 브랜치 `%s` · 비용 $%.2f" % (
-                len(c["passed"]), len(c["retry_ids"]), len(c["blocked"]), len(c["pending"]), reason, branch, c["cost"]), ""]
+            "완료 %d / 실패(재시도 예정) %d / 막힘 %d / 미착수 %d · 종료: %s · 브랜치 `%s` · %s" % (
+                len(c["passed"]), len(c["retry_ids"]), len(c["blocked"]), len(c["pending"]), reason, branch,
+                "비용 $%.2f" % c["cost"] if c.get("cost_known", True) else "비용 미상 (Codex 토큰 사용량은 log.jsonl 참조)"), ""]
     dag = render_plan_dag(list(by_id.values()), states)
     if dag:
         out += ["## 계획 DAG (✅통과 ⛔막힘 🔁재시도 ⬜미착수)", dag, ""]

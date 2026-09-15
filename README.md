@@ -5,7 +5,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤에 한 명�
 
 ## 요구사항
 - **macOS 13+ 또는 Ubuntu 22.04+** (Ubuntu 20.04 는 python 3.8 / git 2.25 — 미검증)
-- python3 ≥ 3.9 (stdlib만) · git ≥ 2.25 · `claude` CLI 2.1+ (`PATH` 또는 `~/.local/bin`)
+- python3 ≥ 3.9 (stdlib만) · git ≥ 2.25 · `claude` CLI 2.1+ (`PATH` 또는 `~/.local/bin`) 또는 `codex` CLI 0.154.0+ (`PATH`)
 - `/bin/sh` 는 POSIX 만 쓴다 — macOS(bash 3.2 sh 모드)와 Ubuntu(dash) 둘 다. `scripts/portable-lint` 가 갈리는 구문을 거부하고,
   `dash`·`shellcheck` 가 깔려 있으면 `scripts/check` 가 훅을 dash 로 실제 실행해 본다 (macOS: `brew install dash shellcheck`)
 - 대상 repo 의 `.harness/verify` / `init.sh` 도 같은 규칙으로 쓴다 (템플릿이 그렇게 되어 있다)
@@ -86,6 +86,42 @@ CLI의 `/hooks`에서 harness의 SessionStart와 PreToolUse 정의를 검토하�
 
 Codex의 호스팅 웹 검색과 일부 도구 경로에는 PreToolUse가 적용되지 않는다.
 따라서 이 구성만으로 비공개 데이터의 외부 통신 차단(I7)을 보장하지 않는다.
-밤샘 러너는 여전히 Claude/fake 드라이버만 지원한다. Codex 무인 실행은 미지원이다.
+무인 실행은 아래의 별도 Codex 드라이버 설정을 사용한다.
 공식 동작 근거: [Codex Hooks](https://learn.chatgpt.com/docs/hooks).
 비교·적용 내역: [Codex 환경 이식 보고서](docs/codex-environment.md).
+
+## Codex 무인 실행
+
+`runner/night --driver codex`는 Codex CLI 0.154.0 이상의 저장된 인증을 사용한다.
+먼저 `codex login`으로 인증한다. 기존 대상 repo의 `.harness/domain.json`에서
+다음 항목을 **병합**한다(쓰기 범위·검증 명령 등 기존 계약은 유지).
+
+```json
+{
+  "driver": {"name": "codex", "model": null, "effort": null, "max_budget_usd": null, "max_turns": null},
+  "budget": {"max_night_usd": null, "max_day_usd": null, "rate_limit_stop": null}
+}
+```
+
+Codex JSONL은 토큰 사용량을 제공하지만 달러 비용·5시간 창 사용률·내부 턴 상한은
+이 드라이버에서 강제하지 못한다. 해당 제한이 설정돼 있으면 실행을 거부한다.
+비용은 로그의 `cost_known: false`와 SUMMARY의 **비용 미상**으로 표시한다.
+시간·작업 수·실패 횟수 제한은 기존 러너가 적용한다.
+루프는 남은 시간을 각 밤에 전달하고 최소 작업 시간보다 적게 남으면 새 밤을 시작하지 않는다.
+검증·정리는 별도 타임아웃으로 실행되므로 종료 처리가 마감 시각을 넘길 수 있다.
+
+```sh
+runner/night --repo /path/to/repo --driver codex --dry-run
+runner/night --repo /path/to/repo --driver codex --hours 0.5 --max-tasks 1
+# 여러 밤을 시간 상한으로 연결: 0은 달러 총비용 제한 해제
+runner/night-loop --repo /path/to/repo --driver codex --until-hours 2 --max-total-usd 0
+```
+
+사용자 설정·플러그인·자동 스킬 탐색·MCP·웹·위임을 제외하고, 하네스 원본 훅을 실행마다
+명시적으로 주입한다. 이 검토된 훅을 실행하기 위해 해당 호출에만 훅 신뢰 확인을 생략한다.
+다른 `hooks.json` 또는 프로젝트·상위 디렉터리의 `.codex/config.toml`이 있으면 사전 거부한다.
+사용자 `config.toml`은 무시하므로 모델·effort는 위 계약으로 지정한다.
+
+작업은 네트워크 없는 `workspace-write`, 계획·교훈 제안은 `read-only` 샌드박스를 사용한다.
+셸 쓰기 검사는 휴리스틱이며 최종 쓰기 범위 판정·실패 복구·성공 커밋은 기존 러너가 수행한다.
+OS 샌드박스 실패 시 권한을 확대해 재실행하지 않는다. 종료는 기존 SIGTERM/SIGINT 절차를 따른다.

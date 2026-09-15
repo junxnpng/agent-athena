@@ -72,6 +72,16 @@ class HookTests(unittest.TestCase):
                     "command": "*** Begin Patch\n" + patch + "\n*** End Patch"}})
                 self.assertEqual(self.decision(out), expected)
 
+    def test_codex_runner_rejects_unknown_tools_and_readonly_patch(self):
+        for tool, inp, readonly in [
+            ("unexpected_network_tool", {}, ""),
+            ("apply_patch", {"command": "*** Begin Patch\n*** Add File: src/a.py\n+x\n*** End Patch"}, "1"),
+            ("Bash", {"command": "echo x > src/a.py"}, "1"),
+        ]:
+            out = self.hook("pre-tool", {"tool_name": tool, "tool_input": inp}, runner=True,
+                            HARNESS_CODEX="1", HARNESS_READONLY=readonly)
+            self.assertEqual(self.decision(out), "deny")
+
     def test_codex_patch_malformed_fails_closed(self):
         for command in ["", "not a patch", "*** Begin Patch\n*** Add File: \n+x\n*** End Patch"]:
             out = self.hook("pre-tool", {"tool_name": "apply_patch", "tool_input": {"command": command}})

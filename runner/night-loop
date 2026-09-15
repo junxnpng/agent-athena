@@ -78,10 +78,14 @@ def main() -> int:
     ap.add_argument("--repo", default=".")
     ap.add_argument("--until-hours", type=float, default=7.0, help="루프 전체 벽시계 예산 (시간)")
     ap.add_argument("--wait-minutes", type=float, default=30.0, help="창·밤 비용 상한으로 끝난 뒤 다음 밤까지 대기")
-    ap.add_argument("--max-total-usd", type=float, default=40.0, help="루프 총비용 상한 (USD)")
+    ap.add_argument("--max-total-usd", type=float, default=40.0, help="루프 총비용 상한 (USD), 0은 해제")
+    ap.add_argument("--driver", choices=("claude", "fake", "codex"), default=None)
+    ap.add_argument("--hours", type=float, default=None, help="밤 하나의 시간 상한; 남은 루프 시간을 넘지 않는다")
     ap.add_argument("--max-day-usd", type=float, default=None, help="머신 하루 총량 상한 (USD) — 형제 repo 의 오늘 비용을 전부 합산 (기본 해제)")
     ap.add_argument("--max-nights", type=int, default=8, help="밤 수 상한")
     args, passthrough = ap.parse_known_args()
+    if args.driver:
+        passthrough += ["--driver", args.driver]
     repo = H.Repo(Path(args.repo).resolve())
     if not repo.hdir.is_dir():
         print("night-loop: %s 에 .harness/ 가 없다" % repo.root, file=sys.stderr)
@@ -104,6 +108,17 @@ def main() -> int:
     base = len(H.read_log(repo.log)) if repo.log.exists() else 0
     nights, total, rounds, waits = 0, 0.0, 0, 0
     domain = H.load_domain(repo)
+    codex = (args.driver or domain.driver.get("name")) == "codex"
+    if codex:
+        if args.max_total_usd != 0 or args.max_day_usd is not None:
+            print("night-loop: Codex 비용 미상 — --max-total-usd 0을 명시하고 --max-day-usd를 해제하라", file=sys.stderr)
+            return 2
+        from codex_driver import preflight as codex_preflight
+        try:
+            codex_preflight(repo, domain)
+        except H.HarnessError as e:
+            print("night-loop: %s" % e, file=sys.stderr)
+            return 2
     why = "?"
     say("시작 · 마감 %.1fh · 총비용 상한 $%.0f · 밤 상한 %d · night 인자: %s" % (
         args.until_hours, args.max_total_usd, args.max_nights, " ".join(passthrough) or "(없음)"))
@@ -115,7 +130,7 @@ def main() -> int:
             why = "max_nights"
             break
         left = deadline - time.monotonic()
-        if left <= 0:
+        if left < domain.leaf_min * 60:
             why = "deadline"
             break
         if domain.max_day_usd is not None:  # 일일 상한 — 밤(비용이 든다)보다 먼저, 로그 fold 라 루프를 다시 띄워도 남는다
@@ -130,8 +145,10 @@ def main() -> int:
                 say("오늘 머신 총비용 $%.2f ≥ --max-day-usd $%.2f → 멈춘다 (형제 repo 합산)" % (day_all, args.max_day_usd))
                 why = "cost_day_all"
                 break
-        say("밤 %d 시작 (마감까지 %s, 누적 비용 $%.2f)" % (nights + 1, H.fmt_duration(left), total))
-        p = subprocess.run([sys.executable, str(NIGHT), "--repo", str(repo.root)] + passthrough,
+        say("밤 %d 시작 (마감까지 %s, %s)" % (nights + 1, H.fmt_duration(left),
+            "비용 미상" if codex else "누적 비용 $%.2f" % total))
+        night_hours = min(domain.hours if args.hours is None else args.hours, left / 3600.0)
+        p = subprocess.run([sys.executable, str(NIGHT), "--repo", str(repo.root)] + passthrough + ["--hours", str(night_hours)],
                            stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
         ends = night_ends(H.read_log(repo.log) if repo.log.exists() else [], base)
         if len(ends) <= nights:
@@ -148,10 +165,11 @@ def main() -> int:
         action = decide(reason, p.returncode)
         waits = waits + 1 if action == "wait" else 0
         wait_min = backoff_minutes(args.wait_minutes, waits) if action == "wait" else 0.0
-        say("%s 종료 (%s, exit %s) · 통과 %s / 실패 %s / 막힘 %s · 비용 $%.2f · 누적 $%.2f → %s" % (
-            end.get("night"), reason, p.returncode, end.get("passed"), end.get("failed"), end.get("blocked"), cost, total,
+        say("%s 종료 (%s, exit %s) · 통과 %s / 실패 %s / 막힘 %s · %s → %s" % (
+            end.get("night"), reason, p.returncode, end.get("passed"), end.get("failed"), end.get("blocked"),
+            "비용 미상" if codex else "비용 $%.2f · 누적 $%.2f" % (cost, total),
             {"now": "바로 잇는다", "wait": "%.0f분 쉬고 잇는다" % wait_min, "stop": "멈춘다"}[action]))
-        if total >= args.max_total_usd:  # 제안(비용이 든다)보다 먼저 — 2026-08-29 실측: 상한을 넘긴 뒤 제안에 $1.33 을 더 썼다
+        if args.max_total_usd > 0 and total >= args.max_total_usd:  # 제안 전에 비용 확인
             why = "cost_cap"
             break
         if reason == "queue_empty" and p.returncode == 0 and domain.plan_auto_propose and rounds < domain.plan_max_rounds:
@@ -182,7 +200,7 @@ def main() -> int:
         elif reason == "queue_empty" and p.returncode == 0 and domain.plan_auto_propose:
             why = "max_rounds"  # 제안 상한 — 큐가 빈 것과 구분해 남긴다 (상한을 올리면 더 돈다). 채택 직후가 아니라 제안을 못 할 때만
             break
-        if total >= args.max_total_usd:  # 제안 비용까지 합산한 뒤 한 번 더
+        if args.max_total_usd > 0 and total >= args.max_total_usd:  # 제안 비용까지 합산한 뒤 한 번 더
             why = "cost_cap"
             break
         if action == "stop":
@@ -192,7 +210,8 @@ def main() -> int:
             until = min(time.monotonic() + wait_min * 60.0, deadline)
             while time.monotonic() < until and not stop_requested:
                 time.sleep(min(5.0, max(0.0, until - time.monotonic())))
-    say("루프 종료 (%s) · 밤 %d개 · 총비용 $%.2f · %s" % (why, nights, total, H.fmt_duration(time.monotonic() - start_mono)))
+    say("루프 종료 (%s) · 밤 %d개 · %s · %s" % (why, nights,
+        "비용 미상" if codex else "총비용 $%.2f" % total, H.fmt_duration(time.monotonic() - start_mono)))
     return 0 if why in STOP_OK else 3
 
 

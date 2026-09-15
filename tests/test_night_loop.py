@@ -93,6 +93,26 @@ class LoopE2E(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn(".harness/ 가 없다", p.stderr)
 
+    def test_remaining_loop_time_caps_night_budget(self):
+        make_repo(self.root, tasks=PLAN)
+        p = self.loop("--until-hours", "0.2", "--max-nights", "1", "--max-tasks", "1")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        start = next(e for e in H.read_log(H.Repo(self.root).log) if e["event"] == "night_started")
+        self.assertLessEqual(start["budget_minutes"], 12)
+
+    def test_shorter_explicit_night_budget_is_preserved(self):
+        make_repo(self.root, tasks=PLAN)
+        p = self.loop("--until-hours", "0.2", "--hours", "0.1", "--max-nights", "1", "--max-tasks", "1")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        start = next(e for e in H.read_log(H.Repo(self.root).log) if e["event"] == "night_started")
+        self.assertEqual(start["budget_minutes"], 6)
+
+    def test_too_little_time_does_not_start_empty_nights(self):
+        make_repo(self.root, tasks=PLAN)
+        p = self.loop("--until-hours", "0.001")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertFalse(H.Repo(self.root).log.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

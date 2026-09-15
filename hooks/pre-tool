@@ -195,6 +195,15 @@ def main() -> int:
     runner_mode = bool(os.environ.get("HARNESS_NIGHT"))
     tool = str(data.get("tool_name") or "")
     inp = data.get("tool_input") or {}
+    if runner_mode and os.environ.get("HARNESS_CODEX"):
+        if tool not in ("Bash", "apply_patch", "update_plan", "view_image"):
+            deny("Codex 무인 실행에서 허용하지 않은 도구: " + tool)
+            return 0
+        if os.environ.get("HARNESS_READONLY") and (
+            tool == "apply_patch" or (tool == "Bash" and H.bash_write_targets(str(inp.get("command") or "")))
+        ):
+            deny("Codex 제안 세션은 읽기 전용이다")
+            return 0
     try:
         domain = H.load_domain(repo)
     except H.HarnessError as e:  # 계약이 깨졌으면 public 으로 여는 게 아니라 private 로 닫는다 (fail-closed)

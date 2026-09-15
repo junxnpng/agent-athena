@@ -4,7 +4,7 @@
 claude: `claude -p` + stream-json. 훅은 --plugin-dir로 세션 한정 주입 (설치 불필요, 실측 확인).
         사용자 설정 소스(전역 플러그인·훅·출력 스타일)는 --setting-sources 로 뺀다 — 무인 세션이 대화형 환경을 상속하지 않게 (findings/004).
 fake:   HARNESS_FAKE_MODEL 셸 명령 (테스트 / 드라이런). 작업 JSON을 stdin으로 받는다.
-codex:  Phase 6.
+codex:  codex exec + JSONL, 제한된 설정·샌드박스 (codex_driver.py).
 
 I9: 파일별 편집 횟수 같은 관측은 stream-json을 *밖에서* 세어 얻는다 — 훅으로 세면 관측이 대상을 바꾼다.
 I7: WebFetch / WebSearch / MCP 를 끄고(신뢰불가 콘텐츠 다리), 네트워크 egress는 pre-tool 훅이 막는다.
@@ -29,7 +29,7 @@ WRITE_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 DISALLOWED_TOOLS = "WebFetch,WebSearch,AskUserQuestion"
 SETTING_SOURCES = "project,local"  # user 제외: 전역 enabledPlugins·훅·출력 스타일이 무인 세션에 실리지 않게 (findings/004). 대상 repo 의 project/local 은 도메인 소유라 유지
 RESULT_RE = re.compile(r"RESULT:\s*(done|partial|blocked)\b", re.IGNORECASE)
-KNOWN_DRIVERS = ("claude", "fake")
+KNOWN_DRIVERS = ("claude", "fake", "codex")
 
 
 @dataclass
@@ -41,6 +41,8 @@ class ModelRun:
     seconds: float = 0.0
     turns: int = 0
     cost_usd: float = 0.0
+    cost_known: bool = True
+    usage: Dict[str, int] = field(default_factory=dict)
     edits: Dict[str, int] = field(default_factory=dict)       # P9 재료: 파일별 편집 횟수
     tool_counts: Dict[str, int] = field(default_factory=dict)
     skills: Dict[str, int] = field(default_factory=dict)      # 모델이 스스로 부른 스킬 (Skill tool_use 의 input.skill) — 자동 호출 실사용률 (findings/004)
@@ -160,6 +162,9 @@ def build_env(ctx: TaskContext) -> Dict[str, str]:
 
 def run_task(ctx: TaskContext, driver_name: str, stream_path: Path) -> ModelRun:
     prompt = build_task_prompt(ctx)
+    if driver_name == "codex":
+        from codex_driver import run
+        return run(ctx, prompt, build_system_prompt(), stream_path)
     if driver_name == "claude":
         return run_claude(ctx, prompt, build_system_prompt(), stream_path)
     if driver_name == "fake":
@@ -178,6 +183,9 @@ def propose_context(repo: H.Repo, domain: H.Domain, timeout_minutes: float) -> T
 
 
 def run_propose(ctx: TaskContext, driver_name: str, prompt: str, stream_path: Path) -> ModelRun:
+    if driver_name == "codex":
+        from codex_driver import run
+        return run(ctx, prompt, build_system_prompt(), stream_path, readonly=True)
     if driver_name == "claude":
         return run_claude(ctx, prompt, build_system_prompt(), stream_path, extra_disallowed=PROPOSE_DISALLOWED)
     if driver_name == "fake":
@@ -198,6 +206,9 @@ def lessons_context(repo: H.Repo, domain: H.Domain, night_id: str, timeout_minut
 
 
 def run_lessons(ctx: TaskContext, driver_name: str, prompt: str, stream_path: Path) -> ModelRun:
+    if driver_name == "codex":
+        from codex_driver import run
+        return run(ctx, prompt, build_system_prompt(), stream_path, readonly=True)
     if driver_name == "claude":
         return run_claude(ctx, prompt, build_system_prompt(), stream_path, extra_disallowed=LESSONS_DISALLOWED)
     if driver_name == "fake":
