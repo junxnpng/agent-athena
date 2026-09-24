@@ -22,3 +22,16 @@ def segment_text(text: str, arxiv_stamp: Optional[str] = None) -> dict:
                                               for item in result['removed']
                                               if item['reason'] == 'references'))
     return result
+
+
+def prepare_segments(text: str, arxiv_stamp: Optional[str] = None) -> dict:
+    """Add P3 display segments; retain P2 originals for lossless accounting."""
+    from .existence import check_against_raw
+    from .spanning import join_spanning
+
+    result = segment_text(text, arxiv_stamp)
+    displayed, counts = join_spanning(result['blocks'], result['kept'],
+                                     {heading.para_id for heading in result['headings']})
+    checks = [check_against_raw(segment.text, text) for segment in displayed]
+    result.update(displayed=displayed, spanning=counts, l1=checks)
+    return result

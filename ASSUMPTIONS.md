@@ -72,3 +72,6 @@
 - `extract/`·`runner/evidence-extract`: 가정 — verify 질의 계약과 `blank_line_block` 문단 단위가 발췌기의 선행 계약이다. 유효 모델 급: P1은 모델 무관(stdlib 사전 검사); 인용 선택 품질은 P4a 실험에서 검토. I7: P1은 로컬 읽기만 수행한다. 상세: `extract/README.md`.
 
 - extract P2 (`textlayer`, `pagesection`, `segmenter`, `removal`, `pipeline`): 가정 — 시스템 Poppler가 텍스트 층을 제공하며 페이지 경계는 verify 블록 경계에 놓인다. 반복 머리말은 첫 두 블록의 짧은 동일 텍스트 반복으로 추정하며 gold corpus로 추가 확인해야 한다. 유효 모델 급: 모델 무관(결정론적 로컬 처리). I7: 로컬 PDF 읽기와 Poppler 자식 프로세스만 사용, 외부 통신·모델 호출 없음.
+
+- extract P3 (`spanning`, `existence`): 가정 — 미완결 조각·20낱말 본문·제목/캡션/숫자 중심 표 제외로 연결 후보를 정하며 의미적 연속성은 실제 논문 인수로 확인한다. 유효 모델 급: 모델 무관; verify L1 라이브러리만 호출하고 원장 API는 호출하지 않는다. I7: 로컬 텍스트 처리만 수행한다.
+- extract P4a (`workfile_min`, `records_min`, `digest_min`, `report_min`, `workflow`): 가정 — 세션 모델이 전체 봉인 파일을 한 번 읽고 ID·종류·한국어 메모를 선택한다. 유효 모델 급: Codex·Claude의 JSONL 계약 준수 모델(실제 품질 미측정). I7: 자동 모델 호출·외부 전송 없이 로컬 파일 왕복하며, 공통 선택 지침은 논문 내 지시를 데이터로 취급한다.

@@ -13,6 +13,16 @@ DEFAULT_PATH = Path(__file__).resolve().parents[1] / "config/segmenter.json"
 
 
 @dataclass(frozen=True)
+class Fragment:
+    segment_id: str
+    text: str
+    para_id: str
+    page: int
+    char_start: int
+    char_end: int
+
+
+@dataclass(frozen=True)
 class Segment:
     segment_id: str
     text: str
@@ -22,6 +32,7 @@ class Segment:
     char_start: int
     char_end: int
     resolved_para_ids: tuple[str, ...]
+    fragments: tuple[Fragment, ...] = ()
 
 
 def load_config(path: Path = DEFAULT_PATH) -> dict:

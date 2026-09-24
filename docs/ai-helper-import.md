@@ -22,7 +22,7 @@ P1–P5 구현을 `verify/tools/verify/`에 반입했다. `verify/upstream-manif
 
 원본 계획 P1에 해당하는 패키지·질의 로더·경로·7개 게이트·문단 분할 런타임 검사를 구현했다. `runner/evidence-extract check --query FILE`로 실행한다. 설정은 JSON이며 테스트는 stdlib unittest다.
 
-P2의 PDF 변환·문단 위치·제목 감지·무손실 세그먼트·제거 회계 라이브러리를 추가했다. 합성 PDF와 경계 사례는 검증했으며, 지정 gold 논문의 PDF·codex_raw가 없어 P2 인수 시험은 미완료다. P3 이후(spanning·선택 파일·다이제스트)와 P4a의 segment/build CLI는 미구현이다. 원본 계획은 역사 자료로 유지하고 현재 사용 범위는 `extract/README.md`에 적었다. 실제 논문 실험과 P4a 사람 결정 게이트를 건너뛰지 않는다.
+P2의 PDF 변환·문단 위치·제목 감지·무손실 세그먼트·제거 회계 라이브러리를 추가했다. 합성 PDF와 경계 사례는 검증했으며, 지정 gold 논문의 PDF·codex_raw가 없어 P2 인수 시험은 미완료다. P3 spanning·L1 대조와 P4a의 segment/build CLI·선택 파일·다이제스트 프로토타입도 구현했다. 실제 논문 인수·모델 선택 실험·사람 결정 게이트는 미완료이며 P4b 이후는 아직 구현하지 않았다. 원본 계획은 역사 자료로 유지하고 현재 사용 범위는 `extract/README.md`에 적었다. 실제 논문 실험과 P4a 사람 결정 게이트를 건너뛰지 않는다.
 
 ## 검증 범위와 제약
 
