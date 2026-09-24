@@ -1,0 +1,23 @@
+{
+  "protocol_ver": "v3-athena-json1",
+  "l1_pass_grades": [
+    "exact",
+    "strict",
+    "loose",
+    "gapped"
+  ],
+  "waiver_reason_required": true,
+  "paragraph_unit": {
+    "variant": "codex_raw",
+    "split": "blank_line_block",
+    "min_words": 20
+  },
+  "elusion_n": 34,
+  "sample_seed": 20260922,
+  "mutation_detect_min": 0.9,
+  "mutation_fp_max": 0.1,
+  "kappa_report_only": true,
+  "escalation_max": 1.0,
+  "leakage_n": 20,
+  "context_width_default": "para"
+}

@@ -1,0 +1,39 @@
+# Sentence split of the hand-picked gold set G. The file is the rule: the number
+# of gold sentences is whatever these rules produce, recorded at registration as
+# gold_split_count, never typed in by hand.
+#
+# G was pasted as one line: a heading, the one-line review, then paper sentences
+# with the user's `->` notes in between. Sentence boundaries were partly lost in
+# pasting ("[21, 23].These", "promptsOutput"), so a boundary may sit between two
+# characters with no space; such an item is registered with boundary_repaired=1.
+version: gold-split-v1
+# Relative to the verify/ directory; {slug} is the paper id.
+source: gold/{slug}_handpicked.md
+# The pasted text is the one line under this section that starts with line_prefix.
+section: "## 원문(그대로)"
+line_prefix: "### "
+# Runs of two or more asterisks are emphasis markers: they separate the heading,
+# the one-line review and the body. The first segment is the heading and is not gold.
+emphasis: '\*{2,}'
+# An emphasis segment that starts with this label is the one-line review: one user note.
+review_label: "한줄평"
+# The user's note marker. A note starts after the arrow and ends at the first note
+# boundary below; the text after that boundary is paper text again.
+note_arrow: "->"
+# A sentence of paper text ends at a period followed by optional whitespace and a
+# capital letter, or at a note arrow, or at the end of the line.
+sentence_end: '\.(?=\s*[A-Z])'
+# Periods that end these tokens never end a sentence.
+abbreviations: ["e.g.", "i.e.", "et al.", "Fig.", "vs.", "cf.", "approx."]
+# Inside a note two more boundaries exist, because the notes were typed straight
+# onto the next pasted sentence:
+#   camel_glue: a lower-case letter directly followed by a capitalized word
+#               ("promptsOutput length"), unless the pair is in no_split;
+#   sentence_openers: a lower-case letter, one space, and one of these words
+#               ("opportunities While these").
+note_end:
+  camel_glue: true
+  sentence_openers: [While, Thus, This, These, The, However, Therefore, But, And, So,
+                     It, In, For, As, We, Our, Most, Even]
+# Capitalized words written inside names; a camel glue on these is not a boundary.
+no_split: [DeepSeek, MiniMax, OpenAI, GitHub, TensorRT, PyTorch]

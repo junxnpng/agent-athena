@@ -1,0 +1,21 @@
+1 Introduction
+2 Background
+2.1 LLM Inference
+2.2 LLM Workload
+3.3 Token Shape
+4.1 Heterogeneity
+5 Burstiness
+6.1 Production System
+6.2 Arrival Locality
+6.3 GDSF
+6.3.1 Session Reconstruction
+6.3.2 Cache Simulation
+6.3.3 Results
+7 Load Balancing
+7.1 Production Systems
+7.1.1 General Overview
+7.1.2 Routing-Induced Cache Duplication
+7.2 Load Balancing Simulation
+7.2.1 Simulator and Routing Policies
+7.2.2 Simulation Results
+9 Conclusion

@@ -1,0 +1,54 @@
+# Text normalization for the existence check (L1). Fixed rules; both the quote and
+# the variant text go through the same profile, and every normalized character
+# keeps the offset of the original character it came from.
+#
+# Grades: exact (raw substring) > strict (all six rules) > loose (alphanumerics only)
+# > gapped (loose, with foreign text allowed between a few long runs).
+# Rules run in the order listed under profiles.strict.
+version: 2
+
+rules:
+  hyphen:
+    description: >-
+      Dash variants become "-", the soft hyphen disappears, and a hyphen that ends a
+      line joins the two halves of the word (infer-\nence -> inference).
+    map: {"‐": "-", "‑": "-", "‒": "-", "–": "-", "—": "-",
+          "―": "-", "−": "-"}
+    drop: ["­"]
+    join_line_break: true
+  ligature:
+    description: Typographic ligatures are spelled out (U+FB01 -> fi).
+    map: {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl",
+          "ﬅ": "st", "ﬆ": "st"}
+  quotes:
+    description: Curly and low quotes, primes and backticks become straight quotes.
+    map: {"“": "\"", "”": "\"", "„": "\"", "‟": "\"", "″": "\"",
+          "‘": "'", "’": "'", "‚": "'", "‛": "'", "′": "'", "`": "'"}
+  whitespace:
+    description: Every run of whitespace (newline, form feed, no-break space) is one space.
+  sentence_case:
+    description: >-
+      The first letter of a sentence is lower-cased on both sides, and a quote piece
+      may start with either case, so a quote that capitalizes a mid-sentence start
+      still matches.
+    terminators: ".!?:"
+  line_join_space:
+    description: >-
+      A space lost where the extraction joined two lines is restored by ignoring
+      spaces on both sides (inferencesystem <-> inference system).
+
+profiles:
+  strict: [hyphen, ligature, quotes, whitespace, sentence_case, line_join_space]
+  # The canon of the earlier quotes_verbatim_check: citation markers dropped, then
+  # lower-case alphanumerics only.
+  loose:
+    citation: "\\[\\s*\\d+(?:\\s*[,\\-–]\\s*\\d+)*\\s*\\]"
+  # Version 2: the loose form of every quote piece may be matched as up to
+  # max_runs consecutive runs, each at least min_run characters, with at most
+  # max_gap_chars original characters of foreign text between runs. Every
+  # character of the quote is still matched, in order; only intrusions (running
+  # headers, page breaks, figure blocks) are skipped.
+  gapped:
+    min_run: 20
+    max_runs: 3
+    max_gap_chars: 1000

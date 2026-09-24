@@ -1,0 +1,43 @@
+# Registered thresholds. Registered once, before the first layer runs, with
+# `verify thresholds register`; afterwards read-only. Its sha256 goes into
+# runs.thresholds_sha256 and the provenance bundle, and any run that sees a
+# different file dies with "thresholds changed mid-run".
+# Values follow the example table of the design doc (section 4) unless noted.
+# v2 (2026-09-23): gapped added to the L1 pass grades by the user's decision after
+# the v1 measurement, where 6 genuine gold-paper quotes missed only because a
+# running header or figure block interrupts them.
+# v3 (2026-09-23): the budget caps (tokens per record, wall clock, expensive-call
+# ratio) removed by the user's decision; cost is reported, never a gate. The plan
+# usage delta around the judge round trip (config/usage.yaml) is reported instead.
+protocol_ver: v3
+
+# L1 existence: these grades count as PASS; the grade distribution is always reported.
+l1_pass_grades: [exact, strict, loose, gapped]
+# A waiver without a reason code is not a waiver.
+waiver_reason_required: true
+
+# Unit of paragraphs, elusion frame and locator.para_id.
+paragraph_unit:
+  variant: codex_raw
+  split: blank_line_block
+  min_words: 20
+
+# Elusion sample size. Derived from the measured unused-paragraph pool of the gold
+# paper at registration time (elusion_n <= pool); registration refuses a larger n.
+# Measured 2026-09-23: frame 70 blocks, 36 resolved by the 51 rows, pool 34.
+elusion_n: 34
+sample_seed: 20260922
+
+# Mutation testing: a layer is UNVERIFIED when its own target operators fall below
+# the detection rate; the equivalence operator is held to the false-positive rate.
+mutation_detect_min: 0.9
+mutation_fp_max: 0.1
+
+# Judge calibration is report-only in v1 (no pass/fail gate on kappa).
+kappa_report_only: true
+
+# escalation_rate is reported as an observation; the maximum is recorded here so
+# later protocol versions have a registered value to compare to.
+escalation_max: 1.0
+leakage_n: 20
+context_width_default: para

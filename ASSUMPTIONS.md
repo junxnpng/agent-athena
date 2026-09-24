@@ -65,3 +65,10 @@
 
 ## 지운 것
 (아직 없음. 지울 때는 행을 여기로 옮기고 날짜·근거를 적는다 — 되살릴 때 필요하다.)
+
+## AI-helper 반입 자료
+
+- `verify/`·`runner/evidence-verify`: 가정 — 모델 판정의 구조·해시·근거 위치는 코드로 검증하지만 의미적 정확성은 별도 인수 시험이 필요하다. 유효 모델 급: Codex·Claude에서 판정 JSONL을 작성할 수 있는 모델(품질 미측정); 결정론적 검사는 모델 무관. I7: 로컬 파일 왕복, API·외부 전송 추가 없음. 상세: `verify/USAGE.md`.
+- `extract/`·`runner/evidence-extract`: 가정 — verify 질의 계약과 `blank_line_block` 문단 단위가 발췌기의 선행 계약이다. 유효 모델 급: P1은 모델 무관(stdlib 사전 검사); 인용 선택 품질은 P4a 실험에서 검토. I7: P1은 로컬 읽기만 수행한다. 상세: `extract/README.md`.
+
+- extract P2 (`textlayer`, `pagesection`, `segmenter`, `removal`, `pipeline`): 가정 — 시스템 Poppler가 텍스트 층을 제공하며 페이지 경계는 verify 블록 경계에 놓인다. 반복 머리말은 첫 두 블록의 짧은 동일 텍스트 반복으로 추정하며 gold corpus로 추가 확인해야 한다. 유효 모델 급: 모델 무관(결정론적 로컬 처리). I7: 로컬 PDF 읽기와 Poppler 자식 프로세스만 사용, 외부 통신·모델 호출 없음.

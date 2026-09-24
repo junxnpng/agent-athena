@@ -1,0 +1,8 @@
+# Plan usage snapshots around the LLM part of a run (judge export -> judge import).
+# The file is the usage cache the user's statusline writes (refreshed about every
+# 2 minutes from the plan usage endpoint). It is account-wide: other sessions
+# running at the same time are counted too. Missing or unreadable -> "unavailable".
+path: /tmp/.claude-usage-cache.json
+window: five_hour
+# A snapshot older than this is reported as stale.
+max_age_s: 300

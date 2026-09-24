@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCAN_DIRS = ("hooks", "scripts", "templates", "runner", "tests")
+SCAN_DIRS = ("hooks", "scripts", "templates", "runner", "tests", "verify/tools", "extract/extract")
 
 SHELL_RULES = [
     (r"^#!/bin/bash|^#!/usr/bin/env bash", "셸 파일은 #!/bin/sh (dash 호환) 만"),

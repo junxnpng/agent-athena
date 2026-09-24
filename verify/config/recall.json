@@ -1,0 +1,22 @@
+{
+  "version": "recall-v1",
+  "claim_present": {
+    "min_run_chars": 40,
+    "min_cover": 0.5
+  },
+  "numbers": {
+    "ignore": [
+      "\\[\\s*\\d+(?:\\s*[,\\-–]\\s*\\d+)*\\s*\\]",
+      "(?i:\\b(?:figure|fig\\.|table|finding|section)|§)\\s*\\d+[a-z]?\\b",
+      "\\b[A-Z][A-Za-z]*-?\\d+(?:\\.\\d+)*\\b"
+    ],
+    "power": "(\\d+)\\^(-?\\d+)"
+  },
+  "capture_recapture": {
+    "min_size_ratio": 0.5
+  },
+  "elusion": {
+    "confidence": 0.95,
+    "target_upper": 0.05
+  }
+}

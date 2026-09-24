@@ -1,0 +1,9 @@
+{
+  "schema_valid": 1.0,
+  "l1_variant": "extract_raw",
+  "l1_grades": ["exact"],
+  "l1_pass_rate": 1.0,
+  "kind_memo_rate": 1.0,
+  "g_recall": "report_only",
+  "codex_raw_grades": "report_only"
+}

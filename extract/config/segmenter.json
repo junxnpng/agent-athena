@@ -1,0 +1,6 @@
+{
+  "segmenter_ver": "v1",
+  "abbreviations": ["e.g.", "i.e.", "et al.", "Fig.", "Eq.", "Sec.", "vs.", "cf.", "resp.", "Refs.", "No."],
+  "protect_decimals": true,
+  "protect_exponents": true
+}

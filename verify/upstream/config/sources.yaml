@@ -1,0 +1,13 @@
+# Input locations, relative to --source-root (default: the KVCPOOL environment variable).
+# {slug} is the paper id. A variant whose file is absent is reported as unavailable.
+records:
+  claude: docs/patterns/260911_claude_quotes_final/claude_pattern_data.json
+  codex: docs/patterns/260911_codex_quotes_final/codex_pattern_data.json
+pdf: papers/{slug}.pdf
+variants:
+  codex_raw: papers/codex_source_text/codex_{slug}.txt
+  codex_layout: papers/codex_source_text/codex_{slug}_layout.txt
+  claude_body: docs/patterns/260911_claude_quotes_final/claude_source_text/claude_{slug}.txt
+  claude_column: papers/claude_column_text/claude_{slug}.txt
+# Verbatim-check waivers of the Claude record set (one row per waived quote fragment).
+waivers: docs/patterns/260911_claude_quotes_final/claude_work/claude_verbatim_waivers_strict.tsv

@@ -1,0 +1,8 @@
+# Comparison markers of L2. A row whose quote or claim_text carries one of these
+# compares against something, so its `baseline` condition cannot be "none"
+# (reason code comparison_without_baseline). Matching follows config/modality.yaml:
+# whole words for English, substrings for Korean.
+version: comparison-v1
+en: [than, versus, vs, "compared to", "compared with", "relative to", outperform, outperforms,
+     "improvement over", speedup]
+ko: [보다, 대비, 에 비해, 비교]

@@ -28,6 +28,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 - 러너 모드에서 모델은 commit/push를 하지 않는다 — `pre-tool` 훅이 거부한다. 대화형은 막지 않는다(사람이 승인 루프에, S2).
 
 ## 작업 규칙 (이 repo를 고칠 때)
+- 근거 검증·논문 발췌 요청은 `verify/USAGE.md`를 읽는다(Codex·Claude 공통). 실행 진입점은 `runner/evidence-verify`, 발췌기 구현 범위는 `extract/README.md`.
 - 코드는 Python 3.9 stdlib만. `from __future__ import annotations` 필수, `X | None` 런타임 문법 금지. 외부 의존성 추가 금지.
 - **macOS와 Ubuntu 둘 다에서 돈다.** 셸은 `#!/bin/sh` POSIX(dash 호환)만. BSD/GNU가 갈리는 명령(`sed -i` `readlink -f` `realpath` `timeout` `date -d/-v` `stat -c/-f`)과 bashism 금지 — `scripts/portable-lint`가 거부한다. 타임아웃은 Python 프로세스 그룹 kill. subprocess는 `encoding="utf-8"` 명시.
 - 컴포넌트를 추가하면 `ASSUMPTIONS.md`에 "가정 + 유효 모델 급" 한 줄을 같이 적는다. 스킬·도구 추가 시 I7 재검사.

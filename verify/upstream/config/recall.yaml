@@ -1,0 +1,40 @@
+# Recall against the gold set G. Fixed before the first recall run on the gold
+# paper; its sha256 goes into every recall run's meta.
+version: recall-v1
+
+# claim_present: a row covers a gold sentence when the canonical forms
+# (paragraphs.canon: citation markers dropped, lower-case alphanumerics only, so
+# `inferencesystem` equals `inference system`) share common runs of at least
+# min_run_chars characters (the whole sentence when it is shorter) that together
+# cover at least min_cover of the sentence.
+claim_present:
+  min_run_chars: 40
+  min_cover: 0.5
+
+# conditions_match needs condition labels on both sides. G carries none (it is
+# pasted paper text) and no v1 row carries the five condition fields, so the level
+# is reported not-applicable instead of derived.
+
+# numbers_match: every number of a gold sentence appears among the numbers of a
+# row that covers it (value within the printed precision of either side, same
+# dimension when both have one). Numbers are read with config/numbers.yaml after
+# removing these patterns from the gold sentence; `10^2` reads as 10².
+numbers:
+  ignore:
+    - '\[\s*\d+(?:\s*[,\-–]\s*\d+)*\s*\]'                         # citation markers
+    - '(?i:\b(?:figure|fig\.|table|finding|section)|§)\s*\d+[a-z]?\b'  # figure and section references, any case
+    - '\b[A-Z][A-Za-z]*-?\d+(?:\.\d+)*\b'                         # model version tags (V3.2, R1, M2.5)
+  power: '(\d+)\^(-?\d+)'
+
+# Capture-recapture over the paragraph blocks the two record sets resolve into.
+# Chapman's estimate is reported only for two extractor sets of comparable size:
+# a set smaller than min_size_ratio of the other is not an independent second
+# capture of the same paper (the v1 Codex rows are single-fragment records only).
+capture_recapture:
+  min_size_ratio: 0.5
+
+# Elusion: the unused-paragraph frame of thresholds (registered elusion_n,
+# sample_seed). The bound is one-sided exact binomial at this confidence.
+elusion:
+  confidence: 0.95
+  target_upper: 0.05

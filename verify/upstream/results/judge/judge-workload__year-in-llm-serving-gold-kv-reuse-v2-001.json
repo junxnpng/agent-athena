@@ -1,0 +1,640 @@
+{
+ "export_id": "judge-workload__year-in-llm-serving-gold-kv-reuse-v2-001",
+ "paper_id": "workload__year-in-llm-serving",
+ "tier": "tier1",
+ "tier_name": "mid",
+ "context_width": "para",
+ "swap_order": true,
+ "judge_protocol": "claim-judge-v1",
+ "thresholds_protocol": "v2",
+ "thresholds_sha256": "7a79a963a0111ca1f02e04c4428a5d43f4a6ec8a64f80a7a173f1868a21ad20b",
+ "sample_seed": 20260922,
+ "query": {
+  "query_id": "gold-kv-reuse-v2",
+  "topic": "KV-cache reuse in production LLM serving workloads",
+  "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+ },
+ "instructions": "Follow skills/claim-judge/SKILL.md; write one JSON line per item.",
+ "items": [
+  {
+   "item": 1,
+   "row_id": "claude:YR-G2.q2",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-G2",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "strict",
+   "quote": "This behavior reflects the production routing policy. For each request, the load balancer first selects the few least loaded instances, then routes to the one with the highest expected prefix-cache hits.",
+   "record_claim_text": "과부하는 prefill(TTFT)을 먼저 망가뜨린다. 그리고 이 플랫폼의 실제 라우팅은 「가장 덜 바쁜 몇 개를 고른 뒤 그중 캐시 적중이 가장 클 곳으로」 보낸다 — 부하 우선, 캐시 차선.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 51274,
+    "char_end": 52912,
+    "text": "rates, while a small number of instances become quiet around\nmid-day. Thus, load is balanced in aggregate, but not perfectly balanced at every instant. This behavior reflects the\nproduction routing policy. For each request, the load balancer first selects the few least loaded instances, then routes\nto the one with the highest expected prefix-cache hits.\n7.1.2 Routing-Induced Cache Duplication. Figure 20 shows\nhow this tradeoff appears for the same user and model in\ntwo 60-minute windows. Under low load, Figure 20b shows\nthat the user stays mostly on one instance, and cache hits\nconcentrate there. Under high load, Figure 20a shows that the\nload balancer spreads the user across many instances to avoid\noverloading any one replica. The user’s traffic share then\nresembles the global load distribution, but several instances\nstill show measurable hit ratios.\nThese two regimes expose a fundamental tension between\nload balancing and cache locality. Keeping a user’s requests\non one instance preserves its prefix state and maximizes\nreuse. Under high load, however, the router spreads requests\nacross replicas. Cache hits may remain high, but only by\nreplicating the same prefix across multiple instance-local KV\ncaches. This duplication consumes scarce capacity and displaces prefixes from other users. A good routing algorithm\nmust therefore balance traffic evenly while minimizing redundant KV state across the fleet.\nFinding 6: Stickiness preserves cache locality, but conflicts with load balancing. At high volume, the load balancer spreads a user across instances, duplicating the\nsimilar context across replica-local KV caches."
+   },
+   "quote_span": {
+    "start": 152,
+    "end": 355
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 2,
+   "row_id": "claude:YR-H3.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-H3",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "strict",
+   "quote": "Most models, including many heavily used ones, receive the majority of their traffic from relatively few users. Some high-traffic models are used broadly, while others receive comparable traffic from a much smaller user base. This distinction matters for locality: repeated access from a concentrated set of users can create different cache-reuse opportunities than traffic spread across many independent users.",
+   "record_claim_text": "대부분의 모델은 소수 사용자에게서 트래픽 대부분을 받는다. 사용자 쪽에서는 대부분이 소수 모델만 쓰고, 꼬리의 파워 유저가 다수 모델에 걸쳐 대량 요청을 낸다 — 자동화 애플리케이션·모델 라우터·agentic 워크플로로 추정된다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 22560,
+    "char_end": 24650,
+    "text": "Models and users span wide ranges of request volume. Request volume varies substantially across both models and\nusers. Figure 5 relates request count to user–model interaction from both directions: for each model, we compare its\nrequest count with the number of distinct users it serves; for\neach user, we compare their request count with the number\nof distinct models they access.\nOn the model side, Figure 5a shows a weak positive trend\nwith substantial spread. Models with more requests often\nserve more users, yet models with similar request counts can\ndiffer by orders of magnitude in user count. Most models,\nincluding many heavily used ones, receive the majority of\ntheir traffic from relatively few users. Some high-traffic models are used broadly, while others receive comparable traffic\nfrom a much smaller user base. This distinction matters for\nlocality: repeated access from a concentrated set of users can\ncreate different cache-reuse opportunities than traffic spread\nacross many independent users. The platform’s support for\nuser-deployed models likely contributes to this spread, since\nprivate models may receive steady traffic from only a small,\nfixed group of users.\nFigure 5b shows that most users issue relatively few requests and access only a small number of models. However,\na sparse tail of users sends many requests across a much\nbroader model set. Most users therefore concentrate their\nactivity on a few models, while these high-volume, broadaccess power users may correspond to automated applications, proxy services, model routers, or agentic workflows\nrather than simple individual use.\nToken shape varies substantially across models and users.\nFigure 6 places each model or user by its median input and\noutput length, with the dashed line marking equal size. Most\npoints fall below the line, which means that most users and\nmodels tend to be more input heavy than output at the median. However, the spread is wide, showing that this average\nhides very different request shapes. The model view in Figure 6a shows two distinct regions. Some models are strongly"
+   },
+   "quote_span": {
+    "start": 602,
+    "end": 1013
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 3,
+   "row_id": "claude:YR-G1.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-G1",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "strict",
+   "quote": "Figure 20 shows how this tradeoff appears for the same user and model in two 60-minute windows. Under low load, Figure 20b shows that the user stays mostly on one instance, and cache hits concentrate there. Under high load, Figure 20a shows that the load balancer spreads the user across many instances to avoid overloading any one replica. The user's traffic share then resembles the global load distribution, but several instances still show measurable hit ratios.",
+   "record_claim_text": "부하가 높으면 라우터가 사용자를 여러 인스턴스로 흩고, 그러면 같은 prefix가 복제된다. 이 중복이 다른 사용자의 prefix를 밀어낸다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 51274,
+    "char_end": 52912,
+    "text": "rates, while a small number of instances become quiet around\nmid-day. Thus, load is balanced in aggregate, but not perfectly balanced at every instant. This behavior reflects the\nproduction routing policy. For each request, the load balancer first selects the few least loaded instances, then routes\nto the one with the highest expected prefix-cache hits.\n7.1.2 Routing-Induced Cache Duplication. Figure 20 shows\nhow this tradeoff appears for the same user and model in\ntwo 60-minute windows. Under low load, Figure 20b shows\nthat the user stays mostly on one instance, and cache hits\nconcentrate there. Under high load, Figure 20a shows that the\nload balancer spreads the user across many instances to avoid\noverloading any one replica. The user’s traffic share then\nresembles the global load distribution, but several instances\nstill show measurable hit ratios.\nThese two regimes expose a fundamental tension between\nload balancing and cache locality. Keeping a user’s requests\non one instance preserves its prefix state and maximizes\nreuse. Under high load, however, the router spreads requests\nacross replicas. Cache hits may remain high, but only by\nreplicating the same prefix across multiple instance-local KV\ncaches. This duplication consumes scarce capacity and displaces prefixes from other users. A good routing algorithm\nmust therefore balance traffic evenly while minimizing redundant KV state across the fleet.\nFinding 6: Stickiness preserves cache locality, but conflicts with load balancing. At high volume, the load balancer spreads a user across instances, duplicating the\nsimilar context across replica-local KV caches."
+   },
+   "quote_span": {
+    "start": 397,
+    "end": 863
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 4,
+   "row_id": "claude:YR-C2.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-C2",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "gapped",
+   "quote": "Figure 4c connects this prefill cost to prefix reuse. For requests with similar input length, higher token hit ratios correspond to lower TTFT, and the reduction is most visible for long-input requests, where recomputing prefill would have been expensive. For short-input requests, even near-full cache hits remove little prefill work, so the TTFT benefit is small and contributes little to end-to-end latency. While caching may still save computation in these cases, but its latency impact is limited.",
+   "record_claim_text": "캐시 적중의 TTFT 이득은 긴 입력에서만 크다. 짧은 입력에서는 거의 완전 적중이어도 이득이 작다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "claude_body",
+    "char_start": 19888,
+    "char_end": 24878,
+    "text": "=== PAGE 5 ===\nA Year in LLM Serving: Workload Evolution, Caching and Load-Balancing\n1.0 1.0\nGlobal\nDeepSeek V3.2\n0.8 Deepseek R1 0.8\nMinimax M2.5\n0.6 0.6\nCDF CDF\n0.4 0.4\nGlobal\n0.2 0.2 DeepSeek V3.2\nDeepseek R1\nMinimax M2.5\n0.0 0.0\n10 1 10 0 10 1 10 2 0.0 0.2 0.4 0.6 0.8 1.0\nEnd-to-end latency (s) TTFT / duration\n(a) Latency CDFs (b) Fraction of TTFT\nFigure 3: Latency behavior of the aggregate workload\nand three representative models. Models spend most\nproportion of their time doing decode.\n8000 8000\n150\ntokens 6000 (s) tokens 6000 3\n(s)\nduration\n4000 100 4000 TTFT\nOutput Output 2\n50 P50\n2000 P50 2000\n1\n0 0\n0 10 20 30 0 10 20 30\nInput tokens (K) Input tokens (K)\n(a) Output vs. Dura- (b) Input vs. TTFT (c) TTFT vs. hit ra-\ntion tio\nFigure 4: Median latency binned by request shape. Du-\nration is governed by output length, TTFT by input\nlength, and caching cuts TTFT most aggressively on\nlong-input requests.\nModels can be latency-bound for different reasons. The\nthree highlighted models reveal distinct latency profiles.\nDeepSeek R1 has the longest end-to-end latency, consis-\ntent with its tendency to generate long outputs. MiniMax-\nM2.5 completes faster overall, but a larger share of its la-\ntency comes from TTFT, reflecting its input-heavy workload.\nDeepSeek V3.2 lies between these two cases. Thus, models\nmay be decode-heavy due to long outputs or prefill-heavy\ndue to long prompts, motivating phase-specific rather than\none-size-fits-all optimization.\nOutput length drives duration; input length drives TTFT..\nBinning requests by token shape makes these latency drivers\nexplicit. Figure 4a shows that median end-to-end duration\nincreases proportionally to output length, getting barely af-\nfected by input token length since completion time is decode\ndominated, and figure 4b shows TTFT grows primarily with\ninput length. Figure 4c connects this prefill cost to prefix\nreuse. For requests with similar input length, higher token\nhit ratios correspond to lower TTFT, and the reduction is\nmost visible for long-input requests, where recomputing pre-\nfill would have been expensive. For short-input requests,\neven near-full cache hits remove little prefill work, so the\nTTFT benefit is small and contributes little to end-to-end\n--- col2 ---\nConference’17, July 2017, Washington, DC, USA\nlatency. While caching may still save computation in these\ncases, but its latency impact is limited.\n4 Users and Models\nAggregate workload statistics do not fully describe how indi-\nvidual users and models contribute to production traffic. We\ntherefore examine the workload at finer granularity along\ntwo dimensions. First, we characterize the differences of\nusers and models that may have similar request volumes (Sec-\ntion 4.1). Second, we study their access behavior, including\nrecurring usage patterns and arrival burstiness (Section 4.2\nand Section 4.3).\n4.1 Heterogeneity\nModels and users span wide ranges of request volume. Re-\nquest volume varies substantially across both models and\nusers. Figure 5 relates request count to user–model interac-\ntion from both directions: for each model, we compare its\nrequest count with the number of distinct users it serves; for\neach user, we compare their request count with the number\nof distinct models they access.\nOn the model side, Figure 5a shows a weak positive trend\nwith substantial spread. Models with more requests often\nserve more users, yet models with similar request counts can\ndiffer by orders of magnitude in user count. Most models,\nincluding many heavily used ones, receive the majority of\ntheir traffic from relatively few users. Some high-traffic mod-\nels are used broadly, while others receive comparable traffic\nfrom a much smaller user base. This distinction matters for\nlocality: repeated access from a concentrated set of users can\ncreate different cache-reuse opportunities than traffic spread\nacross many independent users. The platform’s support for\nuser-deployed models likely contributes to this spread, since\nprivate models may receive steady traffic from only a small,\nfixed group of users.\nFigure 5b shows that most users issue relatively few re-\nquests and access only a small number of models. However,\na sparse tail of users sends many requests across a much\nbroader model set. Most users therefore concentrate their\nactivity on a few models, while these high-volume, broad-\naccess power users may correspond to automated applica-\ntions, proxy services, model routers, or agentic workflows\nrather than simple individual use.\nToken shape varies substantially across models and users.\nFigure 6 places each model or user by its median input and\noutput length, with the dashed line marking equal size. Most\npoints fall below the line, which means that most users and\nmodels tend to be more input heavy than output at the me-\ndian. However, the spread is wide, showing that this average\nhides very different request shapes. The model view in Fig-\nure 6a shows two distinct regions. Some models are strongly"
+   },
+   "quote_span": {
+    "start": 1843,
+    "end": 2405
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 5,
+   "row_id": "claude:YR-A1.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-A1",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "loose",
+   "quote": "We analyze a one-year production trace from CompanyX, a serverless LLM inference platform that serves both platform-hosted and user-deployed models.",
+   "record_claim_text": "1년, 61.2억 요청, 사용자 31.5만, 모델 9,174, 서빙 인스턴스 87.6만. 서버리스 추론 플랫폼이다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 14206,
+    "char_end": 14499,
+    "text": "We analyze a one-year production trace from CompanyX, a\nserverless LLM inference platform that serves both platformhosted and user-deployed models. Table 2 summarizes the\ntrace scale: 6.12 billion requests from 314,970 users across\n9,174 models. Of these models, 3,922 are public and 5,252 are"
+   },
+   "quote_span": {
+    "start": 0,
+    "end": 146
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 6,
+   "row_id": "codex:YR018.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR018",
+   "extractor_id": "codex",
+   "kind": "author_interpretation",
+   "l1_grade": "exact",
+   "quote": "Prefix caching reduces prefill work by reusing input tokens\nfrom earlier requests. Since prefill cost grows with input\nlength, caching can substantially reduce TTFT. We first char-\nacterise reuse observed in production (Section 6.1) and the\narrival locality that drives it (Section 6.2); we then use simu-\nlation to compare eviction algorithms (Section 6.3).\n",
+   "record_claim_text": "이전 요청의 입력 토큰을 재사용해 반복 prefill을 줄인다는 분석 범위를 명시한다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "claude_body",
+    "char_start": 34380,
+    "char_end": 39045,
+    "text": "=== PAGE 8 ===\nConference’17, July 2017, Washington, DC, USA\nP10-P90 P25-P75 Median 10 3 P10-P90 P25-P75 Median\n10 4\ntokens\ntokens\n10 3\n10 2\nOutput\nInput\n10 2\n10 10 1\n1\nMay Aug Nov Feb May Aug Nov Feb\n'25 '25 '25 '26 '25 '25 '25 '26\nMonth Month\n(a) Monthly input intervals (b) Monthly output intervals\nFigure 11: Monthly input (a) and output (b) token-\nlength bands (P10–P90, P25–P75, median). Global input\ntend to stay stable while output tends to drop over time.\none period may become less suitable later since both the\nleading models and the broader model mix change.\n5.2 Token Shape\nToken lengths also change over the year, and input and out-\nput tokens evolve differently. We examine the aggregate\nmonthly trend, then group users by their join time to under-\nstand whether these changes are associated with newer user\ncohorts.\nInputs stay stable while outputs shrink. Figure 11 shows the\nmonthly distribution of request token lengths. Input lengths\nremain broadly stable over the year, with the monthly median\nstaying in the thousands of tokens. Output lengths show a\nclearer downward trend, with the median falling from a few\nhundred tokens early in the trace to below one hundred\ntokens near the end. The wider bands toward the end of the\ntrace also indicate greater variation in output lengths across\nrequests. These aggregate bands are request-weighted, so\nusers who contribute more traffic have a larger influence on\nthe overall trend. To complement this view, we next group\nusers by join time and examine the distribution of each user’s\nmedian input and output length within each cohort.\nNewer user cohorts are more input-heavy. Cohort decom-\nposition shows that newer user cohorts tend to be more\ninput-heavy than earlier ones. Figure 12 shows that later\ncohorts have larger median input lengths, indicating that\nnewer users typically submit longer prompts. Change in the\nmedian output side is less pronounced. However, the per-\ncentile bands also widen in both panels for later cohorts,\nshowing greater variation across users in their typical input\nand output lengths. Overall, newer user cohorts tend to use\nlonger inputs and exhibit more diverse token profiles than\nearlier cohorts.\n--- col2 ---\nNixon et al.\n60000 3000\nP10-P90 P25-P75 Median P10-P90 P25-P75 Median\n50000\n2500\noutput\ninput 40000\n2000\n30000 1500\nMedian Median\n20000 1000\n10000 500\n0 0\nMay Aug Nov Feb May Aug Nov Feb\n'25 '25 '25 '26 '25 '25 '25 '26\nRelease cohort Release cohort\n(a) Median input by cohort (b) Median output by cohort\nFigure 12: Per-user median input (a) and output (b) by\nrelease cohort, with P10–P90 and P25–P75 bands. Later\nuser cohorts shift toward larger inputs and outputs\nFinding 3: Both model usage and token profiles change\nover time. Dominant models turn over, global outputs\nbecome shorter, and newer user show larger and more\nvariable token lengths.\n6 Prefix Caching\nPrefix caching reduces prefill work by reusing input tokens\nfrom earlier requests. Since prefill cost grows with input\nlength, caching can substantially reduce TTFT. We first char-\nacterise reuse observed in production (Section 6.1) and the\narrival locality that drives it (Section 6.2); we then use simu-\nlation to compare eviction algorithms (Section 6.3).\n6.1 Production System\nWe characterise production cache behavior using the logged\ncached-token field, which records the number of input tokens\nserved from the prefix cache for each request. Thus, our anal-\nysis captures cache reuse actually realized by the deployed\nproduction system rather than theoretical. We analyze the\nfinal two months of the trace, during which cached-token\nlogging was available. Figure 13 presents the observed reuse\nfrom four perspectives: request-level distributions by input\nlength and for selected high-volume models, together with\ncumulative per-model and per-user profiles.\nRequest-level cached fractions are bimodal. Figure 13a\nshows a strongly bimodal pattern: most requests see either\nlittle to no prefix reuse or reuse nearly their entire input\nprefix, with relatively few requests falling in between. This\npattern is consistent with many requests either reusing\nmost of a prior prefix or receiving little reuse, as expected in\nmulti-turn sessions. It shows that a request either inherits\nthe previous turn’s context (and therefore most of its prefix)\nor starts fresh, a partial hit being rare. The curves also\nshift with input size: short-input requests skew toward\nhigh reuse, typical of multi-turn dialogue where each\nturn appends an increment to a growing context, while\nlong-input requests shift toward low reuse, since fewer of\nthem inherit a previous turn that fully covers the new prefix."
+   },
+   "quote_span": {
+    "start": 2876,
+    "end": 3234
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 7,
+   "row_id": "claude:YR-H1.q2",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-H1",
+   "extractor_id": "claude",
+   "kind": "author_interpretation",
+   "l1_grade": "strict",
+   "quote": "We identify a fundamental tradeoff in LLM serving: routing related requests to the same host improves prefix-cache locality and hit ratio, but also increases load imbalance and cache replication. This tension complicates scheduler design and motivates joint treatment of routing, placement, and caching.",
+   "record_claim_text": "두 핵심 발견의 저자 요약.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 7158,
+    "char_end": 8783,
+    "text": "pressure on prefill and decode and making short measurement windows insufficient for capacity planning.\n(3) Long-tail model behavior and serving opportunities. We find that many models receive sparse traffic with\nlong inter-arrival times, while consecutive inter-arrival\nintervals often remain correlated. This structure creates\nopportunities to colocate or multiplex low-traffic models on shared GPUs without treating each model as an\nindependent always-on service.\n(4) User–model interaction structure. We show that users\ninteract with models in heterogeneous ways: some repeatedly use a single model, while others switch across\nmany models. These patterns are hidden in aggregate\nstatistics and suggest opportunities for user-aware scheduling, placement, and caching.\n(5) Prefix-cache behavior in production. We characterize prefix-cache reuse at request level and find that token hit ratios are often bimodal, with most requests seeing either near-zero or near-complete reuse. Reuse is\nalso temporally concentrated, with much of it occurring\nwithin short inter-arrival windows. In simulation, stateof-the-art cache policies designed for web and storage\nworkloads often underperform simple FIFO and LRU, motivating new cache-management policies for LLM prefix\nworkloads.\n(6) Tension between caching and load balancing. We\nidentify a fundamental tradeoff in LLM serving: routing\nrelated requests to the same host improves prefix-cache\nlocality and hit ratio, but also increases load imbalance\nand cache replication. This tension complicates scheduler\ndesign and motivates joint treatment of routing, placement, and caching."
+   },
+   "quote_span": {
+    "start": 1322,
+    "end": 1625
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 8,
+   "row_id": "claude:YR-H2.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-H2",
+   "extractor_id": "claude",
+   "kind": "author_interpretation",
+   "l1_grade": "gapped",
+   "quote": "First, many existing studies analyze relatively short observation windows, limiting our ability to study how workloads evolve over longer time scales. Second, user–model interactions remain underexplored, even though modern LLM platforms serve many models with highly skewed popularity and support users with diverse access patterns. Third, existing public workloads are often sampled, anonymized, or summarized, which constrains direct replay and limits downstream analyses of production behavior.",
+   "record_claim_text": "기존 트레이스의 세 한계 — 짧은 관측 창, 사용자-모델 상호작용 미탐구, 샘플링·요약으로 재생 불가.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 2838,
+    "char_end": 7156,
+    "text": "Large language models (LLMs) have become a core online\nservice primitive, powering conversational assistants, codegeneration tools, agentic workflows, retrieval-augmented\ngeneration pipelines, and programmatic API workloads. Serving these applications at low latency and high throughput remains challenging because autoregressive LLM inference is both computationally intensive and highly workloaddependent. Request arrival patterns determine batching efficiency and queueing delay; prompt and response lengths\nshape the balance between prefill and decode computation;\nmodel popularity influences placement, routing, and load\nbalancing; and user behavior induces temporal locality, prefix reuse, and repeated-access patterns that affect KV-cache\nefficiency [11, 29, 35, 37]. Consequently, realistic production\ntraces are critical for understanding LLM serving behavior\nand for evaluating serving-system designs under representative operating conditions [21, 23].\nRecent studies have characterized LLM serving workloads\nand have shown that production traces differ substantially\nfrom synthetic arrival processes, static prompt datasets, and\nconventional cloud-service traces. These studies have provided important insights into bursty request arrivals, prompt\nand response length distributions, workload generation, and\nKV-cache reuse behavior [18, 21, 23, 25]. However, important gaps remain in our understanding of production LLM\nserving workloads. First, many existing studies analyze relatively short observation windows, limiting our ability to\nstudy how workloads evolve over longer time scales. Second, user–model interactions remain underexplored, even\nthough modern LLM platforms serve many models with\n\n\fConference’17, July 2017, Washington, DC, USA\n\nNixon et al.\n\nTable 1: Comparison with prior interaction datasets\nand production LLM workload studies.\nWork\n\nDuration\n\n# Requests\n\n# Models\n\nUser\n\nInstance\n\nServeGen [25]\nBurstGPT [24]\nWildChat [33]\nLMSYS-Chat-1M [34]\nModServe [18]\nQwen-Bailian [22]\nMooncake [17]\nOurs\n\n4 mo.\n4 mo.\n13 mo.\n4 mo.\n1 wk\n2h\n1h\n12 mo.\n\n3.54B\n5.29M\n1.0M convs.\n1.0M convs.\n–\n–\n35.6K\n6.12B\n\n12\n2\n2\n25\n–\n1\n–\n9,174\n\n✓\n–\n✓\n–\n–\n–\n–\n✓\n\n–\n–\n–\n–\n–\n–\n–\n✓\n\nhighly skewed popularity and support users with diverse\naccess patterns. Third, existing public workloads are often\nsampled, anonymized, or summarized, which constrains direct replay and limits downstream analyses of production\nbehavior. These limitations motivate a longitudinal study\nof LLM serving workloads that jointly examines workload\nevolution, caching opportunities, and load-balancing implications.\nTo bridge this gap, we collect, characterize, and release a\none-year production LLM serving trace from CompanyX. To\nthe best of our knowledge, this is the first public LLM serving\ntrace that provides a long observation window, unsampled\nrequest-level records, broad coverage across both popular\nand long-tail models, and anonymized user and servinginstance identifiers. This trace enables analyses that are difficult to perform from aggregate statistics alone. We study how\nLLM serving demand evolves over time, how production usage differs across models, and how users interact with those\nmodels. The request-level unsampled information allows for\ndetailed cache analysis and simulation. We find that cacheeviction algorithms designed for web and storage workloads\ncan underperform simple FIFO and LRU policies on LLM\nprefix-cache workloads. We also identify a fundamental tension in LLM serving: load balancing spreads requests across\ninstances to improve utilization, but doing so can reduce\nprefix-cache locality, lowering cache hit ratio and increasing\ncache replication.\nOur key contributions are as follows:\n(1) A year-long production LLM serving trace to support open research. We collect, characterize, and release 1 a one-year, unsampled, request-level production\ntrace from CompanyX, covering billions of requests, thousands of models, anonymized users, serving instances,\ntoken counts, latency, and prefix-cache reuse.\n(2) Characterization of workload evolution. We show\nthat LLM serving workloads are non-stationary over\nyearly timescales. Request characteristics shift toward\nlonger inputs and shorter outputs, changing the relative\n1 The trace is available at https://github.com/HarvardMadSys/chutes_\nworkload."
+   },
+   "quote_span": {
+    "start": 1450,
+    "end": 2420
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 9,
+   "row_id": "claude:YR-A4.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-A4",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "loose",
+   "quote": "To provide representative examples, we highlight three high-traffic models with distinct workload profiles: DeepSeek-V3.2 [8], which is primarily used for chat and role-playing; DeepSeek-R1 [7], which generates long reasoning outputs; and MiniMax-M2.5 [15], which is heavily used for coding and agentic workloads.",
+   "record_claim_text": "세 대표 모델 = 챗/롤플레이(V3.2) · reasoning(R1) · coding/agentic(M2.5).",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 12358,
+    "char_end": 14170,
+    "text": "private. Public models can be invoked by any user and include both user-published models and platform-hosted models such as DeepSeek, MiniMax, and Kimi; Private models are\ncustom models deployed by individual users for restricted\naccess, including user-fine-tuned variants.\nTable 3 lists the fields available in the trace. For each request, we record its timestamp, endpoint, model, user, and\ninput/output token counts. We also collect serving-side execution information, including the instance that handled the\nrequest, completion latency, time to first token (TTFT), and\ncached-token counts. These signals let us study production\nbehavior including prefix-cache reuse and instance-level load\nbalancing.\nUnless otherwise noted, our analysis uses the full year\nof text-based API requests, including both streaming and\nnon-streaming chat and completion endpoints. To provide\nrepresentative examples, we highlight three high-traffic\nmodels with distinct workload profiles: DeepSeek-V3.2 [8],\nwhich is primarily used for chat and role-playing; DeepSeekR1 [7], which generates long reasoning outputs; and\nMiniMax-M2.5 [15], which is heavily used for coding and\nagentic workloads. Together, these models highlight several\nprominent workload classes and illustrate how production\nbehavior varies across model types.\nThe remainder of the paper builds on this trace in stages.\nWe first characterize aggregate workload structure in this section, then examine user and model level behavior (section 4),\nstudy how the workload evolves over the year (section 5),\nand analyze prefix caching in production (section 6). Finally,\nwe use the trace to study the tension between load balancing and prefix-cache locality: spreading requests improves\nbalance, while routing related requests to the same instance\nimproves cache reuse."
+   },
+   "quote_span": {
+    "start": 863,
+    "end": 1174
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 10,
+   "row_id": "claude:YR-G2.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-G2",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "loose",
+   "quote": "Figure 18c shows that the per-hour max/mean token-load ratio increases as the model scales down, indicating that the imbalance worsens as the serving pool shrinks. This imbalance matters because overload affects latency unevenly: Figure 19a shows that P90 TTFT rises sharply once an instance exceeds a high tokens-per-second threshold, especially for long-input requests. In contrast, Figure 19b shows that P90 decode time mainly follows output length and is largely insensitive to instance throughput. Thus, overload primarily affects prefill, making input-heavy traffic the most vulnerable to load imbalance.",
+   "record_claim_text": "과부하는 prefill(TTFT)을 먼저 망가뜨린다. 그리고 이 플랫폼의 실제 라우팅은 「가장 덜 바쁜 몇 개를 고른 뒤 그중 캐시 적중이 가장 클 곳으로」 보낸다 — 부하 우선, 캐시 차선.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 49696,
+    "char_end": 51224,
+    "text": "Figure 20: Requests from a (user, model) pair over 60minute windows. Under high load, routing spreads\nrequests across instances, duplicating KV state; under\nlow load, it concentrates them on fewer instances, preserving locality.\n7.1.1 General Overview. Figure 18a shows that request rate\nremains bursty but roughly stationary throughout the two\nmonths, while Figure 18b shows that the number of active\ninstances declines. This decline closely follows the reduction\nin total token volume processed per hour, measured as input\nplus output tokens. Thus, replica count tracks serving utilization rather than request volume alone: scaling responds\nto token work, not just request arrivals.\nLoad is not always evenly distributed across active instances. Figure 18c shows that the per-hour max/mean tokenload ratio increases as the model scales down, indicating that\nthe imbalance worsens as the serving pool shrinks. This imbalance matters because overload affects latency unevenly:\nFigure 19a shows that P90 TTFT rises sharply once an instance exceeds a high tokens-per-second threshold, especially for long-input requests. In contrast, Figure 19b shows\nthat P90 decode time mainly follows output length and is\nlargely insensitive to instance throughput. Thus, overload\nprimarily affects prefill, making input-heavy traffic the most\nvulnerable to load imbalance.\nZooming in on a single busy day reveals the short-term\ndynamics more clearly. Figure 18d shows that most active\ninstances remain busy and carry similar per-minute request"
+   },
+   "quote_span": {
+    "start": 748,
+    "end": 1356
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 11,
+   "row_id": "claude:YR-D3.q2",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-D3",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "strict",
+   "quote": "Figure 13c shows that several models with modest request volumes achieve high token hit ratios, suggesting that request volume alone does not determine reuse. Instead, these models may benefit from concentrated traffic: when a small set of users repeatedly accesses the same model with similar contexts, their requests can produce substantial reuse. Figure 13d supports this interpretation. Although most users exhibit little reuse, a smaller group achieves high hit ratios, likely by repeatedly accessing a limited set of models, low interarrival times, and proper context engineering.",
+   "record_claim_text": "모델별·사용자별 캐시 가능성이 크게 다르다. agentic 모델이 가장 캐시 친화적이고, 대부분의 사용자는 재사용이 거의 없다. 재사용은 트래픽이 집중된 소수에서 나온다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 39524,
+    "char_end": 41097,
+    "text": "Cache behavior differs sharply across models. Figure 13b\nshows the request-level distribution for selected models. The\ntwo DeepSeek models have many requests with zero cache\nhits, while MiniMax-M2.5 shows a broader distribution, with\nmany requests achieving intermediate to high hit ratios. Models with comparable traffic volume can therefore expose very\ndifferent cacheability depending on how they are invoked.\nThis may partly reflect MiniMax-M2.5’s heavier use in coding\nor agentic workflows, which often involve short inter-arrival\ntimes and repeated reuse of prefixes across turns, leading to\nhigher cache fractions.\nModel and user cacheability. Figure 13c shows that several\nmodels with modest request volumes achieve high token\nhit ratios, suggesting that request volume alone does not\ndetermine reuse. Instead, these models may benefit from\nconcentrated traffic: when a small set of users repeatedly\naccesses the same model with similar contexts, their requests\ncan produce substantial reuse. Figure 13d supports this interpretation. Although most users exhibit little reuse, a smaller\ngroup achieves high hit ratios, likely by repeatedly accessing\na limited set of models, low interarrival times, and proper\ncontext engineering. Model- and user-level cacheability are\ntherefore intertwined. A model’s aggregate hit ratio depends\nnot only on the model itself, but also on its use case and user\nbase. Models serving repetitive workloads or a concentrated\nset of users may achieve high reuse, whereas broadly used\nmodels with diverse requests may exhibit lower reuse."
+   },
+   "quote_span": {
+    "start": 651,
+    "end": 1237
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 12,
+   "row_id": "codex:YR007.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR007",
+   "extractor_id": "codex",
+   "kind": "measurement",
+   "l1_grade": "exact",
+   "quote": "Weekly and diurnal patterns persist throughout. These long-\nterm shifts coexist with a recurring weekly and diurnal pat-\ntern. Figure 1e shows that traffic is highest during UTC af-\nternoon and evening hours, especially on weekdays, and\nlower during overnight hours and weekends. Taken together,\nFigure 1 shows that LLM serving demand cannot be sum-\nmarized by a fixed request rate or a single growth trend.\nRealistic workload analysis must account for changing token\nload, model availability, API usage, and recurring weekly\nseasonality.\n",
+   "record_claim_text": "UTC 오후·저녁 및 평일 부하가 높아 시간 구조를 보존해야 한다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "claude_body",
+    "char_start": 15068,
+    "char_end": 19886,
+    "text": "=== PAGE 4 ===\nConference’17, July 2017, Washington, DC, USA\n400\n35M\n200B 350\n30M models\nTokens 300\nRequests 25M 150B\n250\n20M\nTotal 100B Unique 200\n15M\n150\n10M 50B\n5M 100\nMay Aug Nov Feb May Aug Nov Feb May Aug\n'25 '25 '25 '26 '25 '25 '25 '26 '25 '25\n--- col2 ---\nNixon et al.\nAvg requests / week (M)\nChat Completion Stream 0.65 0.70 0.75 0.80\n20M Chat Stream Other\nCompletion\n15M Mon\nRequests\nTue\n10M Wed\nThu\n5.0M Fri\nSat\nSun\n0.0M\nNov Feb May Aug Nov Feb 0 4 8 12 16 20\n'25 '26 '25 '25 '25 '26 Hour of Day (UTC)\n--- span ---\n(a) Daily request rate (b) Daily token rate (c) Daily active models (d) Daily API calls (e) Request heatmap\n--- span ---\nFigure 1: Daily request volume, token volume, active models, and API mix evolve differently over the year, showing\n--- span ---\nthat production load is non-stationary and cannot be summarized by request count alone.\ntrace, remains elevated for much of the year, and drops more\nsharply near the end. Similar request volumes can therefore\nrepresent different amounts of serving work.\nActive models and API mix shift over the year. The work-\nload also changes in breadth and usage mix. Figure 1c shows\nthat the number of active models per day grows from fewer\nthan 100 early in the trace to more than 400 at its peak, be-\nfore settling at a lower but still elevated level. Much of this\nfluctuation comes from user-deployed private models, whose\navailability and usage can change quickly. Over the same\nperiod, Figure 1d shows that the API mix shifts: chat-based\ntraffic becomes more prominent, while completion-based traf-\nfic declines, and streaming calls also become less dominant,\nwith non-streaming functions accounting for a larger share\nlater in the trace. Thus, production demand evolves not only\nin volume, but also in which models are active and how the\nplatform is used.\nWeekly and diurnal patterns persist throughout. These long-\nterm shifts coexist with a recurring weekly and diurnal pat-\ntern. Figure 1e shows that traffic is highest during UTC af-\nternoon and evening hours, especially on weekdays, and\nlower during overnight hours and weekends. Taken together,\nFigure 1 shows that LLM serving demand cannot be sum-\nmarized by a fixed request rate or a single growth trend.\nRealistic workload analysis must account for changing token\nload, model availability, API usage, and recurring weekly\nseasonality.\n3.2 Token Shape\nRequests are often prompt-heavy. Requests span a wide\nrange of token lengths. Figure 2a shows that input sizes vary\nfrom roughly 10 2 to 10 5 tokens, with a heavy tail toward very\nlong prompts (not shown). Figure 2b shows that output sizes\nare more concentrated, mostly between 10 1 and 10 3 tokens.\nFigure 2c confirms that most requests generate fewer out-\nput tokens than input tokens. Together, these distributions\nshow that the workload is often prompt-heavy, so prefill\n--- col2 ---\n1.0 1.0 1.0\nGlobal Global\n0.8 DeepSeek V3.2 0.8 DeepSeek V3.2 0.8\nDeepseek R1 Deepseek R1\nMinimax M2.5 Minimax M2.5\n0.6 0.6 0.6\nCDF CDF CDF\n0.4 0.4 0.4\nGlobal\n0.2 0.2 0.2 DeepSeek V3.2\nDeepseek R1\n0.0 0.0 0.0 Minimax M2.5\n10 0 10 1 10 2 10 3 10 4 10 5 10 0 10 1 10 2 10 3 10 4 10 2 10 0 10 2\nInput tokens Output tokens Output / input tokens\n(a) Input token (b) Output token (c) O/I ratio\nFigure 2: Request-level token-length distributions for\nthree representative models against the full population.\nThe models have distinctive characteristics.\nremains an important part of serving cost even when decode\ndominates end-to-end runtime.\nHighlighted models show distinct usage profiles. The model-\nlevel curves reveal that this global picture combines distinct\nusage profiles. MiniMax-M2.5 has longer inputs, shorter out-\nputs, and the lowest output-to-input ratio, consistent with\ncoding / agentic workloads that process large contexts but\nreturn relatively short responses. DeepSeek R1 shows the\nopposite tendency as it has heavier output behavior and\nthe highest output-to-input ratio, consistent with reasoning\nworkloads that generate longer completions. DeepSeek V3.2\nlies closer to the global distribution, matching its more typ-\nical chat and role-play usage. Thus, models with similar\nrequest counts can impose very different serving pressure\ndepending on whether their traffic is dominated by long\nprompts, long generations, or a more balanced mix of both.\n3.3 Latency\nEnd-to-end latency is dominated by decode. We decompose\nrequest latency into time to first token (TTFT), which cap-\ntures the prefill-side delay before generation, and the re-\nmaining completion time. Figure 3a shows that end-to-end\nlatency spans several orders of magnitude, from sub-second\nrequests to requests lasting tens of seconds. Figure 3b shows\nthat TTFT is usually only a fraction of total request duration,\nindicating that end-to-end latency is dominated by decode."
+   },
+   "quote_span": {
+    "start": 1825,
+    "end": 2363
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 13,
+   "row_id": "claude:YR-G6.q2",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-G6",
+   "extractor_id": "claude",
+   "kind": "extrapolation",
+   "l1_grade": "strict",
+   "quote": "Among the remaining policies, round_robin and load_first are generally the most balanced, while cache_first incurs higher imbalance because it prefers replicas that already hold reusable session state. This is the price of locality: some requests are intentionally routed away from the least loaded instance to avoid losing cache reuse. The absolute imbalance is surprisingly small, remaining within 5% to 7%. We find that this is largely because the workload contains many single-turn sessions, which cache_first can freely route to the least-loaded instance to offset localized multi-turn traffic. Workloads with fewer one-off requests may provide less balancing flexibility.",
+   "record_claim_text": "클러스터가 커질수록 캐시 무시 라우팅의 복제가 심해진다. 지역성 우선 라우팅의 불균형 대가는 5–7%로 작다 — 단, 단발 세션이 많아서 그렇다. 단발이 적은 워크로드에서는 이 여유가 없다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 62864,
+    "char_end": 64003,
+    "text": "Locality has a bounded load-balancing cost. Figure 21(d) measures the imbalance introduced by preserving\ncache locality. We omit sticky, since pinning entire users\nto fixed instances produces a far larger imbalance and\nwould obscure the other policies. Among the remaining\npolicies, round_robin and load_first are generally the most\nbalanced, while cache_first incurs higher imbalance because\nit prefers replicas that already hold reusable session state.\nThis is the price of locality: some requests are intentionally\nrouted away from the least loaded instance to avoid losing\ncache reuse. The absolute imbalance is surprisingly small,\nremaining within 5% to 7%. We find that this is largely\nbecause the workload contains many single-turn sessions,\nwhich cache_first can freely route to the least-loaded\ninstance to offset localized multi-turn traffic. Workloads\nwith fewer one-off requests may provide less balancing\nflexibility. Future routing policies should therefore preserve\nsession locality when possible, while using load-aware\nfallback or session migration to control imbalance without\nnaively scattering KV state across replicas."
+   },
+   "quote_span": {
+    "start": 253,
+    "end": 930
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 14,
+   "row_id": "codex:YR023.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR023",
+   "extractor_id": "codex",
+   "kind": "author_interpretation",
+   "l1_grade": "strict",
+   "quote": "6.3\nCache Simulations\nThe analysis above measures the cached-token fraction in\nproduction systems, which are affected by both cache size\nand routing. In this section, we will try to evaluate the impact\nof different eviction algorithms by replaying the trace using\ncache simulations.\n",
+   "record_claim_text": "실제 적중은 용량과 라우팅 영향까지 포함하며 시뮬레이션은 정책 비교를 분리하려는 설계이다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "claude_body",
+    "char_start": 43662,
+    "char_end": 47759,
+    "text": "=== PAGE 10 ===\nConference’17, July 2017, Washington, DC, USA\n1.0\n1.0\nRequest\n0.8\n0.8 ratio\n0.6 0.6\nhit\nCDF\nToken\n0.4\n0.4\n0.2\n1h\n0.2\n1m\n0.0\n10 3 10 2 10 1 10 0 10 1 10 2 10 3 10 4 100K\n--- col2 ---\nNixon et al.\n0.8\nFIFO GDSF\nLRU Sieve\nARC Belady (size-aware)\nLRB\n0.6\nratio\nhit\n0.4\nToken\n0.2\nFIFO GDSF\nLRU Sieve\nARC Belady (size-aware)\nLRB\n1M 1M 10M 100M\n--- span ---\nIAT (s) Cache size (tokens) Cache size (tokens)\n--- span ---\n(a) Per-user–model IAT (a) MiniMax-M2.5 (b) DeepSeek V3.2\n--- span ---\nFigure 17: Token hit ratio for seven eviction algorithms on workloads\nFigure 16: 99% of reuse arrives within\n--- span ---\nfrom two representative models. SOTA algorithms often perform similar\n15 minutes of the previous request.\n--- span ---\nor worse than FIFO and LRU. The size-aware Belady sets an upper bound\nCache locality is concentrated at short\n--- span ---\nfor MiniMax-M2.5 but retains a persistent gap on DeepSeek V3.2.\ntimescales.\nFinding 4: Cache reuse is common but uneven. Request-\nlevel cached fractions are bimodal and vary across mod-\nels and users. Arrival locality is highly skewed but most\nrepeat arrivals occurs at short timescales. 99% requests\nreturn within a 15 minutes period.\n6.3 Cache Simulations\nThe analysis above measures the cached-token fraction in\nproduction systems, which are affected by both cache size\nand routing. In this section, we will try to evaluate the impact\nof different eviction algorithms by replaying the trace using\ncache simulations.\n6.3.1 Session Reconstruction. Since the trace does not in-\nclude prompts or explicit session identifiers, we reconstruct\nmulti-turn sessions for simulation. Prior work [22] shows\nthat cross-user KV-cache hits are rare and that most reuse\noccurs within a user’s own request stream. We therefore\ninfer continuations only within each user. For each request 𝐵\nin arrival order, we keep a per-user sliding window contain-\ning the most recent 𝐾=10 earlier requests. We then select\na unique unpaired candidate 𝐴 that satisfies three condi-\ntions: (1) 𝐴 uses the same API endpoint and model as 𝐵; (2)\nit + ot < it , so the parent request’s prompt and comple-\n𝐴 𝐴 𝐵\ntion fit strictly inside the child request’s input, as required\nby a valid multi-turn continuation; and (3) 𝐴 minimizes the\nresidual gap it − (it + ot ), giving the tightest fit. If such\n𝐵 𝐴 𝐴\na candidate exists, 𝐵 inherits 𝐴’s session ID and is assigned\nthe next turn ID. Otherwise, 𝐵 starts a new session at turn\n0. This reconstruction deliberately ignores both the trace’s\n--- col2 ---\nrecorded cached-token count and the production instance_\nid. The inferred session structure therefore depends only on\nstructural constraints implied by multi-turn conversations,\nnot on the deployed router or cache policy. Consequently,\nthe simulator estimates workload-intrinsic reuse rather than\nreuse induced by production routing locality.\n6.3.2 Cache Simulation. With sessions in hand, we first ask\nan upper-bound question: under a single cache, how much\nreuse is available in the workload, and how close do existing\neviction algorithms come to the offline optimum? We replay\nthe trace by treating each sequence as a management (admis-\nsion and eviction) unit because Figure 13a shows that most\nsequences either get zero or full hits. Using libCacheSim [1],\nwe evaluate ten cache sizes per workload over several state-\nof-the-art algorithms: FIFO, LRU, ARC [14], S3FIFO [27],\nGDSF [5], LHD [3], LRU [19], Sieve [31], and the size-aware\nBelady oracle [4] algorithm. Due to limited space, we only\npresent the ones with a larger difference.\n6.3.3 Results. Figure 17 highlights two results. First, simple\neviction policies are already highly competitive for LLM\nprefix caching. LRU and FIFO often match or exceed the\ntoken hit ratios of more complex state-of-the-art algorithms.\nARC is a notable exception: it performs substantially worse\nthan LRU at intermediate cache sizes, especially on DeepSeek\nV3.2. This pattern is consistent with the strong recency bias\nin the workload as prefixes are frequently reused shortly\nafter creation, but their utility decays quickly."
+   },
+   "quote_span": {
+    "start": 1199,
+    "end": 1481
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 15,
+   "row_id": "codex:YR025.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR025",
+   "extractor_id": "codex",
+   "kind": "extrapolation",
+   "l1_grade": "strict",
+   "quote": "6.3.2\nCache Simulation. With sessions in hand, we first ask\nan upper-bound question: under a single cache, how much\nreuse is available in the workload, and how close do existing\neviction algorithms come to the offline optimum? We replay\nthe trace by treating each sequence as a management (admis-\nsion and eviction) unit because Figure 13a shows that most\nsequences either get zero or full hits. Using libCacheSim [1],\nwe evaluate ten cache sizes per workload over several state-\nof-the-art algorithms: FIFO, LRU, ARC [14], S3FIFO [27],\nGDSF [5], LHD [3], LRU [19], Sieve [31], and the size-aware\nBelady oracle [4] algorithm. Due to limited space, we only\npresent the ones with a larger difference.\n",
+   "record_claim_text": "각 sequence를 admission/eviction 단위로 삼아 libCacheSim으로 용량과 정책을 비교한다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 45841,
+    "char_end": 46878,
+    "text": "recorded cached-token count and the production instance_\nid. The inferred session structure therefore depends only on\nstructural constraints implied by multi-turn conversations,\nnot on the deployed router or cache policy. Consequently,\nthe simulator estimates workload-intrinsic reuse rather than\nreuse induced by production routing locality.\n6.3.2 Cache Simulation. With sessions in hand, we first ask\nan upper-bound question: under a single cache, how much\nreuse is available in the workload, and how close do existing\neviction algorithms come to the offline optimum? We replay\nthe trace by treating each sequence as a management (admission and eviction) unit because Figure 13a shows that most\nsequences either get zero or full hits. Using libCacheSim [1],\nwe evaluate ten cache sizes per workload over several stateof-the-art algorithms: FIFO, LRU, ARC [14], S3FIFO [27],\nGDSF [5], LHD [3], LRU [19], Sieve [31], and the size-aware\nBelady oracle [4] algorithm. Due to limited space, we only\npresent the ones with a larger difference."
+   },
+   "quote_span": {
+    "start": 343,
+    "end": 1037
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 16,
+   "row_id": "claude:YR-G4.q2",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-G4",
+   "extractor_id": "claude",
+   "kind": "extrapolation",
+   "l1_grade": "strict",
+   "quote": "Four routing policies span the locality–balance spectrum. round_robin rotates requests modulo 𝑁 and ignores both load and cache. load_first sends each request to the instance with the smallest current routing load, where load is measured by total tokens. sticky pins each user to the first instance it reaches, approximating naive locality without prefix awareness. cache_first chooses the instance with the largest reusable prefix for the request's session, falling back to the least-loaded instance when no cached state exists.",
+   "record_claim_text": "저자가 택한 대안은 전송 없이 라우팅으로만 지역성을 지키는 것. 정책 넷과 스윕 범위.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 54013,
+    "char_end": 56915,
+    "text": "(user, model) pair arriving within seconds. In such cases,\nKV transfer may impose substantial network overhead for\nlimited latency benefit.\nWe therefore study a complementary approach: preserve\nlocality by routing requests to instances that already hold\nuseful KV state, and relax this preference only when load\nimbalance becomes too large. This avoids explicit KV transfer\non the critical path and keeps reuse in local GPU memory,\nwhere it directly reduces repeated prefill work. The central\nscheduling question is therefore how much load imbalance\nshould be tolerated to preserve cache locality. To quantify\nthis tradeoff, we replay the chained trace from Section 6.3\non a simulated fleet of 𝑁 instances, each with a local LRU\nKV cache. We ask two questions: how much cache hit ratio\ndoes balance-oriented routing sacrifice, and how much load\nimbalance does locality-oriented routing introduce?\n7.2.1 Simulator and Routing Policies. The simulator processes requests in arrival order, but now over a fleet of instances that acts as a distributed cache. Each instance manages its own KV cache and in-flight load independently. Before routing each request, the simulator advances time to the\nrequest arrival timestamp and removes completed requests\nfrom the active-load counters. It then applies the routing\npolicy, performs a session-level cache lookup on the chosen\ninstance, records the reusable prefix tokens, adds the request\nto that instance’s in-flight queue until completion, and updates its local KV cache with the new session footprint. This\nproduces a time-aware replay in which routing decisions,\ncache state, and per-instance are recorded.\nFour routing policies span the locality–balance spectrum.\nround_robin rotates requests modulo 𝑁 and ignores both\nload and cache. load_first sends each request to the instance\nwith the smallest current routing load, where load is measured by total tokens. sticky pins each user to the first instance it reaches, approximating naive locality without prefix\nawareness. cache_first chooses the instance with the largest\nreusable prefix for the request’s session, falling back to the\nleast-loaded instance when no cached state exists.\nWe reuse the reconstructed multi-turn sessions from Section 6.3. Based on the single-cache simulation in Figure 17,\nwe use LRU for the routing study. Since the eviction policies\nperform similarly, LRU provides a simple and representative cache baseline. We also select the same two models\nused previously, with DeepSeek V3.2 having a larger working set that sustains cache pressure across the values that\nare swept. MiniMax-M2.5 is much more cacheable, and its\nsessions fit more comfortably in replica-local KV caches.\nTogether these two models therefore expose both a cacheconstrained workload and a more cache-friendly workload.\nWe sweep per-instance cache size in [1.1K, 5M] tokens and\nfleet size 𝑁 ∈ {5, 10, 15, 20}."
+   },
+   "quote_span": {
+    "start": 1652,
+    "end": 2181
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 17,
+   "row_id": "claude:YR-H4.q2",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-H4",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "gapped",
+   "quote": "Figure 7b shows a more correlated pattern. Activity is sparse early in the window, then expands sharply around the middle of the month as many users become active within the same period. The dense vertical clusters indicate that requests from different users arrive at similar times, rather than being spread independently across the window. One possible explanation is that related accounts or coordinated applications invoke the model in similar ways; for example, multiple accounts may be used to distribute traffic under platform limits.",
+   "record_claim_text": "30일 래스터 사례 — 주기적 일과·예약 작업으로 보이는 패턴과, 여러 계정이 조율돼 같은 시각에 몰리는 패턴이 관측된다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 27115,
+    "char_end": 30084,
+    "text": "Aggregate request volume does not show how user–model\ninteractions unfold over time. Users with similar request\ncounts may access models in different ways, and popular\nmodels may receive traffic from different user patterns. We\nillustrate this with 30-day user-centric rasters show which\nmodels a user accesses over time and model-centric rasters\nshow which users access a model over time.\nHeavy users differ in how broadly they access models. Figure 8 shows two high-volume users with different access\nbehavior. In Figure 8a, the user repeatedly accesses a small\nand stable set of models across the 30-day window. Some\nmodels are used throughout most of the month, while others\nare accessed more periodically. Figure 8b shows a different\npattern: the user spends most of the month on a few models, but briefly accesses many additional models during a\nshort period. These examples show that a single user may\nuse multiple models concurrently, either steadily or in short\nbursts. Such behavior is plausible on this platform, where\nusers can build model routers that send requests to different models based on their own criteria. The more periodic\npatterns reflect recurring daily activity or scheduled jobs.\nPopular models can exhibit very different user-level access\npatterns. Figure 7 compares thirty-day user-access rasters\nfor two popular models. Figure 7a also shows a largely periodic pattern. Many users remain active across long portions\nof the window, forming horizontal bands that persist over\ndays or weeks suggesting activity of power users. Several\nusers issue requests repeatedly at regular intervals, while\nnew users appear gradually throughout the month. Figure 7b\nshows a more correlated pattern. Activity is sparse early in\nthe window, then expands sharply around the middle of the\nmonth as many users become active within the same period.\nThe dense vertical clusters indicate that requests from different users arrive at similar times, rather than being spread\nindependently across the window. One possible explanation\nis that related accounts or coordinated applications invoke\n\n\fA Year in LLM Serving: Workload Evolution, Caching and Load-Balancing\n\n10\n\n100 1k 10k 100k\nMean requests / active hour\n\n10\n\n100\n\n1k\n\n10k 100k\n\nMean requests / active hour\n\n10\n\nthe model in similar ways; for example, multiple accounts\nmay be used to distribute traffic under platform limits.\nOpportunity for pattern-aware serving. User- and modellevel behavior provides actionable signals for serving decisions. Mining block, job, and application level patterns has\nimproved caching and scheduling policies, despite the difficulty of learning from such fine-grained signals [6, 9, 26].\nBlock accesses span a vast space, while individual jobs reveal little about recurring behavior. User- and model-level\nhistories provide a coarser and more stable view that may be\neasier to learn and exploit for caching, prefetching, routing,\nmodel placement, and capacity provisioning."
+   },
+   "quote_span": {
+    "start": 1670,
+    "end": 2388
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 18,
+   "row_id": "claude:YR-F2.q2",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-F2",
+   "extractor_id": "claude",
+   "kind": "extrapolation",
+   "l1_grade": "strict",
+   "quote": "First, simple eviction policies are already highly competitive for LLM prefix caching. LRU and FIFO often match or exceed the token hit ratios of more complex state-of-the-art algorithms. ARC is a notable exception: it performs substantially worse than LRU at intermediate cache sizes, especially on DeepSeek V3.2. This pattern is consistent with the strong recency bias in the workload as prefixes are frequently reused shortly after creation, but their utility decays quickly.",
+   "record_claim_text": "FIFO·LRU가 최신 정책과 대등하거나 낫다. 이유는 강한 최근성 편향. 그리고 캐시 효과는 워크로드 의존적 — agentic 모델은 중간 용량에서 이미 oracle에 근접, 챗 모델은 큰 용량에서도 격차가 남는다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 46880,
+    "char_end": 47407,
+    "text": "6.3.3 Results. Figure 17 highlights two results. First, simple\neviction policies are already highly competitive for LLM\nprefix caching. LRU and FIFO often match or exceed the\ntoken hit ratios of more complex state-of-the-art algorithms.\nARC is a notable exception: it performs substantially worse\nthan LRU at intermediate cache sizes, especially on DeepSeek\nV3.2. This pattern is consistent with the strong recency bias\nin the workload as prefixes are frequently reused shortly\nafter creation, but their utility decays quickly."
+   },
+   "quote_span": {
+    "start": 49,
+    "end": 527
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  },
+  {
+   "item": 19,
+   "row_id": "claude:YR-D3.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-D3",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "strict",
+   "quote": "Figure 13b shows the request-level distribution for selected models. The two DeepSeek models have many requests with zero cache hits, while MiniMax-M2.5 shows a broader distribution, with many requests achieving intermediate to high hit ratios. Models with comparable traffic volume can therefore expose very different cacheability depending on how they are invoked. This may partly reflect MiniMax-M2.5's heavier use in coding or agentic workflows, which often involve short inter-arrival times and repeated reuse of prefixes across turns, leading to higher cache fractions.",
+   "record_claim_text": "모델별·사용자별 캐시 가능성이 크게 다르다. agentic 모델이 가장 캐시 친화적이고, 대부분의 사용자는 재사용이 거의 없다. 재사용은 트래픽이 집중된 소수에서 나온다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "codex_raw",
+    "char_start": 39524,
+    "char_end": 41097,
+    "text": "Cache behavior differs sharply across models. Figure 13b\nshows the request-level distribution for selected models. The\ntwo DeepSeek models have many requests with zero cache\nhits, while MiniMax-M2.5 shows a broader distribution, with\nmany requests achieving intermediate to high hit ratios. Models with comparable traffic volume can therefore expose very\ndifferent cacheability depending on how they are invoked.\nThis may partly reflect MiniMax-M2.5’s heavier use in coding\nor agentic workflows, which often involve short inter-arrival\ntimes and repeated reuse of prefixes across turns, leading to\nhigher cache fractions.\nModel and user cacheability. Figure 13c shows that several\nmodels with modest request volumes achieve high token\nhit ratios, suggesting that request volume alone does not\ndetermine reuse. Instead, these models may benefit from\nconcentrated traffic: when a small set of users repeatedly\naccesses the same model with similar contexts, their requests\ncan produce substantial reuse. Figure 13d supports this interpretation. Although most users exhibit little reuse, a smaller\ngroup achieves high hit ratios, likely by repeatedly accessing\na limited set of models, low interarrival times, and proper\ncontext engineering. Model- and user-level cacheability are\ntherefore intertwined. A model’s aggregate hit ratio depends\nnot only on the model itself, but also on its use case and user\nbase. Models serving repetitive workloads or a concentrated\nset of users may achieve high reuse, whereas broadly used\nmodels with diverse requests may exhibit lower reuse."
+   },
+   "quote_span": {
+    "start": 46,
+    "end": 621
+   },
+   "presentation": [
+    "query",
+    "evidence"
+   ]
+  },
+  {
+   "item": 20,
+   "row_id": "claude:YR-B1.q1",
+   "paper_id": "workload__year-in-llm-serving",
+   "record_id": "YR-B1",
+   "extractor_id": "claude",
+   "kind": "measurement",
+   "l1_grade": "gapped",
+   "quote": "Requests span a wide range of token lengths. Figure 2a shows that input sizes vary from roughly 10 2 to 10 5 tokens, with a heavy tail toward very long prompts (not shown). Figure 2b shows that output sizes are more concentrated, mostly between 10 1 and 10 3 tokens. Figure 2c confirms that most requests generate fewer output tokens than input tokens. Together, these distributions show that the workload is often prompt-heavy, so prefill remains an important part of serving cost even when decode dominates end-to-end runtime.",
+   "record_claim_text": "입력 10²–10⁵ 토큰, 출력 10¹–10³ 토큰. 프롬프트가 무겁다.",
+   "query": {
+    "query_id": "gold-kv-reuse-v2",
+    "topic": "KV-cache reuse in production LLM serving workloads",
+    "claim_text": "Production LLM serving traffic reuses prompt prefixes across requests."
+   },
+   "context": {
+    "width": "para",
+    "variant": "claude_body",
+    "char_start": 15068,
+    "char_end": 19886,
+    "text": "=== PAGE 4 ===\nConference’17, July 2017, Washington, DC, USA\n400\n35M\n200B 350\n30M models\nTokens 300\nRequests 25M 150B\n250\n20M\nTotal 100B Unique 200\n15M\n150\n10M 50B\n5M 100\nMay Aug Nov Feb May Aug Nov Feb May Aug\n'25 '25 '25 '26 '25 '25 '25 '26 '25 '25\n--- col2 ---\nNixon et al.\nAvg requests / week (M)\nChat Completion Stream 0.65 0.70 0.75 0.80\n20M Chat Stream Other\nCompletion\n15M Mon\nRequests\nTue\n10M Wed\nThu\n5.0M Fri\nSat\nSun\n0.0M\nNov Feb May Aug Nov Feb 0 4 8 12 16 20\n'25 '26 '25 '25 '25 '26 Hour of Day (UTC)\n--- span ---\n(a) Daily request rate (b) Daily token rate (c) Daily active models (d) Daily API calls (e) Request heatmap\n--- span ---\nFigure 1: Daily request volume, token volume, active models, and API mix evolve differently over the year, showing\n--- span ---\nthat production load is non-stationary and cannot be summarized by request count alone.\ntrace, remains elevated for much of the year, and drops more\nsharply near the end. Similar request volumes can therefore\nrepresent different amounts of serving work.\nActive models and API mix shift over the year. The work-\nload also changes in breadth and usage mix. Figure 1c shows\nthat the number of active models per day grows from fewer\nthan 100 early in the trace to more than 400 at its peak, be-\nfore settling at a lower but still elevated level. Much of this\nfluctuation comes from user-deployed private models, whose\navailability and usage can change quickly. Over the same\nperiod, Figure 1d shows that the API mix shifts: chat-based\ntraffic becomes more prominent, while completion-based traf-\nfic declines, and streaming calls also become less dominant,\nwith non-streaming functions accounting for a larger share\nlater in the trace. Thus, production demand evolves not only\nin volume, but also in which models are active and how the\nplatform is used.\nWeekly and diurnal patterns persist throughout. These long-\nterm shifts coexist with a recurring weekly and diurnal pat-\ntern. Figure 1e shows that traffic is highest during UTC af-\nternoon and evening hours, especially on weekdays, and\nlower during overnight hours and weekends. Taken together,\nFigure 1 shows that LLM serving demand cannot be sum-\nmarized by a fixed request rate or a single growth trend.\nRealistic workload analysis must account for changing token\nload, model availability, API usage, and recurring weekly\nseasonality.\n3.2 Token Shape\nRequests are often prompt-heavy. Requests span a wide\nrange of token lengths. Figure 2a shows that input sizes vary\nfrom roughly 10 2 to 10 5 tokens, with a heavy tail toward very\nlong prompts (not shown). Figure 2b shows that output sizes\nare more concentrated, mostly between 10 1 and 10 3 tokens.\nFigure 2c confirms that most requests generate fewer out-\nput tokens than input tokens. Together, these distributions\nshow that the workload is often prompt-heavy, so prefill\n--- col2 ---\n1.0 1.0 1.0\nGlobal Global\n0.8 DeepSeek V3.2 0.8 DeepSeek V3.2 0.8\nDeepseek R1 Deepseek R1\nMinimax M2.5 Minimax M2.5\n0.6 0.6 0.6\nCDF CDF CDF\n0.4 0.4 0.4\nGlobal\n0.2 0.2 0.2 DeepSeek V3.2\nDeepseek R1\n0.0 0.0 0.0 Minimax M2.5\n10 0 10 1 10 2 10 3 10 4 10 5 10 0 10 1 10 2 10 3 10 4 10 2 10 0 10 2\nInput tokens Output tokens Output / input tokens\n(a) Input token (b) Output token (c) O/I ratio\nFigure 2: Request-level token-length distributions for\nthree representative models against the full population.\nThe models have distinctive characteristics.\nremains an important part of serving cost even when decode\ndominates end-to-end runtime.\nHighlighted models show distinct usage profiles. The model-\nlevel curves reveal that this global picture combines distinct\nusage profiles. MiniMax-M2.5 has longer inputs, shorter out-\nputs, and the lowest output-to-input ratio, consistent with\ncoding / agentic workloads that process large contexts but\nreturn relatively short responses. DeepSeek R1 shows the\nopposite tendency as it has heavier output behavior and\nthe highest output-to-input ratio, consistent with reasoning\nworkloads that generate longer completions. DeepSeek V3.2\nlies closer to the global distribution, matching its more typ-\nical chat and role-play usage. Thus, models with similar\nrequest counts can impose very different serving pressure\ndepending on whether their traffic is dominated by long\nprompts, long generations, or a more balanced mix of both.\n3.3 Latency\nEnd-to-end latency is dominated by decode. We decompose\nrequest latency into time to first token (TTFT), which cap-\ntures the prefill-side delay before generation, and the re-\nmaining completion time. Figure 3a shows that end-to-end\nlatency spans several orders of magnitude, from sub-second\nrequests to requests lasting tens of seconds. Figure 3b shows\nthat TTFT is usually only a fraction of total request duration,\nindicating that end-to-end latency is dominated by decode."
+   },
+   "quote_span": {
+    "start": 2413,
+    "end": 3500
+   },
+   "presentation": [
+    "evidence",
+    "query"
+   ]
+  }
+ ]
+}

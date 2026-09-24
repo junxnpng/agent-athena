@@ -1,0 +1,1274 @@
+{
+ "extractor_id": "claude",
+ "paper_id": "workload__year-in-llm-serving",
+ "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+ "title": "workload__year-in-llm-serving — 원문 발췌",
+ "source_file": "/work/jun/priv-mb-eval/kvcpool-trace-gen/docs/patterns/260911_claude_quotes_final/claude_pattern_data.json",
+ "source_sha256": "ff1521bdd520de64dcdcc2a6b28163566331d2dc51f4426dde6293a465f594ec",
+ "source_records": 30,
+ "rows": [
+  {
+   "row_id": "claude:YR-A1.q1",
+   "record_id": "YR-A1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We analyze a one-year production trace from CompanyX, a serverless LLM inference platform that serves both platform-hosted and user-deployed models.",
+   "locator": {
+    "section": "§3",
+    "page": 3,
+    "para_id": "codex_raw#0059",
+    "location_raw": "§3 · p.3 좌단 · 표 2"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0059"
+   ],
+   "claim_text": "1년, 61.2억 요청, 사용자 31.5만, 모델 9,174, 서빙 인스턴스 87.6만. 서버리스 추론 플랫폼이다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "위 표. 입력:출력 토큰 비 = 35,795,761 / 2,522,394 ≈ 14.2:1 (환산은 우리 쪽 계산)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-A4.q1",
+   "record_id": "YR-A4",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "To provide representative examples, we highlight three high-traffic models with distinct workload profiles: DeepSeek-V3.2 [8], which is primarily used for chat and role-playing; DeepSeek-R1 [7], which generates long reasoning outputs; and MiniMax-M2.5 [15], which is heavily used for coding and agentic workloads.",
+   "locator": {
+    "section": "§3",
+    "page": 3,
+    "para_id": "codex_raw#0056",
+    "location_raw": "§3 · p.3 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0056"
+   ],
+   "claim_text": "세 대표 모델 = 챗/롤플레이(V3.2) · reasoning(R1) · coding/agentic(M2.5).",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "미보고(정의)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 — 분석 대상 선정",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-B1.q1",
+   "record_id": "YR-B1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Requests span a wide range of token lengths. Figure 2a shows that input sizes vary from roughly 10 2 to 10 5 tokens, with a heavy tail toward very long prompts (not shown). Figure 2b shows that output sizes are more concentrated, mostly between 10 1 and 10 3 tokens. Figure 2c confirms that most requests generate fewer output tokens than input tokens. Together, these distributions show that the workload is often prompt-heavy, so prefill remains an important part of serving cost even when decode dominates end-to-end runtime.",
+   "locator": {
+    "section": "§3.2",
+    "page": 4,
+    "para_id": "codex_raw#0146",
+    "location_raw": "§3.2 · p.4 우단 · 그림 2"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0146",
+    "codex_raw#0152"
+   ],
+   "claim_text": "입력 10²–10⁵ 토큰, 출력 10¹–10³ 토큰. 프롬프트가 무겁다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "입력 ~10²–10⁵ · 출력 ~10¹–10³ (본문 서술이며 분위수 값은 인쇄돼 있지 않다)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-B2.q1",
+   "record_id": "YR-B2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "MiniMax-M2.5 has longer inputs, shorter outputs, and the lowest output-to-input ratio, consistent with coding / agentic workloads that process large contexts but return relatively short responses. DeepSeek R1 shows the opposite tendency as it has heavier output behavior and the highest output-to-input ratio, consistent with reasoning workloads that generate longer completions. DeepSeek V3.2 lies closer to the global distribution, matching its more typical chat and role-play usage. Thus, models with similar request counts can impose very different serving pressure depending on whether their traffic is dominated by long prompts, long generations, or a more balanced mix of both.",
+   "locator": {
+    "section": "§3.2",
+    "page": 4,
+    "para_id": "codex_raw#0148",
+    "location_raw": "§3.2 · p.4 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0148"
+   ],
+   "claim_text": "agentic = 긴 입력·짧은 출력, reasoning = 짧은 입력·긴 출력, 챗 = 중간. 같은 요청 수라도 부하가 전혀 다르다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "미보고 — 세 모델의 O/I 비 수치가 인쇄돼 있지 않다. 순서만 서술"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측(순서) + 저자의 해석(원인)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-B3.q1",
+   "record_id": "YR-B3",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Inputs stay stable while outputs shrink. Figure 11 shows the monthly distribution of request token lengths. Input lengths remain broadly stable over the year, with the monthly median staying in the thousands of tokens. Output lengths show a clearer downward trend, with the median falling from a few hundred tokens early in the trace to below one hundred tokens near the end. The wider bands toward the end of the trace also indicate greater variation in output lengths across requests.",
+   "locator": {
+    "section": "§5.2",
+    "page": 8,
+    "para_id": "codex_raw#0411",
+    "location_raw": "§5.2 · p.8 좌단 · 그림 11"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0411"
+   ],
+   "claim_text": "1년 동안 입력 길이는 안정, 출력 길이는 감소(수백 → 100 미만).",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "월별 입력 중앙값 = 수천 토큰(안정) · 출력 중앙값 = 수백 → 100 미만 · 밴드 P10–P90, P25–P75 (그림 11)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-B4.q1",
+   "record_id": "YR-B4",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Cohort decomposition shows that newer user cohorts tend to be more input-heavy than earlier ones. Figure 12 shows that later cohorts have larger median input lengths, indicating that newer users typically submit longer prompts. Change in the median output side is less pronounced. However, the percentile bands also widen in both panels for later cohorts, showing greater variation across users in their typical input and output lengths.",
+   "locator": {
+    "section": "§5.2",
+    "page": 8,
+    "para_id": "codex_raw#0411",
+    "location_raw": "§5.2 · p.8 좌단 · 그림 12"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0411"
+   ],
+   "claim_text": "가입 시기별 코호트로 나누면 나중 코호트일수록 입력이 길다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "미보고 — 그림 12의 y축은 Median input 0–60000, Median output 0–3000 (도표 판독). 코호트별 수치 라벨 없음"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-B5.q1",
+   "record_id": "YR-B5",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We characterize burstiness using the coefficient of variation (CV) of inter-arrival time (IAT): a CV greater than 1 indicates that request traffic is uneven.",
+   "locator": {
+    "section": "§4.3",
+    "page": 7,
+    "para_id": "codex_raw#0353",
+    "location_raw": "§4.3 · p.7 좌단 · 그림 9"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0353"
+   ],
+   "claim_text": "모델 대부분이 CV > 1(버스티)이고, lag-1 자기상관이 양수여서 바쁜 구간과 한가한 구간이 지속된다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "CV > 1이 대다수 · 그림 9 축(도표 판독): x축 `Mean requests / active hour` 10–100k 로그, y축 CV(IAT) 0.1–10² 로그 / Spearman lag-1 IAT autocorr −1.00–1.00 · CV의 분위수나 자기상관 계수의 대표값은 인쇄돼 있지 않다"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-B5.q2",
+   "record_id": "YR-B5",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 9a plots each model by its mean request rate during active hours and the minutely CV of its inter-arrival times. Most models lie above CV = 1, showing that their arrivals are bursty rather than evenly spaced. This pattern appears across both low- and high-rate models, so models with more traffic are not necessarily steadier. Figure 9b shows that among these bursty models, many do show positive autocorrelation. This indicates that high-load periods tend to follow high-load periods, and low-load periods tend to persist.",
+   "locator": {
+    "section": "§4.3",
+    "page": 7,
+    "para_id": "codex_raw#0344",
+    "location_raw": "§4.3 · p.7 좌단 · 그림 9"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0344"
+   ],
+   "claim_text": "모델 대부분이 CV > 1(버스티)이고, lag-1 자기상관이 양수여서 바쁜 구간과 한가한 구간이 지속된다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "CV > 1이 대다수 · 그림 9 축(도표 판독): x축 `Mean requests / active hour` 10–100k 로그, y축 CV(IAT) 0.1–10² 로그 / Spearman lag-1 IAT autocorr −1.00–1.00 · CV의 분위수나 자기상관 계수의 대표값은 인쇄돼 있지 않다"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-B6.q1",
+   "record_id": "YR-B6",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "These long-term shifts coexist with a recurring weekly and diurnal pattern. Figure 1e shows that traffic is highest during UTC afternoon and evening hours, especially on weekdays, and lower during overnight hours and weekends.",
+   "locator": {
+    "section": "§3.1",
+    "page": 4,
+    "para_id": "codex_raw#0147",
+    "location_raw": "§3.1 · p.4 좌단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0147"
+   ],
+   "claim_text": "주간·일중 주기가 1년 내내 유지된다. 일별 활성 모델 수는 100 미만 → 400 초과로 성장.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "활성 모델 <100 → >400 · 그림 1e 히트맵 축: 요일 × Hour of Day (UTC) 0–20, 값 `Avg requests / week (M)` 0.65–0.80 (도표 판독)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-B6.q2",
+   "record_id": "YR-B6",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 1c shows that the number of active models per day grows from fewer than 100 early in the trace to more than 400 at its peak, before settling at a lower but still elevated level.",
+   "locator": {
+    "section": "§3.1",
+    "page": 4,
+    "para_id": "codex_raw#0115",
+    "location_raw": "§3.1 · p.4 좌단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0115"
+   ],
+   "claim_text": "주간·일중 주기가 1년 내내 유지된다. 일별 활성 모델 수는 100 미만 → 400 초과로 성장.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "활성 모델 <100 → >400 · 그림 1e 히트맵 축: 요일 × Hour of Day (UTC) 0–20, 값 `Avg requests / week (M)` 0.65–0.80 (도표 판독)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-C1.q1",
+   "record_id": "YR-C1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 3b shows that TTFT is usually only a fraction of total request duration, indicating that end-to-end latency is dominated by decode.",
+   "locator": {
+    "section": "§3.3",
+    "page": 4,
+    "para_id": "codex_raw#0154",
+    "location_raw": "§3.3 · p.4 우단~p.5"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0154"
+   ],
+   "claim_text": "종단 지연은 decode가 지배하고, TTFT는 입력 길이가 지배한다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 4 축(도표 판독): (a) Output tokens 0–8000 대 duration 0–150초, (b) Input tokens (K) 0–30 대 TTFT 0–3초. 본문에 수치 없음"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-C1.q2",
+   "record_id": "YR-C1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 4a shows that median end-to-end duration increases proportionally to output length, getting barely affected by input token length since completion time is decode dominated, and figure 4b shows TTFT grows primarily with input length.",
+   "locator": {
+    "section": "§3.3",
+    "page": 4,
+    "para_id": "codex_raw#0208",
+    "location_raw": "§3.3 · p.4 우단~p.5"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0208"
+   ],
+   "claim_text": "종단 지연은 decode가 지배하고, TTFT는 입력 길이가 지배한다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 4 축(도표 판독): (a) Output tokens 0–8000 대 duration 0–150초, (b) Input tokens (K) 0–30 대 TTFT 0–3초. 본문에 수치 없음"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-C2.q1",
+   "record_id": "YR-C2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 4c connects this prefill cost to prefix reuse. For requests with similar input length, higher token hit ratios correspond to lower TTFT, and the reduction is most visible for long-input requests, where recomputing prefill would have been expensive. For short-input requests, even near-full cache hits remove little prefill work, so the TTFT benefit is small and contributes little to end-to-end latency. While caching may still save computation in these cases, but its latency impact is limited.",
+   "locator": {
+    "section": "§3.3",
+    "page": 5,
+    "para_id": "codex_raw#0157",
+    "location_raw": "§3.3 · p.5 좌단 · 그림 4c"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0157",
+    "codex_raw#0208"
+   ],
+   "claim_text": "캐시 적중의 TTFT 이득은 긴 입력에서만 크다. 짧은 입력에서는 거의 완전 적중이어도 이득이 작다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "미보고 — 그림 4c에 수치 라벨 없음. 방향만 서술"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-D1.q1",
+   "record_id": "YR-D1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We characterise production cache behavior using the logged cached-token field, which records the number of input tokens served from the prefix cache for each request. Thus, our analysis captures cache reuse actually realized by the deployed production system rather than theoretical. We analyze the final two months of the trace, during which cached-token logging was available.",
+   "locator": {
+    "section": "§6.1",
+    "page": 8,
+    "para_id": "codex_raw#0445",
+    "location_raw": "§6.1 · p.8 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0445"
+   ],
+   "claim_text": "캐시 분석은 배포 시스템이 실제로 달성한 값이고, 마지막 2개월에만 해당한다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "대상 기간 마지막 2개월"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 — 측정 정의",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-D2.q1",
+   "record_id": "YR-D2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 13a shows a strongly bimodal pattern: most requests see either little to no prefix reuse or reuse nearly their entire input prefix, with relatively few requests falling in between. This pattern is consistent with many requests either reusing most of a prior prefix or receiving little reuse, as expected in multi-turn sessions. It shows that a request either inherits the previous turn's context (and therefore most of its prefix) or starts fresh, a partial hit being rare. The curves also shift with input size: short-input requests skew toward high reuse, typical of multi-turn dialogue where each turn appends an increment to a growing context, while long-input requests shift toward low reuse, since fewer of them inherit a previous turn that fully covers the new prefix.",
+   "locator": {
+    "section": "§6.1",
+    "page": 8,
+    "para_id": "codex_raw#0445",
+    "location_raw": "§6.1 · p.8 우단~p.9 · 그림 13a"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0445"
+   ],
+   "claim_text": "요청별 token hit ratio가 이봉(bimodal) — 거의 0이거나 거의 1. 부분 적중은 드물다. 그리고 짧은 입력은 고적중, 긴 입력은 저적중 쪽으로 기운다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 13a 곡선 셋 — Global / `<1K input` / `>8K input` (그림 안 범례). x축 Token hit ratio 0–1.0, y축 CDF. 분위수 값은 인쇄돼 있지 않다"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-D3.q1",
+   "record_id": "YR-D3",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 13b shows the request-level distribution for selected models. The two DeepSeek models have many requests with zero cache hits, while MiniMax-M2.5 shows a broader distribution, with many requests achieving intermediate to high hit ratios. Models with comparable traffic volume can therefore expose very different cacheability depending on how they are invoked. This may partly reflect MiniMax-M2.5's heavier use in coding or agentic workflows, which often involve short inter-arrival times and repeated reuse of prefixes across turns, leading to higher cache fractions.",
+   "locator": {
+    "section": "§6.1",
+    "page": 9,
+    "para_id": "codex_raw#0495",
+    "location_raw": "§6.1 · p.9 좌단 · 그림 13b·13c·13d"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0495"
+   ],
+   "claim_text": "모델별·사용자별 캐시 가능성이 크게 다르다. agentic 모델이 가장 캐시 친화적이고, 대부분의 사용자는 재사용이 거의 없다. 재사용은 트래픽이 집중된 소수에서 나온다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "미보고 — 그림 13c·13d는 요청 수 대 평균 token hit ratio 산점도. x축 `# Requests` 10²–10⁸(모델) / 10¹–10⁸(사용자), y축 Avg. Token Hit Ratio 0–1.0 (도표 판독). 수치 라벨 없음"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 + 저자의 해석",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-D3.q2",
+   "record_id": "YR-D3",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 13c shows that several models with modest request volumes achieve high token hit ratios, suggesting that request volume alone does not determine reuse. Instead, these models may benefit from concentrated traffic: when a small set of users repeatedly accesses the same model with similar contexts, their requests can produce substantial reuse. Figure 13d supports this interpretation. Although most users exhibit little reuse, a smaller group achieves high hit ratios, likely by repeatedly accessing a limited set of models, low interarrival times, and proper context engineering.",
+   "locator": {
+    "section": "§6.1",
+    "page": 9,
+    "para_id": "codex_raw#0495",
+    "location_raw": "§6.1 · p.9 좌단 · 그림 13b·13c·13d"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0495"
+   ],
+   "claim_text": "모델별·사용자별 캐시 가능성이 크게 다르다. agentic 모델이 가장 캐시 친화적이고, 대부분의 사용자는 재사용이 거의 없다. 재사용은 트래픽이 집중된 소수에서 나온다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "미보고 — 그림 13c·13d는 요청 수 대 평균 token hit ratio 산점도. x축 `# Requests` 10²–10⁸(모델) / 10¹–10⁸(사용자), y축 Avg. Token Hit Ratio 0–1.0 (도표 판독). 수치 라벨 없음"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 + 저자의 해석",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-E1.q1",
+   "record_id": "YR-E1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 14a shows that per-user inter-arrival time remains on the order of minutes for most of the trace, but declines toward early 2026 with a widened spread. This indicates that users return more quickly over time, which might be partially explained with the growing adoption of more agents. The model-level view in Figure 14b shows that this recurrence pattern also varies substantially by model. MiniMax-M2.5 has the lowest per-user IAT, consistent with its use in coding or agentic workflows where requests are issued in rapid succession. DeepSeek R1 has the longest IAT, which may reflect more human-paced reasoning interactions, where users wait for and read longer outputs before sending the next request.",
+   "locator": {
+    "section": "§6.2",
+    "page": 9,
+    "para_id": "codex_raw#0498",
+    "location_raw": "§6.2 · p.9 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0498",
+    "codex_raw#0512"
+   ],
+   "claim_text": "사용자 IAT가 1년에 걸쳐 짧아진다. 저자는 에이전트 채택 증가를 원인으로 추정한다. 모델별로도 갈린다 — agentic이 가장 짧고 reasoning이 가장 길다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "사용자 IAT는 대부분 기간 분 단위 · 그림 14a 축: y축 Inter-arrival time (s) 10⁰–10³ 로그, 밴드 P10–P90 / P25–P75 / Median (도표 판독)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 + 저자의 가설(원인)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-E2.q1",
+   "record_id": "YR-E2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 16 shows the inter-arrival time between consecutive requests from the same (user, model) pair. Many requests return quickly with roughly half arrive within 0.1 second, around 80% within 10 seconds, and nearly all within several minutes. This strong temporal locality increases the likelihood that the previous turn's prefix remains in cache when the next request arrives. Thus, even a TTL of a few seconds can preserve reuse for a large share of repeat requests, while a TTL on the order of minutes captures nearly all request-weighted temporal locality.",
+   "locator": {
+    "section": "§6.2",
+    "page": 9,
+    "para_id": "codex_raw#0512",
+    "location_raw": "§6.2 · p.9 우단 · 그림 16"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0512"
+   ],
+   "claim_text": "(사용자, 모델) 쌍의 연속 요청 간격 — 약 절반이 0.1초 이내, 80%가 10초 이내, 99%가 15분 이내.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "P50 ≈ 0.1초 · P80 ≈ 10초 · P99 ≈ 15분 · 그림 16 x축 IAT (s) 10⁻³–10⁴ 로그, 1m·1h 세로 표시선 (p.10 쪽 이미지 판독)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-F1.q1",
+   "record_id": "YR-F1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Since the trace does not include prompts or explicit session identifiers, we reconstruct multi-turn sessions for simulation. Prior work [22] shows that cross-user KV-cache hits are rare and that most reuse occurs within a user's own request stream. We therefore infer continuations only within each user. For each request 𝐵 in arrival order, we keep a per-user sliding window containing the most recent 𝐾=10 earlier requests. We then select a unique unpaired candidate 𝐴 that satisfies three conditions: (1) 𝐴 uses the same API endpoint and model as 𝐵; (2) it + ot < it , so the parent request's prompt and completion fit strictly inside the child request's input, as required by a valid multi-turn continuation; and (3) 𝐴 minimizes the residual gap it − (it + ot ), giving the tightest fit.",
+   "locator": {
+    "section": "§6.3.1",
+    "page": 10,
+    "para_id": "codex_raw#0548",
+    "location_raw": "§6.3.1 · p.10 좌단·우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0548"
+   ],
+   "claim_text": "세션 ID가 없어서 토큰 수 관계로 세션을 재구성했다. 규칙: 같은 사용자·같은 모델·같은 엔드포인트, 부모의 입력+출력이 자식의 입력에 엄격히 들어가고, 잔차가 최소인 후보. 시뮬레이션은 배포 라우팅과 무관한 워크로드 고유 재사용을 추정한다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "슬라이딩 창 K = 10 · 조건 셋(엔드포인트·모델 일치, `it_A + ot_A < it_B`, 잔차 최소)"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션 — 방법·가정 서술 (가정의 근거는 2차 인용 [22] = kvcache-wild)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-F1.q2",
+   "record_id": "YR-F1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "This reconstruction deliberately ignores both the trace's recorded cached-token count and the production instance_id. The inferred session structure therefore depends only on structural constraints implied by multi-turn conversations, not on the deployed router or cache policy. Consequently, the simulator estimates workload-intrinsic reuse rather than reuse induced by production routing locality.",
+   "locator": {
+    "section": "§6.3.1",
+    "page": 10,
+    "para_id": "codex_raw#0548",
+    "location_raw": "§6.3.1 · p.10 좌단·우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0548",
+    "codex_raw#0549"
+   ],
+   "claim_text": "세션 ID가 없어서 토큰 수 관계로 세션을 재구성했다. 규칙: 같은 사용자·같은 모델·같은 엔드포인트, 부모의 입력+출력이 자식의 입력에 엄격히 들어가고, 잔차가 최소인 후보. 시뮬레이션은 배포 라우팅과 무관한 워크로드 고유 재사용을 추정한다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "슬라이딩 창 K = 10 · 조건 셋(엔드포인트·모델 일치, `it_A + ot_A < it_B`, 잔차 최소)"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션 — 방법·가정 서술 (가정의 근거는 2차 인용 [22] = kvcache-wild)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-F2.q1",
+   "record_id": "YR-F2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We replay the trace by treating each sequence as a management (admission and eviction) unit because Figure 13a shows that most sequences either get zero or full hits. Using libCacheSim [1], we evaluate ten cache sizes per workload over several state-of-the-art algorithms: FIFO, LRU, ARC [14], S3FIFO [27], GDSF [5], LHD [3], LRU [19], Sieve [31], and the size-aware Belady oracle [4] algorithm.",
+   "locator": {
+    "section": "§6.3.2~6.3.3",
+    "page": 10,
+    "para_id": "codex_raw#0549",
+    "location_raw": "§6.3.2~6.3.3 · p.10 우단~p.11 좌단 · 그림 17"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0549"
+   ],
+   "claim_text": "FIFO·LRU가 최신 정책과 대등하거나 낫다. 이유는 강한 최근성 편향. 그리고 캐시 효과는 워크로드 의존적 — agentic 모델은 중간 용량에서 이미 oracle에 근접, 챗 모델은 큰 용량에서도 격차가 남는다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 17 축(p.10 쪽 이미지 판독) — (a) MiniMax-M2.5: x축 Cache size 100K–~3M 토큰, y축 Token hit ratio 0.2–1.0. Belady는 ~500K에서 약 0.93에 도달해 평탄, 실용 정책들은 1M 부근에서 Belady와 만난다. (b) DeepSeek V3.2: x축 ~300K–200M 토큰, y축 0.2–0.8. Belady는 100M 부근에서 약 0.75, 실용 정책 최고치는 약 0.7로 격차가 남는다. ARC는 두 워크로드 모두에서 가장 낮다"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션 (재구성된 세션 위에서)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-F2.q2",
+   "record_id": "YR-F2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "First, simple eviction policies are already highly competitive for LLM prefix caching. LRU and FIFO often match or exceed the token hit ratios of more complex state-of-the-art algorithms. ARC is a notable exception: it performs substantially worse than LRU at intermediate cache sizes, especially on DeepSeek V3.2. This pattern is consistent with the strong recency bias in the workload as prefixes are frequently reused shortly after creation, but their utility decays quickly.",
+   "locator": {
+    "section": "§6.3.2~6.3.3",
+    "page": 10,
+    "para_id": "codex_raw#0550",
+    "location_raw": "§6.3.2~6.3.3 · p.10 우단~p.11 좌단 · 그림 17"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0550"
+   ],
+   "claim_text": "FIFO·LRU가 최신 정책과 대등하거나 낫다. 이유는 강한 최근성 편향. 그리고 캐시 효과는 워크로드 의존적 — agentic 모델은 중간 용량에서 이미 oracle에 근접, 챗 모델은 큰 용량에서도 격차가 남는다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 17 축(p.10 쪽 이미지 판독) — (a) MiniMax-M2.5: x축 Cache size 100K–~3M 토큰, y축 Token hit ratio 0.2–1.0. Belady는 ~500K에서 약 0.93에 도달해 평탄, 실용 정책들은 1M 부근에서 Belady와 만난다. (b) DeepSeek V3.2: x축 ~300K–200M 토큰, y축 0.2–0.8. Belady는 100M 부근에서 약 0.75, 실용 정책 최고치는 약 0.7로 격차가 남는다. ARC는 두 워크로드 모두에서 가장 낮다"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션 (재구성된 세션 위에서)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-F2.q3",
+   "record_id": "YR-F2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Second, cache effectiveness is workload-dependent. DeepSeek V3.2 is more cache-constrained: its hit ratio increases gradually with cache size, and practical policies remain below the Belady oracle even at large capacities. MiniMax-M2.5 is more cache-friendly: its hit ratio increases quickly, and most policies approach the oracle at moderate cache sizes.",
+   "locator": {
+    "section": "§6.3.2~6.3.3",
+    "page": 10,
+    "para_id": "codex_raw#0566",
+    "location_raw": "§6.3.2~6.3.3 · p.10 우단~p.11 좌단 · 그림 17"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0566"
+   ],
+   "claim_text": "FIFO·LRU가 최신 정책과 대등하거나 낫다. 이유는 강한 최근성 편향. 그리고 캐시 효과는 워크로드 의존적 — agentic 모델은 중간 용량에서 이미 oracle에 근접, 챗 모델은 큰 용량에서도 격차가 남는다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 17 축(p.10 쪽 이미지 판독) — (a) MiniMax-M2.5: x축 Cache size 100K–~3M 토큰, y축 Token hit ratio 0.2–1.0. Belady는 ~500K에서 약 0.93에 도달해 평탄, 실용 정책들은 1M 부근에서 Belady와 만난다. (b) DeepSeek V3.2: x축 ~300K–200M 토큰, y축 0.2–0.8. Belady는 100M 부근에서 약 0.75, 실용 정책 최고치는 약 0.7로 격차가 남는다. ARC는 두 워크로드 모두에서 가장 낮다"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션 (재구성된 세션 위에서)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G1.q1",
+   "record_id": "YR-G1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 20 shows how this tradeoff appears for the same user and model in two 60-minute windows. Under low load, Figure 20b shows that the user stays mostly on one instance, and cache hits concentrate there. Under high load, Figure 20a shows that the load balancer spreads the user across many instances to avoid overloading any one replica. The user's traffic share then resembles the global load distribution, but several instances still show measurable hit ratios.",
+   "locator": {
+    "section": "§7.1.2",
+    "page": 12,
+    "para_id": "codex_raw#0608",
+    "location_raw": "§7.1.2 · p.12 좌단 · 그림 20"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0608"
+   ],
+   "claim_text": "부하가 높으면 라우터가 사용자를 여러 인스턴스로 흩고, 그러면 같은 prefix가 복제된다. 이 중복이 다른 사용자의 prefix를 밀어낸다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "관측 창 60분 · 인스턴스 인덱스 0–11(고부하) / 0–10(저부하) · 그림 20 y축: User request (%) 0–10 / 0–30, Token hit request (%) 0–100 (도표 판독)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 (사례 2건)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G1.q2",
+   "record_id": "YR-G1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "These two regimes expose a fundamental tension between load balancing and cache locality. Keeping a user's requests on one instance preserves its prefix state and maximizes reuse. Under high load, however, the router spreads requests across replicas. Cache hits may remain high, but only by replicating the same prefix across multiple instance-local KV caches. This duplication consumes scarce capacity and displaces prefixes from other users. A good routing algorithm must therefore balance traffic evenly while minimizing redundant KV state across the fleet.",
+   "locator": {
+    "section": "§7.1.2",
+    "page": 12,
+    "para_id": "codex_raw#0608",
+    "location_raw": "§7.1.2 · p.12 좌단 · 그림 20"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0608"
+   ],
+   "claim_text": "부하가 높으면 라우터가 사용자를 여러 인스턴스로 흩고, 그러면 같은 prefix가 복제된다. 이 중복이 다른 사용자의 prefix를 밀어낸다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "관측 창 60분 · 인스턴스 인덱스 0–11(고부하) / 0–10(저부하) · 그림 20 y축: User request (%) 0–10 / 0–30, Token hit request (%) 0–100 (도표 판독)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 (사례 2건)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G2.q1",
+   "record_id": "YR-G2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 18c shows that the per-hour max/mean token-load ratio increases as the model scales down, indicating that the imbalance worsens as the serving pool shrinks. This imbalance matters because overload affects latency unevenly: Figure 19a shows that P90 TTFT rises sharply once an instance exceeds a high tokens-per-second threshold, especially for long-input requests. In contrast, Figure 19b shows that P90 decode time mainly follows output length and is largely insensitive to instance throughput. Thus, overload primarily affects prefill, making input-heavy traffic the most vulnerable to load imbalance.",
+   "locator": {
+    "section": "§7.1.1",
+    "page": 11,
+    "para_id": "codex_raw#0606",
+    "location_raw": "§7.1.1 · p.11 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0606"
+   ],
+   "claim_text": "과부하는 prefill(TTFT)을 먼저 망가뜨린다. 그리고 이 플랫폼의 실제 라우팅은 「가장 덜 바쁜 몇 개를 고른 뒤 그중 캐시 적중이 가장 클 곳으로」 보낸다 — 부하 우선, 캐시 차선.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 19 축(도표 판독): (a) x축 Load (Tokens/s) 10²–10⁶ 로그, 색 = Input tokens 10¹–10⁵, y축 P90 TTFT 0–150초; (b) x축 10²–10⁵, y축 P90 decode time 0–8초. 수치 라벨 없음"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 + 운영 정책 서술",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G2.q2",
+   "record_id": "YR-G2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "This behavior reflects the production routing policy. For each request, the load balancer first selects the few least loaded instances, then routes to the one with the highest expected prefix-cache hits.",
+   "locator": {
+    "section": "§7.1.1",
+    "page": 11,
+    "para_id": "codex_raw#0608",
+    "location_raw": "§7.1.1 · p.11 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0608"
+   ],
+   "claim_text": "과부하는 prefill(TTFT)을 먼저 망가뜨린다. 그리고 이 플랫폼의 실제 라우팅은 「가장 덜 바쁜 몇 개를 고른 뒤 그중 캐시 적중이 가장 클 곳으로」 보낸다 — 부하 우선, 캐시 차선.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 19 축(도표 판독): (a) x축 Load (Tokens/s) 10²–10⁶ 로그, 색 = Input tokens 10¹–10⁵, y축 P90 TTFT 0–150초; (b) x축 10²–10⁵, y축 P90 decode time 0–8초. 수치 라벨 없음"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 + 운영 정책 서술",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G3.q1",
+   "record_id": "YR-G3",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Prior work addresses this tension through KV-cache transfer and offloading [13, 17], which stores KV state outside the serving instance or transfers it between workers as routing changes. Although these designs preserve reuse across instances, they turn cache locality into a data-movement problem. KV state can be very large for long-context requests. For example, a 100K-token MiniMax-M2.5 context occupies roughly 27 GB of KV state, requiring about 2.7 s to transfer over a 10 GB/s link in one direction, excluding contention, coordination, and any additional transfer to the destination worker. At the same time, our trace shows that reuse often occurs over short timescales, with many repeat requests from the same (user, model) pair arriving within seconds. In such cases, KV transfer may impose substantial network overhead for limited latency benefit.",
+   "locator": {
+    "section": "§7.2",
+    "page": 12,
+    "para_id": "codex_raw#0611",
+    "location_raw": "§7.2 · p.12 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0611",
+    "codex_raw#0613"
+   ],
+   "claim_text": "원격 저장·전송 접근에 대한 정면 반론. 100K 토큰 MiniMax-M2.5 컨텍스트는 약 27 GB이고 10 GB/s 링크로 편도 2.7초가 걸린다. 재사용 간격이 초 단위인데 전송에 2.7초를 쓰면 이득이 없다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "100K 토큰 MiniMax-M2.5 = 약 27 GB (토큰당 약 270 KB — 환산은 우리 쪽) · 10 GB/s 링크 · 편도 2.7초 · 경합·조정·목적지 추가 전송 제외"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "저자의 계산 (가정값 위의 산술). 측정이 아니다",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G4.q1",
+   "record_id": "YR-G4",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We therefore study a complementary approach: preserve locality by routing requests to instances that already hold useful KV state, and relax this preference only when load imbalance becomes too large. This avoids explicit KV transfer on the critical path and keeps reuse in local GPU memory, where it directly reduces repeated prefill work. The central scheduling question is therefore how much load imbalance should be tolerated to preserve cache locality.",
+   "locator": {
+    "section": "§7.2",
+    "page": 12,
+    "para_id": "codex_raw#0613",
+    "location_raw": "§7.2 · p.12 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0613"
+   ],
+   "claim_text": "저자가 택한 대안은 전송 없이 라우팅으로만 지역성을 지키는 것. 정책 넷과 스윕 범위.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "정책 4종 · 인스턴스당 캐시 1.1K–5M 토큰 · N ∈ {5, 10, 15, 20} · 캐시 정책은 LRU 고정"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션 — 설정",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G4.q2",
+   "record_id": "YR-G4",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Four routing policies span the locality–balance spectrum. round_robin rotates requests modulo 𝑁 and ignores both load and cache. load_first sends each request to the instance with the smallest current routing load, where load is measured by total tokens. sticky pins each user to the first instance it reaches, approximating naive locality without prefix awareness. cache_first chooses the instance with the largest reusable prefix for the request's session, falling back to the least-loaded instance when no cached state exists.",
+   "locator": {
+    "section": "§7.2",
+    "page": 12,
+    "para_id": "codex_raw#0613",
+    "location_raw": "§7.2 · p.12 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0613"
+   ],
+   "claim_text": "저자가 택한 대안은 전송 없이 라우팅으로만 지역성을 지키는 것. 정책 넷과 스윕 범위.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "정책 4종 · 인스턴스당 캐시 1.1K–5M 토큰 · N ∈ {5, 10, 15, 20} · 캐시 정책은 LRU 고정"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션 — 설정",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G4.q3",
+   "record_id": "YR-G4",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We sweep per-instance cache size in [1.1K, 5M] tokens and fleet size 𝑁 ∈ {5, 10, 15, 20}.",
+   "locator": {
+    "section": "§7.2",
+    "page": 12,
+    "para_id": "codex_raw#0613",
+    "location_raw": "§7.2 · p.12 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0613"
+   ],
+   "claim_text": "저자가 택한 대안은 전송 없이 라우팅으로만 지역성을 지키는 것. 정책 넷과 스윕 범위.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "정책 4종 · 인스턴스당 캐시 1.1K–5M 토큰 · N ∈ {5, 10, 15, 20} · 캐시 정책은 LRU 고정"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션 — 설정",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G5.q1",
+   "record_id": "YR-G5",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 21(a) shows the token hit ratio as per-instance cache size increases at 𝑁 =20. The main distinction is between cache-aware and cache-blind routing. load_first and round_robin maintain low hit ratios even as cache capacity grows because they scatter future turns across replicas; additional capacity provides little benefit when requests do not return to the instance holding their prefix. In contrast, cache_first converts larger caches into substantially higher reuse and approaches the single-cache headroom in Figure 17. sticky also preserves locality, but only at user granularity. Because each user is pinned to one instance, a heavy user can access only that replica's cache rather than the fleet's aggregate capacity.",
+   "locator": {
+    "section": "§7.2.2",
+    "page": 13,
+    "para_id": "codex_raw#0679",
+    "location_raw": "§7.2.2 · p.13 우단~p.14 · 그림 21(a)(b)"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0679"
+   ],
+   "claim_text": "캐시를 키워도 라우팅이 흩으면 소용없다. 그리고 복제 비율(세션을 처리한 서로 다른 인스턴스 수)이라는 지표가 정의된다 — 1.0이면 한 인스턴스에 머문 것.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 21 축(도표 판독): (a) x축 Instance cache size 10³–10⁶, y축 Token hit ratio 0–0.5(DeepSeek V3.2) / 0–0.6(MiniMax-M2.5); (b) y축 Replication ratio 1.0–1.8(V3.2) / 1.0–2.50(M2.5) · N = 20"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G5.q2",
+   "record_id": "YR-G5",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We define the replication ratio of a session as the number of distinct instances that serve its requests; a value of 1.0 means that the entire session remains on one instance. […] load_first and round_robin maintain high replication ratios across cache sizes because their routing decisions ignore cached state. For cache_first, replication is high when caches are small. Prefixes are frequently evicted before later turns arrive, leaving no cached instance to preserve affinity and forcing the policy to fall back to least-loaded routing. […] As cache capacity grows, prefixes remain resident longer, later turns return to the same instance, and the replication ratio approaches 1.0.",
+   "locator": {
+    "section": "§7.2.2",
+    "page": 13,
+    "para_id": "codex_raw#0680",
+    "location_raw": "§7.2.2 · p.13 우단~p.14 · 그림 21(a)(b)"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0680"
+   ],
+   "claim_text": "캐시를 키워도 라우팅이 흩으면 소용없다. 그리고 복제 비율(세션을 처리한 서로 다른 인스턴스 수)이라는 지표가 정의된다 — 1.0이면 한 인스턴스에 머문 것.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "그림 21 축(도표 판독): (a) x축 Instance cache size 10³–10⁶, y축 Token hit ratio 0–0.5(DeepSeek V3.2) / 0–0.6(MiniMax-M2.5); (b) y축 Replication ratio 1.0–1.8(V3.2) / 1.0–2.50(M2.5) · N = 20"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G6.q1",
+   "record_id": "YR-G6",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 21(c) fixes the per-instance cache size at 25k and varies the number of serving instances. […] the replication ratios of round_robin and load_first increase steadily with 𝑁 on both workloads. As the fleet grows, successive turns from the same session can be routed to more instances, spreading the session across more replica-local caches. The effect of scaling on cache_first is workload-dependent. For DeepSeek V3.2, replication increases moderately with fleet size because its larger working set remains difficult to retain at the fixed cache size. […] For MiniMax-M2.5, replication instead decreases from roughly 1.4 toward 1.1.",
+   "locator": {
+    "section": "§7.2.2",
+    "page": 14,
+    "para_id": "codex_raw#0685",
+    "location_raw": "§7.2.2 · p.14 좌단 · 그림 21(c)(d)"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0685"
+   ],
+   "claim_text": "클러스터가 커질수록 캐시 무시 라우팅의 복제가 심해진다. 지역성 우선 라우팅의 불균형 대가는 5–7%로 작다 — 단, 단발 세션이 많아서 그렇다. 단발이 적은 워크로드에서는 이 여유가 없다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "고정 인스턴스당 캐시 25k 토큰 · N ∈ {5, 10, 15, 20} · cache_first의 부하 불균형 5–7% (max/mean token/s) · MiniMax-M2.5의 cache_first 복제 비율 약 1.4 → 1.1 · `sticky`는 정의상 1.0이지만 불균형이 자릿수 단위로 커서 그림에서 제외됨"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-G6.q2",
+   "record_id": "YR-G6",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Among the remaining policies, round_robin and load_first are generally the most balanced, while cache_first incurs higher imbalance because it prefers replicas that already hold reusable session state. This is the price of locality: some requests are intentionally routed away from the least loaded instance to avoid losing cache reuse. The absolute imbalance is surprisingly small, remaining within 5% to 7%. We find that this is largely because the workload contains many single-turn sessions, which cache_first can freely route to the least-loaded instance to offset localized multi-turn traffic. Workloads with fewer one-off requests may provide less balancing flexibility.",
+   "locator": {
+    "section": "§7.2.2",
+    "page": 14,
+    "para_id": "codex_raw#0687",
+    "location_raw": "§7.2.2 · p.14 좌단 · 그림 21(c)(d)"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0687"
+   ],
+   "claim_text": "클러스터가 커질수록 캐시 무시 라우팅의 복제가 심해진다. 지역성 우선 라우팅의 불균형 대가는 5–7%로 작다 — 단, 단발 세션이 많아서 그렇다. 단발이 적은 워크로드에서는 이 여유가 없다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "고정 인스턴스당 캐시 25k 토큰 · N ∈ {5, 10, 15, 20} · cache_first의 부하 불균형 5–7% (max/mean token/s) · MiniMax-M2.5의 cache_first 복제 비율 약 1.4 → 1.1 · `sticky`는 정의상 1.0이지만 불균형이 자릿수 단위로 커서 그림에서 제외됨"
+    }
+   ],
+   "kind": "extrapolation",
+   "source_kind": "시뮬레이션",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-H1.q1",
+   "record_id": "YR-H1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We characterize prefix-cache reuse at request level and find that token hit ratios are often bimodal, with most requests seeing either near-zero or near-complete reuse. Reuse is also temporally concentrated, with much of it occurring within short inter-arrival windows. In simulation, state-of-the-art cache policies designed for web and storage workloads often underperform simple FIFO and LRU, motivating new cache-management policies for LLM prefix workloads.",
+   "locator": {
+    "section": "§1",
+    "page": 2,
+    "para_id": "codex_raw#0036",
+    "location_raw": "§1 · p.2 우단 (기여 5·6)"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0036"
+   ],
+   "claim_text": "두 핵심 발견의 저자 요약.",
+   "conditions": {},
+   "numbers": [],
+   "kind": "author_interpretation",
+   "source_kind": "저자의 요약",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-H1.q2",
+   "record_id": "YR-H1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "We identify a fundamental tradeoff in LLM serving: routing related requests to the same host improves prefix-cache locality and hit ratio, but also increases load imbalance and cache replication. This tension complicates scheduler design and motivates joint treatment of routing, placement, and caching.",
+   "locator": {
+    "section": "§1",
+    "page": 2,
+    "para_id": "codex_raw#0036",
+    "location_raw": "§1 · p.2 우단 (기여 5·6)"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0036"
+   ],
+   "claim_text": "두 핵심 발견의 저자 요약.",
+   "conditions": {},
+   "numbers": [],
+   "kind": "author_interpretation",
+   "source_kind": "저자의 요약",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-H2.q1",
+   "record_id": "YR-H2",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "First, many existing studies analyze relatively short observation windows, limiting our ability to study how workloads evolve over longer time scales. Second, user–model interactions remain underexplored, even though modern LLM platforms serve many models with highly skewed popularity and support users with diverse access patterns. Third, existing public workloads are often sampled, anonymized, or summarized, which constrains direct replay and limits downstream analyses of production behavior.",
+   "locator": {
+    "section": "§1",
+    "page": 1,
+    "para_id": "codex_raw#0020",
+    "location_raw": "§1 · p.1 우단·p.2 좌단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0020",
+    "codex_raw#0035"
+   ],
+   "claim_text": "기존 트레이스의 세 한계 — 짧은 관측 창, 사용자-모델 상호작용 미탐구, 샘플링·요약으로 재생 불가.",
+   "conditions": {},
+   "numbers": [],
+   "kind": "author_interpretation",
+   "source_kind": "저자의 논증",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-H3.q1",
+   "record_id": "YR-H3",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Most models, including many heavily used ones, receive the majority of their traffic from relatively few users. Some high-traffic models are used broadly, while others receive comparable traffic from a much smaller user base. This distinction matters for locality: repeated access from a concentrated set of users can create different cache-reuse opportunities than traffic spread across many independent users.",
+   "locator": {
+    "section": "§4.1",
+    "page": 5,
+    "para_id": "codex_raw#0213",
+    "location_raw": "§4.1 · p.5 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0213"
+   ],
+   "claim_text": "대부분의 모델은 소수 사용자에게서 트래픽 대부분을 받는다. 사용자 쪽에서는 대부분이 소수 모델만 쓰고, 꼬리의 파워 유저가 다수 모델에 걸쳐 대량 요청을 낸다 — 자동화 애플리케이션·모델 라우터·agentic 워크플로로 추정된다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "미보고 — 그림 5 축(도표 판독): (a) x축 Requests per model 10³–10⁹, y축 Unique users 10⁰–10⁴; (b) x축 Requests per user 10¹–10⁹, y축 Distinct models 10⁰–10³"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 + 저자의 해석",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-H3.q2",
+   "record_id": "YR-H3",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 5b shows that most users issue relatively few requests and access only a small number of models. However, a sparse tail of users sends many requests across a much broader model set. Most users therefore concentrate their activity on a few models, while these high-volume, broad-access power users may correspond to automated applications, proxy services, model routers, or agentic workflows rather than simple individual use.",
+   "locator": {
+    "section": "§4.1",
+    "page": 5,
+    "para_id": "codex_raw#0213",
+    "location_raw": "§4.1 · p.5 우단"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0213"
+   ],
+   "claim_text": "대부분의 모델은 소수 사용자에게서 트래픽 대부분을 받는다. 사용자 쪽에서는 대부분이 소수 모델만 쓰고, 꼬리의 파워 유저가 다수 모델에 걸쳐 대량 요청을 낸다 — 자동화 애플리케이션·모델 라우터·agentic 워크플로로 추정된다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "미보고 — 그림 5 축(도표 판독): (a) x축 Requests per model 10³–10⁹, y축 Unique users 10⁰–10⁴; (b) x축 Requests per user 10¹–10⁹, y축 Distinct models 10⁰–10³"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 + 저자의 해석",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-H4.q1",
+   "record_id": "YR-H4",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "In Figure 8a, the user repeatedly accesses a small and stable set of models across the 30-day window. Some models are used throughout most of the month, while others are accessed more periodically. Figure 8b shows a different pattern: the user spends most of the month on a few models, but briefly accesses many additional models during a short period. These examples show that a single user may use multiple models concurrently, either steadily or in short bursts. Such behavior is plausible on this platform, where users can build model routers that send requests to different models based on their own criteria. The more periodic patterns reflect recurring daily activity or scheduled jobs.",
+   "locator": {
+    "section": "§4.2",
+    "page": 6,
+    "para_id": "codex_raw#0319",
+    "location_raw": "§4.2 · p.6 우단 · 그림 7·8"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0319"
+   ],
+   "claim_text": "30일 래스터 사례 — 주기적 일과·예약 작업으로 보이는 패턴과, 여러 계정이 조율돼 같은 시각에 몰리는 패턴이 관측된다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "관측 창 30일 · 그림 7: Model rank 41(주기적) / 36(상관), y축 User index 0–500 / 0–200 · 그림 8: User rank 190 (124,182 requests, 11 models) / 134 (133,867 requests, 24 models), y축 Model index 0–10 / 0–20 (그림 안 라벨)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 (사례) + 저자의 가설(원인)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-H4.q2",
+   "record_id": "YR-H4",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Figure 7b shows a more correlated pattern. Activity is sparse early in the window, then expands sharply around the middle of the month as many users become active within the same period. The dense vertical clusters indicate that requests from different users arrive at similar times, rather than being spread independently across the window. One possible explanation is that related accounts or coordinated applications invoke the model in similar ways; for example, multiple accounts may be used to distribute traffic under platform limits.",
+   "locator": {
+    "section": "§4.2",
+    "page": 6,
+    "para_id": "codex_raw#0319",
+    "location_raw": "§4.2 · p.6 우단 · 그림 7·8"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0319",
+    "codex_raw#0329"
+   ],
+   "claim_text": "30일 래스터 사례 — 주기적 일과·예약 작업으로 보이는 패턴과, 여러 계정이 조율돼 같은 시각에 몰리는 패턴이 관측된다.",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "관측 창 30일 · 그림 7: Model rank 41(주기적) / 36(상관), y축 User index 0–500 / 0–200 · 그림 8: User rank 190 (124,182 requests, 11 models) / 134 (133,867 requests, 24 models), y축 Model index 0–10 / 0–20 (그림 안 라벨)"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측 (사례) + 저자의 가설(원인)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  },
+  {
+   "row_id": "claude:YR-Z1.q1",
+   "record_id": "YR-Z1",
+   "paper_id": "workload__year-in-llm-serving",
+   "quote": "Weekly and diurnal patterns persist throughout. These long- term shifts coexist with a recurring weekly and diurnal pat- tern. Figure 1e shows that traffic is highest during UTC af- ternoon and evening hours, especially on weekdays, and lower during overnight hours and weekends. Taken together, Figure 1 shows that LLM serving demand cannot be sum- marized by a fixed request rate or a single growth trend. Realistic workload analysis must account for changing token",
+   "locator": {
+    "section": "§3",
+    "page": 4,
+    "para_id": "codex_raw#0147",
+    "location_raw": "§3 · 그림 1e · p.4"
+   },
+   "resolved_para_ids": [
+    "codex_raw#0147"
+   ],
+   "claim_text": "주간·일중 패턴이 1년 내내 지속된다. 장기 추세 변화와 반복되는 주·일 주기가 공존하며, 트래픽은 UTC 오후·저녁, 특히 주중에 가장 높고 심야와 주말에 낮다. 종합하면 LLM 서빙 수요는 고정 요청률이나 단일 성장 추세로 요약될 수 없고, 현실적 워크로드 분석은 변하는 토큰 (구성을 고려해야 한다).",
+   "conditions": {},
+   "numbers": [
+    {
+     "raw": "없음(정성) — 「UTC 오후·저녁, 특히 주중에 높고 심야·주말에 낮다」까지 · 진폭은 논문에 미보고 · 그림 1e 판독하지 않음"
+    }
+   ],
+   "kind": "measurement",
+   "source_kind": "실제 관측(정성 서술)",
+   "extractor_id": "claude",
+   "run_id": "claude-2026-09-15-ff1521bd-workload__year-in-llm-serving",
+   "l1_tautological": 0
+  }
+ ],
+ "quarantined": [
+  {
+   "record_id": "YR-A2",
+   "reason_code": "no_quote",
+   "record": {
+    "id": "YR-A2",
+    "paper": "workload__year-in-llm-serving",
+    "paper_title": "workload__year-in-llm-serving — 원문 발췌",
+    "version": "v2",
+    "pdf_pages": 16,
+    "section": "A. 트레이스와 조건",
+    "location": "§3 · p.3 우단 · 표 3",
+    "page": 3,
+    "stars": "",
+    "topic": "11개 필드. instance_id와 cached_tokens가 둘 다 있다는 점이 이 트레이스의 고유값이다.",
+    "quotes": [],
+    "meaning": "11개 필드. `instance_id`와 `cached_tokens`가 둘 다 있다는 점이 이 트레이스의 고유값이다.",
+    "why": "어느 인스턴스가 처리했고 그중 몇 토큰이 캐시에서 왔는지를 함께 아는 유일한 공개 트레이스다. 우리가 \"라우팅 대비 원격 풀의 추가 이득\"을 재려면 정확히 이 두 필드가 필요하다. 우리 트레이스 스키마의 목표치.",
+    "numbers": [
+     "필드 11종"
+    ],
+    "caveats": [],
+    "unreported": [],
+    "kind": "실제 관측 — 스키마",
+    "links": "YR-A1, YR-D1, YR-F1",
+    "check": "추출 텍스트 대조 완료 · 표는 2열 × 2쌍 배치라 추출 순서를 그대로 옮겼다. 쪽 이미지로 재확인하지 않았다",
+    "relation": "",
+    "conversion": [],
+    "extras": [],
+    "extra_text": "**표 3 전사** — 캡션: *\"Key fields available in the CompanyX production trace.\"*\n| Field | Description | Field | Description |\n|---|---|---|---|\n| request_id | Request ID | endpoint | API endpoint |\n| model | Model identifier | user_id | Anonymized user ID |\n| instance_id | Serving instance | started_at | Start timestamp |\n| completed_at | Completion timestamp | input_token | Input token count |\n| output_token | Output token count | ttft | Time to first token |\n| cached_tokens | Prefix-cached tokens | | |",
+    "secondary": false,
+    "figure_read": false,
+    "patterns": [],
+    "pattern_roles": {},
+    "link": "claude_papers/claude_workload__year-in-llm-serving.md"
+   }
+  },
+  {
+   "record_id": "YR-A3",
+   "reason_code": "no_quote",
+   "record": {
+    "id": "YR-A3",
+    "paper": "workload__year-in-llm-serving",
+    "paper_title": "workload__year-in-llm-serving — 원문 발췌",
+    "version": "v2",
+    "pdf_pages": 16,
+    "section": "A. 트레이스와 조건",
+    "location": "§1 · p.2 좌단 · 표 1",
+    "page": 2,
+    "stars": "",
+    "topic": "기존 트레이스 대비 기간·규모·모델 수·필드 보유의 비교.",
+    "quotes": [],
+    "meaning": "기존 트레이스 대비 기간·규모·모델 수·필드 보유의 비교. 인스턴스 ID를 주는 것은 이 트레이스뿐.",
+    "why": "우리 트레이스 카탈로그의 티어 판정 표에 그대로 대응한다. 특히 `Qwen-Bailian [22]`가 2시간으로 적혀 있는데, 이는 `workload__kvcache-wild`(Alibaba)가 공개한 샘플의 길이로 보인다 — 그 논문 본문은 2주치를 분석했다고 적는다(KW-A1). 두 진술을 섞지 말 것.",
+    "numbers": [
+     "위 표"
+    ],
+    "caveats": [],
+    "unreported": [],
+    "kind": "실제 관측 + 다른 논문에 대한 저자의 정리 (2차 인용, 원 출처와 어긋나는 항목 있음)",
+    "links": "YR-A1",
+    "check": "추출 텍스트 대조 완료 · WildChat 행의 Instance 칸은 추출에서 값이 나오지 않았다. 원문 확인 미완료",
+    "relation": "",
+    "conversion": [],
+    "extras": [],
+    "extra_text": "**표 1 전사** — 캡션: *\"Comparison with prior interaction datasets and production LLM workload studies.\"*\n| Work | Duration | # Requests | # Models | User | Instance |\n|---|---|---|---|---|---|\n| ServeGen [25] | 4 mo. | 3.54B | 12 | ✓ | – |\n| BurstGPT [24] | 4 mo. | 5.29M | 2 | – | – |\n| WildChat [33] | 13 mo. | 1.0M convs. | 2 | ✓ | (표에 표시 없음) |\n| LMSYS-Chat-1M [34] | 4 mo. | 1.0M convs. | 25 | – | – |\n| ModServe [18] | 1 wk | – | – | – | – |\n| Qwen-Bailian [22] | 2h | – | 1 | – | – |\n| Mooncake [17] | 1h | 35.6K | – | – | – |\n| Ours | 12 mo. | 6.12B | 9,174 | ✓ | ✓ |",
+    "secondary": true,
+    "figure_read": false,
+    "patterns": [],
+    "pattern_roles": {},
+    "link": "claude_papers/claude_workload__year-in-llm-serving.md"
+   }
+  }
+ ],
+ "fragments": [],
+ "paragraph_unit": {
+  "variant": "codex_raw",
+  "split": "blank_line_block",
+  "min_words": 20
+ }
+}

@@ -1,0 +1,62 @@
+{
+  "version": "modality-v1",
+  "hedge": {
+    "en": [
+      "may",
+      "might",
+      "could",
+      "suggest",
+      "suggests",
+      "suggested",
+      "suggesting",
+      "likely",
+      "possibly",
+      "perhaps",
+      "appear",
+      "appears",
+      "seem",
+      "seems",
+      "potentially",
+      "presumably",
+      "hypothesize",
+      "hypothesise",
+      "speculate",
+      "in our setting",
+      "we believe",
+      "we conjecture"
+    ],
+    "ko": [
+      "추정",
+      "추측",
+      "가능성",
+      "수 있",
+      "보인다",
+      "보이는",
+      "것으로 보",
+      "듯하",
+      "시사",
+      "가설",
+      "짐작",
+      "아마"
+    ]
+  },
+  "universal": {
+    "en": [
+      "always",
+      "never",
+      "every",
+      "all",
+      "invariably",
+      "universally",
+      "without exception"
+    ],
+    "ko": [
+      "항상",
+      "언제나",
+      "모든",
+      "반드시",
+      "예외 없이",
+      "전부"
+    ]
+  }
+}

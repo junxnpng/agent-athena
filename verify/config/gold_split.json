@@ -1,0 +1,50 @@
+{
+  "version": "gold-split-v1",
+  "source": "gold/{slug}_handpicked.md",
+  "section": "## 원문(그대로)",
+  "line_prefix": "### ",
+  "emphasis": "\\*{2,}",
+  "review_label": "한줄평",
+  "note_arrow": "->",
+  "sentence_end": "\\.(?=\\s*[A-Z])",
+  "abbreviations": [
+    "e.g.",
+    "i.e.",
+    "et al.",
+    "Fig.",
+    "vs.",
+    "cf.",
+    "approx."
+  ],
+  "note_end": {
+    "camel_glue": true,
+    "sentence_openers": [
+      "While",
+      "Thus",
+      "This",
+      "These",
+      "The",
+      "However",
+      "Therefore",
+      "But",
+      "And",
+      "So",
+      "It",
+      "In",
+      "For",
+      "As",
+      "We",
+      "Our",
+      "Most",
+      "Even"
+    ]
+  },
+  "no_split": [
+    "DeepSeek",
+    "MiniMax",
+    "OpenAI",
+    "GitHub",
+    "TensorRT",
+    "PyTorch"
+  ]
+}

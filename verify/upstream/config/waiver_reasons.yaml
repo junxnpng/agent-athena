@@ -1,0 +1,34 @@
+# Free-form waiver reasons -> reason codes. A reason takes the code of the
+# earliest-mentioned mechanism (the first pattern occurrence in the text), so a
+# reason naming two mechanisms takes the one it names first. `fallback` applies
+# only when no mechanism is named; a reason matching neither is refused.
+codes:
+  italic_reorder:
+    description: >-
+      A separately typeset run (italic, small caps, bold, monospace, sub/superscript,
+      math symbol, logo) was displaced from reading order by the extraction.
+    patterns: ["이탤릭", "소형대문자", "작은대문자", "굵은", "고정폭", "첨자", "기호", "수식",
+               "로고", "조판", "어순"]
+  gap_exceeded:
+    description: >-
+      The matcher failed, not the text: the gap to the previous piece exceeded
+      MAX_GAP, or the same phrase occurs twice and the greedy match took the other one.
+    patterns: ["MAX_GAP", "같은 문구", "greedy"]
+  stamp_intrusion:
+    description: >-
+      Foreign text was interleaved into the sentence: arXiv stamp, footnote or
+      reference text, figure labels, box titles, page numbers.
+    patterns: ["arXiv 스탬프", "각주", "참고문헌", "라벨", "상자 제목", "쪽번호"]
+  column_interleave:
+    description: The two columns of a page were read in the wrong order.
+    patterns: ["왼쪽 단", "오른쪽 단", "단 끝", "단 머리"]
+  ligature:
+    description: A typographic ligature was extracted as one glyph or dropped.
+    patterns: ["합자", "ligature"]
+  visual_check:
+    description: >-
+      No displacement class above fits; the waiver rests on reading the page
+      image alone.
+    patterns: []
+fallback:
+  visual_check: ["쪽 이미지"]

@@ -1,0 +1,93 @@
+{
+  "version": "numbers-v1",
+  "units": {
+    "ms": [
+      "time",
+      0.001
+    ],
+    "s": [
+      "time",
+      1
+    ],
+    "sec": [
+      "time",
+      1
+    ],
+    "min": [
+      "time",
+      60
+    ],
+    "h": [
+      "time",
+      3600
+    ],
+    "초": [
+      "time",
+      1
+    ],
+    "분": [
+      "time",
+      60
+    ],
+    "시간": [
+      "time",
+      3600
+    ],
+    "일": [
+      "time",
+      86400
+    ],
+    "KB": [
+      "bytes",
+      1000.0
+    ],
+    "MB": [
+      "bytes",
+      1000000.0
+    ],
+    "GB": [
+      "bytes",
+      1000000000.0
+    ],
+    "TB": [
+      "bytes",
+      1000000000000.0
+    ],
+    "KB/s": [
+      "bytes_per_s",
+      1000.0
+    ],
+    "MB/s": [
+      "bytes_per_s",
+      1000000.0
+    ],
+    "GB/s": [
+      "bytes_per_s",
+      1000000000.0
+    ],
+    "%": [
+      "percent",
+      1
+    ]
+  },
+  "multipliers": {
+    "K": 1000.0,
+    "k": 1000.0,
+    "M": 1000000.0,
+    "B": 1000000000.0
+  },
+  "markers": {
+    "unreported": [
+      "미보고",
+      "인쇄돼 있지 않",
+      "not reported",
+      "unreported"
+    ],
+    "extractor_arithmetic": [
+      "우리 쪽 계산",
+      "환산은 우리",
+      "our arithmetic",
+      "our calculation"
+    ]
+  }
+}

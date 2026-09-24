@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence_record.schema.json",
+  "title": "Evidence record",
+  "description": "Input contract between an external extractor and the verification system. One record is one quote. A condition value is a string or the literal \"none\" (the field was checked and is absent in the source). A missing key is quarantined, never filled in.",
+  "type": "object",
+  "required": ["record_id", "paper_id", "quote", "locator", "claim_text", "conditions", "numbers", "kind", "extractor_id", "run_id"],
+  "properties": {
+    "record_id": {"type": "string"},
+    "paper_id": {"type": "string"},
+    "quote": {"type": "string", "description": "Verbatim source text."},
+    "locator": {
+      "type": "object",
+      "required": ["section", "page", "para_id"],
+      "properties": {
+        "section": {"type": ["string", "null"], "description": "First section token of the location; null when the source names none."},
+        "page": {"type": ["integer", "null"]},
+        "para_id": {"type": ["string", "null"], "description": "Block id in the paragraph unit; null when no block resolves."}
+      }
+    },
+    "claim_text": {"type": "string"},
+    "conditions": {
+      "type": "object",
+      "required": ["unit", "denominator", "window", "ideal_or_measured", "baseline"],
+      "properties": {
+        "unit": {"type": "string"},
+        "denominator": {"type": "string"},
+        "window": {"type": "string"},
+        "ideal_or_measured": {"type": "string"},
+        "baseline": {"type": "string"}
+      }
+    },
+    "numbers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["value", "unit", "definition", "derived_from"],
+        "properties": {
+          "value": {"type": "string"},
+          "unit": {"type": "string"},
+          "definition": {"type": "string"},
+          "derived_from": {"type": "string"}
+        }
+      }
+    },
+    "kind": {"type": "string", "enum": ["measurement", "author_interpretation", "extrapolation"]},
+    "extractor_id": {"type": "string"},
+    "run_id": {"type": "string"}
+  }
+}

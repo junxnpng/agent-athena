@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "rules": {
+    "hyphen": {
+      "description": "Dash variants become \"-\", the soft hyphen disappears, and a hyphen that ends a line joins the two halves of the word (infer-\\nence -> inference).",
+      "map": {
+        "‐": "-",
+        "‑": "-",
+        "‒": "-",
+        "–": "-",
+        "—": "-",
+        "―": "-",
+        "−": "-"
+      },
+      "drop": [
+        "­"
+      ],
+      "join_line_break": true
+    },
+    "ligature": {
+      "description": "Typographic ligatures are spelled out (U+FB01 -> fi).",
+      "map": {
+        "ﬀ": "ff",
+        "ﬁ": "fi",
+        "ﬂ": "fl",
+        "ﬃ": "ffi",
+        "ﬄ": "ffl",
+        "ﬅ": "st",
+        "ﬆ": "st"
+      }
+    },
+    "quotes": {
+      "description": "Curly and low quotes, primes and backticks become straight quotes.",
+      "map": {
+        "“": "\"",
+        "”": "\"",
+        "„": "\"",
+        "‟": "\"",
+        "″": "\"",
+        "‘": "'",
+        "’": "'",
+        "‚": "'",
+        "‛": "'",
+        "′": "'",
+        "`": "'"
+      }
+    },
+    "whitespace": {
+      "description": "Every run of whitespace (newline, form feed, no-break space) is one space."
+    },
+    "sentence_case": {
+      "description": "The first letter of a sentence is lower-cased on both sides, and a quote piece may start with either case, so a quote that capitalizes a mid-sentence start still matches.",
+      "terminators": ".!?:"
+    },
+    "line_join_space": {
+      "description": "A space lost where the extraction joined two lines is restored by ignoring spaces on both sides (inferencesystem <-> inference system)."
+    }
+  },
+  "profiles": {
+    "strict": [
+      "hyphen",
+      "ligature",
+      "quotes",
+      "whitespace",
+      "sentence_case",
+      "line_join_space"
+    ],
+    "loose": {
+      "citation": "\\[\\s*\\d+(?:\\s*[,\\-–]\\s*\\d+)*\\s*\\]"
+    },
+    "gapped": {
+      "min_run": 20,
+      "max_runs": 3,
+      "max_gap_chars": 1000
+    }
+  }
+}

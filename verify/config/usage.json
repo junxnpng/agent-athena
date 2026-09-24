@@ -1,0 +1,5 @@
+{
+  "path": "/tmp/.claude-usage-cache.json",
+  "window": "five_hour",
+  "max_age_s": 300
+}

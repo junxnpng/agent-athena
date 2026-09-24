@@ -1,0 +1,12 @@
+# Default query for the gold paper: paper topic + one claim sentence.
+# The gold one-line review is excluded on purpose: it evaluates the paper
+# ("no detailed analysis") and cannot serve as the proposition evidence aligns to.
+query_id: gold-kv-reuse
+topic: KV-cache reuse in production LLM serving workloads
+claim_text: >-
+  Production LLM serving traffic reuses prompt prefixes across requests, and the
+  temporal and per-user structure of that reuse determines how effective a KV cache is.
+source: agent draft from the paper topic; to be confirmed or rewritten by the user before the judge slice
+# Left empty on purpose: judging against this query is refused until the user
+# confirms (or rewrites) it and sets their name here.
+confirmed_by:

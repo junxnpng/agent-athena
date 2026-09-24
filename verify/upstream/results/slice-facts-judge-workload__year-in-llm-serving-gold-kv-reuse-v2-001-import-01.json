@@ -1,0 +1,54 @@
+{
+ "run_id": "judge-workload__year-in-llm-serving-gold-kv-reuse-v2-001-import-01",
+ "paper_id": "workload__year-in-llm-serving",
+ "query_id": "gold-kv-reuse-v2",
+ "verifier_id": "claude-sonnet-5/subagent",
+ "protocol_ver": "claim-judge-v1",
+ "created_at": "2026-09-23T08:07:00Z",
+ "l1_grades": {
+  "claude": {
+   "exact": 0,
+   "strict": 29,
+   "loose": 9,
+   "gapped": 6,
+   "MISS": 0
+  },
+  "codex": {
+   "exact": 2,
+   "strict": 4,
+   "loose": 0,
+   "gapped": 0,
+   "MISS": 1
+  }
+ },
+ "conditions_complete_rows": {
+  "rows": 0,
+  "of": 50
+ },
+ "derived_from_rows": {
+  "rows": 0,
+  "of": 50
+ },
+ "tier1": {
+  "rows": 20,
+  "alignment": {
+   "supports": 9,
+   "refutes": 0,
+   "insufficient": 11,
+   "unknown": 0
+  },
+  "faithfulness": {
+   "supports": 15,
+   "refutes": 0,
+   "insufficient": 5,
+   "unknown": 0
+  },
+  "unknown_ratio": 0.0
+ },
+ "round_trip": {
+  "tokens": 163683,
+  "tokens_in": 163683,
+  "tokens_out": null,
+  "wallclock_s": 648.2
+ }
+}

@@ -1,0 +1,32 @@
+# Number reading of L6. The v1 record sets carry numbers as free strings, so L6
+# parses them: every number with its unit, keyed values (`P99 ≈ 15분`, `K = 10`)
+# for the intra-document conflict check, and `a / b ≈ c` arithmetic to recompute.
+version: numbers-v1
+# unit -> [dimension, factor to the dimension's base]. A value converts to the base
+# before two keyed values are compared, so 15분 and 900초 agree. English units must
+# not run into a letter; Korean units may carry a particle.
+units:
+  ms: [time, 0.001]
+  s: [time, 1]
+  sec: [time, 1]
+  min: [time, 60]
+  h: [time, 3600]
+  초: [time, 1]
+  분: [time, 60]
+  시간: [time, 3600]
+  일: [time, 86400]
+  KB: [bytes, 1.0e+3]
+  MB: [bytes, 1.0e+6]
+  GB: [bytes, 1.0e+9]
+  TB: [bytes, 1.0e+12]
+  KB/s: [bytes_per_s, 1.0e+3]
+  MB/s: [bytes_per_s, 1.0e+6]
+  GB/s: [bytes_per_s, 1.0e+9]
+  "%": [percent, 1]
+# Suffixes written onto the number itself (500K, 1.1K, 5M).
+multipliers: {K: 1.0e+3, k: 1.0e+3, M: 1.0e+6, B: 1.0e+9}
+# Substrings that mark a number string as not reported by the paper, or as the
+# extractor's own arithmetic rather than the paper's.
+markers:
+  unreported: [미보고, 인쇄돼 있지 않, not reported, unreported]
+  extractor_arithmetic: [우리 쪽 계산, 환산은 우리, our arithmetic, our calculation]
