@@ -1,4 +1,4 @@
-"""Local file orchestration for the P4a prototype; no automatic model calls."""
+"""Local file orchestration for the v1 extractor; no automatic model calls."""
 from __future__ import annotations
 
 import hashlib
@@ -15,23 +15,30 @@ def segment(args, loaded: dict) -> dict:
     gates.assert_paragraph_unit_split()
     slug = workfile_min.safe_name(args.slug)
     workfile_min.safe_name(loaded['query_id'])
-    reference = args.codex_raw
+    from tools.verify.convert.common import variant_paths
     pdf = args.pdf
-    if pdf is None:
+    references = {}
+    if pdf is None or args.source_root:
         root = source_root(args.source_root)
-        pdf = root / 'papers' / (slug + '.pdf')
-        if reference is None:
-            candidate = root / 'papers/codex_source_text' / ('codex_' + slug + '.txt')
-            reference = candidate if candidate.is_file() else None
-    codex_raw = reference.read_bytes().decode('utf-8', errors='replace') if reference else None
-    raw, meta = textlayer.extract_raw(pdf, codex_raw)
+        if pdf is None:
+            pdf = root / 'papers' / (slug + '.pdf')
+        references = {name: path for name, path in variant_paths(root, slug).items() if path is not None}
+    if args.codex_raw is not None:
+        references['codex_raw'] = args.codex_raw
+    texts = {name: path.read_bytes().decode('utf-8', errors='replace') for name, path in references.items()}
+    title = args.title.strip()
+    if len(title.splitlines()) > 1:
+        raise ValueError('논문 제목은 한 줄이어야 합니다')
+    raw, meta = textlayer.extract_raw(pdf, texts.get('codex_raw'))
     prepared = pipeline.prepare_segments(raw, args.arxiv_stamp)
-    meta['codex_raw_sha256'] = hashlib.sha256(codex_raw.encode('utf-8')).hexdigest() if codex_raw is not None else None
+    meta['variant_sha256'] = {name: hashlib.sha256(text.encode('utf-8')).hexdigest()
+                              for name, text in texts.items()}
+    meta['codex_raw_sha256'] = meta['variant_sha256'].get('codex_raw')
     out = args.out_dir if args.out_dir else RESULTS_DIR / loaded['query_id']
     path, seal = workfile_min.export_segments(loaded, prepared, out, slug=slug, raw=raw,
-                                             metadata=meta, gates_sha256=gates.sha256_of(args.gates))
-    if codex_raw is not None:
-        (path.parent / (slug + '.codex_raw.txt')).write_bytes(codex_raw.encode('utf-8'))
+                                             metadata=meta, gates_sha256=gates.sha256_of(args.gates), title=title)
+    for name, text in texts.items():
+        (path.parent / (slug + '.' + name + '.txt')).write_bytes(text.encode('utf-8'))
     return {'status': '선택 대기', 'workfile': str(path), 'sha256': seal,
             'selections': str(path.parent / (slug + '.selections.jsonl')),
             'displayed': len(prepared['displayed']),
@@ -57,12 +64,15 @@ def build(args, loaded: dict) -> dict:
     raw = _read_checked(path.parent / (slug + '.extract_raw.txt'), payload['sources']['extract_raw_sha256'])
     codex_sha = payload['sources'].get('codex_raw_sha256')
     codex_raw = _read_checked(path.parent / (slug + '.codex_raw.txt'), codex_sha) if codex_sha else None
+    variants = {name: _read_checked(path.parent / (slug + '.' + name + '.txt'), sha)
+                for name, sha in payload['sources'].get('variant_sha256', {}).items()}
     choices = workfile_min.import_selections_min(args.selections, payload)
     records = records_min.build_records(payload, choices, agent=args.agent, model=args.model)
     gold = args.gold
     if gold is None and slug == 'workload__year-in-llm-serving':
         gold = Path(__file__).resolve().parents[2] / 'verify/gold/workload__year-in-llm-serving_handpicked.md'
-    report = report_min.build_report(payload, records, choices, raw, codex_raw, gold)
+    report = report_min.build_report(payload, records, choices, raw, codex_raw, gold, variants)
+    payload['extractor_id'] = f'{args.agent}-session:{args.model}'
     files = {slug + '.records.jsonl': ''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in records),
              slug + '.md': digest_min.render(records, payload),
              slug + '.run.json': json.dumps(report, ensure_ascii=False, indent=2) + '\n',
@@ -80,6 +90,6 @@ def build(args, loaded: dict) -> dict:
             os.replace(str(temporary), str(path.parent / name))
         finally:
             temporary.unlink(missing_ok=True)
-    return {'status': '빌드 완료', 'stage': 'P4a-prototype', 'records': len(records),
+    return {'status': '빌드 완료', 'stage': 'v1', 'records': len(records),
             'report': str(path.parent / (slug + '.run.json')),
             'digest': str(path.parent / (slug + '.md'))}

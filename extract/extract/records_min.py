@@ -24,7 +24,10 @@ def build_records(payload: dict, selections: list[dict], *, agent: str, model: s
                   'claim_text': choice['memo'], 'kind': choice['kind'],
                   'conditions': dict.fromkeys(CONDITION_FIELDS, 'unextracted'), 'numbers': [],
                   'extractor_id': f'{agent}-session:{model}', 'run_id': payload['run_id'],
-                  'resolved_para_ids': segment['resolved_para_ids']}
+                  'resolved_para_ids': segment['resolved_para_ids'],
+                  'fragment_pages': [f['page'] for f in segment['fragments']],
+                  'quote_fragments': [f['text'] for f in segment['fragments']],
+                  'query': payload['query'], 'paper_title': payload.get('title', payload['slug'])}
         result = validate(record)
         if result.status != 'pass':
             raise ValueError(f'레코드 스키마 실패: {result.details}')

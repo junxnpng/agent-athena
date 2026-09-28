@@ -1,6 +1,6 @@
 # 질의 기반 논문 근거 발췌기
 
-현재 **P1 사전 검사, P2 텍스트·세그먼트, P3 인용 연결, P4a 파일 왕복 프로토타입**이 구현되어 있다. 지정 논문의 P2·P3 인수 시험과 P4a 실제 모델 측정·사람 결정 게이트는 미완료다. Python 3.9 stdlib로 실행하며 Codex·Claude 모두 같은 CLI를 사용한다.
+현재 **v1의 P1–P5 기능과 P6 자동 회귀·커버리지 검사**가 구현되어 있다. 실제 논문의 P2·P3 인수 시험과 실제 모델 선택·사람 검토는 대기 중이다. 사용자가 구현을 먼저 완료한 뒤 verify와 함께 실데이터 검증하기로 순서를 변경했다. 인수 완료와 구현 완료를 구별한다. Python 3.9 stdlib로 실행하며 Codex·Claude 모두 같은 CLI를 사용한다.
 
 ```sh
 runner/evidence-extract check --query extract/config/queries/gold-kv-reuse.json
@@ -51,7 +51,7 @@ KVCPOOL=/absolute/path/kvcpool-trace-gen python3 -S -m unittest discover -s test
 
 L1은 verify의 `Variant`·`check_quote`를 호출한다. 목록의 기호 조각도 보존하며 등급을 측정한다. **선택되어 레코드로 만들어지는 인용**은 모두 exact여야 한다. 원장 연결·등록·waiver는 수행하지 않는다. verify 모듈이 내부적으로 원장 모듈을 import하지만 extract는 원장 API를 호출하지 않는다.
 
-## P4a 프로토타입 실행
+## v1 실행
 
 ```sh
 runner/evidence-extract segment \
@@ -60,7 +60,7 @@ runner/evidence-extract segment \
   --source-root /absolute/path/kvcpool-trace-gen
 ```
 
-직접 PDF를 지정하려면 `--source-root` 대신 `--pdf /absolute/path/paper.pdf`를 사용한다. 선택적으로 `--codex-raw FILE`, `--arxiv-stamp TEXT`, `--out-dir DIR`를 줄 수 있다. 기본 출력 위치는 `extract/results/<query_id>/<run_id>/`이며 실행 ID는 날짜 없이 생성된다. 모든 표시 세그먼트를 한 파일에 담고 SHA-256을 함께 쓴다.
+직접 PDF를 지정하려면 `--source-root` 대신 `--pdf /absolute/path/paper.pdf`를 사용한다. 선택적으로 `--title "논문 제목"`, `--codex-raw FILE`, `--arxiv-stamp TEXT`, `--out-dir DIR`를 줄 수 있다. 제목을 생략하면 slug를 표시한다. `--source-root`를 주면 verify의 `sources.json`에 설정된 네 텍스트 변형을 찾아 실행 폴더에 복사하고 각 SHA-256을 봉인한다. 직접 PDF와 `--source-root`를 함께 지정해도 된다. `build`는 봉인된 사본만 읽으며, 없는 변형은 `unavailable`로 보고한다. 기본 출력 위치는 `extract/results/<query_id>/<run_id>/`이며 실행 ID는 날짜 없이 생성된다. 모든 표시 세그먼트를 한 파일에 담고 SHA-256을 함께 쓴다.
 
 출력된 `workfile`과 [선택 지침](SELECTION.md)을 Codex 또는 Claude 세션에 전달하고, 출력된 `selections` 경로에 선택 JSONL을 작성한다. 모델이 문장을 받아 적지 않으며 코드가 원문을 복사한다.
 
@@ -75,17 +75,47 @@ runner/evidence-extract build \
 
 Claude는 `--agent claude`를 사용한다. `.records.jsonl`, 한국어 메모의 `.md`, `.run.json`, `slice-facts-<run_id>.json`을 같은 실행 폴더에 쓴다. 질의·게이트·세그먼트 봉인·원문 해시를 검사하고 선택 파일 한 줄이라도 틀리면 전체를 거부한다. 성공 결과는 덮어쓰지 않으므로 새 선택 실험은 새 `segment` 실행으로 시작한다.
 
-`--gold PATH`는 verify의 handpicked 형식 파일을 받는다. 지정 논문 slug에서는 반입된 gold 파일이 기본값이다. 그 밖의 논문은 gold 미지정 시 회수율을 unavailable로 보고한다. codex_raw 등급과 G 블록 회수율은 보고 전용이며 통과를 막지 않는다. P4a의 보고서는 아직 P4b의 26키 최종 보고 형식이 아니다.
+`--gold PATH`는 verify의 handpicked 형식 파일을 받는다. 지정 논문 slug에서는 반입된 gold 파일이 기본값이다. 그 밖의 논문은 gold 미지정 시 회수율을 unavailable로 보고한다. codex_raw 등급과 G 블록 회수율은 보고 전용이며 통과를 막지 않는다. 보고서는 최종 계약의 26개 필수 키와 부가 진단을 포함한다. `stage: v1`, `acceptance: pending_real_data`를 기록하며, 미확인 질의는 `query.unconfirmed: true`다. 변형별 비정확 행·텍스트 층 뒤섞임 의심·짧은 문장·반복 문장 목록은 보고용이다. 원천 L1 exact 실패나 문단 위치 불일치는 빌드를 중단한다.
 
 새 스킬·심볼릭 링크를 만드는 원본 계획 부분은 루트 규칙에 따라 공통 문서로 대체했다. 에이전트 식별자는 `codex-session:<model>` 또는 `claude-session:<model>`이다. Python 3.10·PyYAML·pytest 필수 구성은 Python 3.9·JSON·unittest로 대체한다.
 
-## 남은 인수 절차
+## 최종 계약과 재현
+
+- 선택 파일은 한 줄이라도 잘못되면 전체 거부한다. `unknown_id`, `removed_id`, `duplicate_id`, `invalid_kind`, `invalid_memo`, `unexpected_field`를 구별한다. JSON/필수 필드/경계 표지 형식 오류는 `invalid_format`이다. 첫 위반 행·사유를 `.selections.jsonl.rej-N.log`에 남기며 이전 기록을 덮어쓰지 않는다.
+- 메모는 비어 있지 않은 한 줄이어야 한다. 한국어 여부와 의미 충실성은 모델·사람 검토 대상이다. `boundary_flag: true`에는 비어 있지 않은 `boundary_reason`이 필요하다.
+- 레코드는 질의·제목·인용 조각·조각별 페이지를 함께 보존한다. 다이제스트는 문서 순서로 정렬하고, 연결 위치에 `⏎p.N`을 표시한다. 원문 자체의 `[…]`는 바꾸지 않는다. 조건 5필드는 `unextracted`, 수치는 빈 배열이며 v1의 의도된 범위다.
+- 0건 선택도 정상 실행이다. 빈 JSONL에는 질의 메타데이터를 담을 행이 없으므로 빈 다이제스트 재생성에는 봉인 작업 파일과 실행 에이전트 정보가 필요하다.
+- 전체 수는 `total = kept_before_spanning + sum(removed_by_reason)`이고, `displayed = kept_before_spanning - spanning.formed`다. 본문 낱말 수는 연결 전 표시 대상 원문 기준으로 세므로 생성된 `[…]`를 토큰 추정에 더하지 않는다.
+- `codex_raw`가 같을 때만 블록 번호·텍스트 대응을 검사한다. 다르면 바이트 첫 차이·줄 차이를 보고하고 대응 등록을 sync 단계로 남긴다. 원장에 등록된 실제 행과의 대조는 실데이터 검증에서 한다.
+- 성공 산출물은 덮어쓰지 않는다. 파일마다 원자적으로 기록하지만 실행 폴더 전체의 트랜잭션은 아니다. 쓰기 도중 중단되어 일부 산출물만 남았다면 새 `segment` 실행으로 재시도한다.
+
+선택이 있는 JSONL에서 같은 발췌집을 재생성한다.
+
+```sh
+PYTHONPATH=extract:verify python3 -S - path/to/paper.records.jsonl <<'PYTHON'
+import json
+import sys
+from pathlib import Path
+from extract.digest_min import render
+records = [json.loads(line) for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()]
+print(render(records), end="")
+PYTHON
+```
+
+## 자동 검사와 남은 인수
+
+```sh
+python3 -S scripts/check-extract
+scripts/check
+```
+
+`check-extract`는 단위·합성 통합 테스트와 표준 라이브러리 `trace` 실행 가능 줄 커버리지 80% 게이트를 실행한다. 추가 Python 패키지는 필요 없다. 이 측정은 coverage.py 측정과 구분한다. 실데이터가 없어서 skip된 테스트는 통과로 세지 않는다.
 
 1. `KVCPOOL` 원본 자료로 P2·P3 gold 시험을 생략 없이 통과시킨다.
-2. 실제 논문 전체 세그먼트를 현재 Codex 또는 Claude 모델이 읽고 선택 파일을 작성한다.
-3. P4a의 다섯 측정값(세그먼트·선택·L1·변형 대조·G 회수율)을 검토하고 사람 결정 게이트를 기록한다.
-4. 그 뒤 P4b의 최종 계약·보고서, P5 교차 대조, P6 커버리지를 진행한다.
+2. 실제 논문 전체 세그먼트를 Codex 또는 Claude가 읽고 선택 파일을 작성한다.
+3. 최종 보고서의 세그먼트·선택·L1·변형 대조·G 회수율과 발췌집을 사람이 검토한다.
+4. verify의 실제 자료 검사와 함께 결과를 대조한다. 원장 변환기·`extract_raw` 등록·`unextracted` 해석은 별도 sync 범위이며 현재 JSONL을 `ledger import`에 직접 넣을 수 없다.
 
-합성 테스트 결과를 실제 논문 측정이나 사람 승인으로 대신 기록하지 않는다. 테스트는 루트 `tests/test_evidence_extract.py`와 `tests/test_extract_*.py`이며 `scripts/check`에 포함된다. 원본 계획의 체크박스는 아직 인수 미완료 상태를 유지한다.
+구현·검증 범위와 남은 절차: [완료 기록](docs/v1-implementation.md). 합성 결과를 실제 모델 측정이나 사람 승인으로 대신 기록하지 않는다. 원본 계획의 인수 체크박스는 아직 미완료 상태를 유지한다. inbox 배치·API 호출·조건/수치 추출은 v1 이후 범위다.
 
 원본: [계획](plans/ralplan-paper-evidence-extractor.md), [스펙](spec/deep-interview-paper-evidence-extractor.md). 공통 에이전트 사용법: [verify/USAGE.md](../verify/USAGE.md).

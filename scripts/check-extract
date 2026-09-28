@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Run extraction regression and measure stdlib trace executable-line coverage."""
+from __future__ import annotations
+
+import contextlib
+import io
+from pathlib import Path
+import re
+import sys
+import tempfile
+import trace
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+PACKAGE = ROOT / 'extract' / 'extract'
+
+
+def run_tests():
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite([loader.discover(str(ROOT / 'tests'), pattern=pattern)
+                               for pattern in ('test_extract*.py', 'test_evidence_extract.py')])
+    return unittest.TextTestRunner(verbosity=1).run(suite)
+
+
+def main() -> int:
+    tracer = trace.Trace(count=True, trace=False, ignoredirs=[sys.base_prefix])
+    outcome = tracer.runfunc(run_tests)
+    measured = tracer.results()
+    measured.counts = {key: count for key, count in measured.counts.items()
+                       if Path(key[0]).parent == PACKAGE}
+    total = hit = 0
+    with tempfile.TemporaryDirectory(prefix='extract-coverage-') as directory:
+        with contextlib.redirect_stdout(io.StringIO()):
+            measured.write_results(show_missing=True, coverdir=directory)
+        for path in sorted(Path(directory).glob('*.cover')):
+            lines = path.read_text(encoding='utf-8').splitlines()
+            covered = sum(bool(re.match(r'\s*\d+:', line)) for line in lines)
+            missed = sum(line.startswith('>>>>>>') for line in lines)
+            total += covered + missed
+            hit += covered
+            print(f'{path.stem}: {covered}/{covered + missed}')
+    missing = [p.name for p in PACKAGE.glob('*.py') if p.name != '__init__.py'
+               and str(p) not in {key[0] for key in measured.counts}]
+    percent = 100 * hit / total if total else 0
+    print(f'extract stdlib trace line coverage: {hit}/{total} ({percent:.1f}%)')
+    if missing:
+        print('측정되지 않은 모듈: ' + ', '.join(missing), file=sys.stderr)
+    return 0 if outcome.wasSuccessful() and percent >= 80 and not missing else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

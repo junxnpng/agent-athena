@@ -1,4 +1,4 @@
-"""Sealed whole-document export and minimal all-or-nothing selection input."""
+"""Sealed whole-document export and all-or-nothing selection input."""
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -18,13 +18,13 @@ def safe_name(value: str) -> str:
 
 
 def export_segments(query: dict, segments: dict, out_dir: Path, *, slug: str,
-                    raw: str, metadata: dict, gates_sha256: str) -> tuple[Path, str]:
+                    raw: str, metadata: dict, gates_sha256: str, title: str = '') -> tuple[Path, str]:
     slug = safe_name(slug)
     query_id = safe_name(query['query_id'])
     run_id = f'{query_id}-{uuid.uuid4().hex[:12]}-{slug}'
     directory = Path(out_dir) / run_id
     payload = {'protocol_ver': 'paper-extract-v1', 'run_id': run_id, 'slug': slug,
-               'query': query, 'sources': metadata, 'gates_sha256': gates_sha256,
+               'title': title or slug, 'query': query, 'sources': metadata, 'gates_sha256': gates_sha256,
                'segmenter_ver': segments['segmenter_ver'],
                'segments': [asdict(s) for s in segments['displayed']],
                'counts': {'blocks': len(segments['blocks']), 'total': len(segments['segments']),
@@ -32,6 +32,8 @@ def export_segments(query: dict, segments: dict, out_dir: Path, *, slug: str,
                           'removed_by_reason': segments['removed_by_reason'],
                           'displayed': len(segments['displayed'])},
                'spanning': segments['spanning'],
+               'removed_reference_words': segments['removed_reference_words'],
+               'body_words': sum(len(s.text.split()) for s in segments['kept']),
                'boundary_warnings': segments['boundary_warnings'],
                'removed_ids': [r['segment'].segment_id for r in segments['removed']],
                'block_words': {b.para_id: b.word_count for b in segments['blocks']}}
@@ -59,29 +61,66 @@ def load_export(path: Path) -> dict:
     return payload
 
 
+class SelectionError(ValueError):
+    """Stable rejection code with the first offending input line."""
+
+    def __init__(self, code: str, line_no: int):
+        self.code, self.line_no = code, line_no
+        super().__init__(f'선택 파일 {line_no}행: {code}')
+
+
+def _validate_selection(row, known: set, removed: set, seen: set, line_no: int) -> None:
+    def reject(code):
+        raise SelectionError(code, line_no)
+    if not isinstance(row, dict) or not {'segment_id', 'kind', 'memo'} <= row.keys():
+        reject('invalid_format')
+    if set(row) - {'segment_id', 'kind', 'memo', 'boundary_flag', 'boundary_reason'}:
+        reject('unexpected_field')
+    if not isinstance(row['kind'], str) or row['kind'] not in KINDS:
+        reject('invalid_kind')
+    if not isinstance(row['memo'], str) or not row['memo'].strip() or any(c in row['memo'] for c in '\n\r\v\f\x85\u2028\u2029'):
+        reject('invalid_memo')
+    if 'boundary_flag' in row and not isinstance(row['boundary_flag'], bool):
+        reject('invalid_format')
+    if ('boundary_reason' in row and not isinstance(row['boundary_reason'], str)
+            or row.get('boundary_flag') and not row.get('boundary_reason', '').strip()):
+        reject('invalid_format')
+    identifier = row['segment_id']
+    if not isinstance(identifier, str):
+        reject('unknown_id')
+    if identifier in removed:
+        reject('removed_id')
+    if identifier not in known:
+        reject('unknown_id')
+    if identifier in seen:
+        reject('duplicate_id')
+
+
 def import_selections_min(path: Path, payload: dict) -> list[dict]:
+    path = Path(path)
     known = {s['segment_id'] for s in payload['segments']}
+    removed = set(payload['removed_ids'])
     seen = set()
     selections = []
-    for line_no, line in enumerate(Path(path).read_text(encoding='utf-8').splitlines(), 1):
-        try:
-            row = json.loads(line)
-            if not isinstance(row, dict) or not {'segment_id', 'kind', 'memo'} <= row.keys():
-                raise ValueError('필수 필드 누락')
-            if set(row) - {'segment_id', 'kind', 'memo', 'boundary_flag', 'boundary_reason'}:
-                raise ValueError('허용하지 않는 필드')
-            if not isinstance(row['segment_id'], str) or row['segment_id'] not in known or row['segment_id'] in seen:
-                raise ValueError('알 수 없거나 중복된 세그먼트')
-            if row['kind'] not in KINDS or not isinstance(row['memo'], str) or not row['memo'].strip():
-                raise ValueError('kind 또는 memo 오류')
-            if '\n' in row['memo'] or '\r' in row['memo']:
-                raise ValueError('memo는 한 줄이어야 합니다')
-            if 'boundary_flag' in row and not isinstance(row['boundary_flag'], bool):
-                raise ValueError('boundary_flag는 불리언이어야 합니다')
-            if 'boundary_reason' in row and not isinstance(row['boundary_reason'], str):
-                raise ValueError('boundary_reason은 문자열이어야 합니다')
-        except (ValueError, TypeError) as exc:
-            raise ValueError(f'선택 파일 {line_no}행: {exc}') from exc
-        seen.add(row['segment_id'])
-        selections.append(row)
+    try:
+        for line_no, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+            try:
+                row = json.loads(line)
+            except ValueError as exc:
+                raise SelectionError('invalid_format', line_no) from exc
+            _validate_selection(row, known, removed, seen, line_no)
+            seen.add(row['segment_id'])
+            selections.append(row)
+    except SelectionError as exc:
+        # Exclusive creation preserves all previous rejection evidence.
+        index = 1
+        while True:
+            log = path.with_name(path.name + f'.rej-{index}.log')
+            try:
+                with log.open('x', encoding='utf-8') as stream:
+                    json.dump({'code': exc.code, 'line': exc.line_no}, stream)
+                break
+            except FileExistsError:
+                index += 1
+        raise
     return selections

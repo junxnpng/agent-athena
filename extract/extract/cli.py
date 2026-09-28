@@ -1,4 +1,4 @@
-"""Local extraction CLI for preflight and the minimal P4a file round trip."""
+"""Local extraction CLI for preflight and the v1 file round trip."""
 from __future__ import annotations
 
 import argparse
@@ -23,6 +23,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         command.add_argument("--gates", type=Path, default=gates.DEFAULT_PATH)
         command.add_argument("--slug", required=True)
     segment.add_argument("--pdf", type=Path)
+    segment.add_argument("--title", default="", help="논문 제목; 생략하면 slug 사용")
     segment.add_argument("--source-root")
     segment.add_argument("--codex-raw", type=Path)
     segment.add_argument("--out-dir", type=Path)
