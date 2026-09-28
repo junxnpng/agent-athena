@@ -1,0 +1,5 @@
+interface:
+  display_name: "claude-handoff"
+  short_description: "Transfer work with available session capabilities"
+policy:
+  allow_implicit_invocation: false

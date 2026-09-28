@@ -1,0 +1,3 @@
+interface:
+  display_name: "external-context"
+  short_description: "Gather documentation through shared research"

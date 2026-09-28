@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "matt": {
+      "repository": "mattpocock/skills",
+      "commit": "c55ee46073ed923f86ce59a5eb3b6d895095d1b7",
+      "license": "MIT",
+      "license_sha256": "0e7ac423bf2c6e223b7c5b156f8cf72da49d748e56a1641402c31f22ad07dbb5"
+    },
+    "omc": {
+      "repository": "Yeachan-Heo/oh-my-claudecode",
+      "commit": "c1cd5d08b5279c82d2d2d9057fb61473ceacead4",
+      "license": "MIT",
+      "license_sha256": "1d2b966f93feaa8928a57a69868388ee9016c86a341299fc5261ded44249af79"
+    }
+  },
+  "ports": [
+    {
+      "name": "deep-interview",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "omc",
+          "path": "skills/deep-interview/SKILL.md",
+          "sha256": "89e8a38fd4a884b5288b4ac104eaa62760d3886d18ae257257e9a1611d6f9e3c"
+        },
+        {
+          "source": "matt",
+          "path": "skills/productivity/grilling/SKILL.md",
+          "sha256": "10ff989e7498b23b5acb49d5048f11dcd906757d2f79c5cdf8a00001381296f2"
+        },
+        {
+          "source": "matt",
+          "path": "skills/productivity/grill-me/SKILL.md",
+          "sha256": "caaf8b8de1684f96e26b28f3c29189db5c89cce4b73e1c93d86164f66ef88637"
+        }
+      ]
+    },
+    {
+      "name": "grilling",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/productivity/grilling/SKILL.md",
+          "sha256": "10ff989e7498b23b5acb49d5048f11dcd906757d2f79c5cdf8a00001381296f2"
+        },
+        {
+          "source": "omc",
+          "path": "skills/deep-interview/SKILL.md",
+          "sha256": "89e8a38fd4a884b5288b4ac104eaa62760d3886d18ae257257e9a1611d6f9e3c"
+        }
+      ]
+    },
+    {
+      "name": "grill-me",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/productivity/grill-me/SKILL.md",
+          "sha256": "caaf8b8de1684f96e26b28f3c29189db5c89cce4b73e1c93d86164f66ef88637"
+        },
+        {
+          "source": "matt",
+          "path": "skills/productivity/grilling/SKILL.md",
+          "sha256": "10ff989e7498b23b5acb49d5048f11dcd906757d2f79c5cdf8a00001381296f2"
+        },
+        {
+          "source": "omc",
+          "path": "skills/deep-interview/SKILL.md",
+          "sha256": "89e8a38fd4a884b5288b4ac104eaa62760d3886d18ae257257e9a1611d6f9e3c"
+        }
+      ]
+    },
+    {
+      "name": "research",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/engineering/research/SKILL.md",
+          "sha256": "985569f15739c713d6784887c3d186d4ef9ac85bec5ad9c068d25bf0739928e4"
+        },
+        {
+          "source": "omc",
+          "path": "skills/external-context/SKILL.md",
+          "sha256": "34303b3e62f5f5643a735ea640425ab221b2b8900bb1e8005a486becb0fe73eb"
+        }
+      ]
+    },
+    {
+      "name": "external-context",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "omc",
+          "path": "skills/external-context/SKILL.md",
+          "sha256": "34303b3e62f5f5643a735ea640425ab221b2b8900bb1e8005a486becb0fe73eb"
+        },
+        {
+          "source": "matt",
+          "path": "skills/engineering/research/SKILL.md",
+          "sha256": "985569f15739c713d6784887c3d186d4ef9ac85bec5ad9c068d25bf0739928e4"
+        }
+      ]
+    },
+    {
+      "name": "handoff",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/productivity/handoff/SKILL.md",
+          "sha256": "7c62de979fdc7ac32fb5ddb2146156c917f80ee070d30fadc9d40343c4b6ed25"
+        },
+        {
+          "source": "matt",
+          "path": "skills/in-progress/claude-handoff/SKILL.md",
+          "sha256": "6738e8b7c7899ea0038fb7a5c859ca1b90c7b1eb40123dcdbe94c51b5b119f12"
+        }
+      ]
+    },
+    {
+      "name": "claude-handoff",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/in-progress/claude-handoff/SKILL.md",
+          "sha256": "6738e8b7c7899ea0038fb7a5c859ca1b90c7b1eb40123dcdbe94c51b5b119f12"
+        },
+        {
+          "source": "matt",
+          "path": "skills/productivity/handoff/SKILL.md",
+          "sha256": "7c62de979fdc7ac32fb5ddb2146156c917f80ee070d30fadc9d40343c4b6ed25"
+        }
+      ]
+    },
+    {
+      "name": "ralph",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "omc",
+          "path": "skills/ralph/SKILL.md",
+          "sha256": "b05465ceb45caf679a991035a3117426824524da0927f1196da510a881d8492d"
+        }
+      ]
+    },
+    {
+      "name": "to-spec",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/engineering/to-spec/SKILL.md",
+          "sha256": "43ad9cf318e5e7d3d1fa360253a37021796dc87a0c2e595ad262661a10f85088"
+        },
+        {
+          "source": "omc",
+          "path": "skills/deep-interview/SKILL.md",
+          "sha256": "89e8a38fd4a884b5288b4ac104eaa62760d3886d18ae257257e9a1611d6f9e3c"
+        }
+      ]
+    },
+    {
+      "name": "writing-for-agents",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/productivity/writing-for-agents/SKILL.md",
+          "sha256": "551adca942227b44192edba88acd4e8db911f0121ce58ad16944ccf6a896a74a"
+        },
+        {
+          "source": "matt",
+          "path": "skills/productivity/writing-for-agents/SKILL-MECHANICS.md",
+          "sha256": "c768e6307c7c10728c401c213f2c4ba71c542127eeb7ad2956aabd15a0fa0059"
+        }
+      ]
+    },
+    {
+      "name": "writing-fragments",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/in-progress/writing-fragments/SKILL.md",
+          "sha256": "298b0edd23df229183630de592ed8aa4289233560f2040691f6eb77caeaad4ea"
+        }
+      ]
+    },
+    {
+      "name": "writing-shape",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/in-progress/writing-shape/SKILL.md",
+          "sha256": "f5e6c57bdd85178ace4a260c92f46da6b64ddee18215b461d875739c68976f72"
+        }
+      ]
+    },
+    {
+      "name": "writing-beats",
+      "kind": "adapted",
+      "upstream_files": [
+        {
+          "source": "matt",
+          "path": "skills/in-progress/writing-beats/SKILL.md",
+          "sha256": "a96abafa2372eede8267d770138b322d6125da8adaa7ccf0a5e08e4ee13ee71e"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+interface:
+  display_name: "writing-shape"
+  short_description: "Shape raw material into a coherent separate article"
+policy:
+  allow_implicit_invocation: false

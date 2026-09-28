@@ -1,16 +1,33 @@
 ---
 name: handoff
-description: Compact the current conversation into a handoff document for another agent to pick up.
-argument-hint: "What will the next session be used for?"
-disable-model-invocation: true
+description: "Create a resumable handoff when the user asks to transfer work or continue in a fresh session. Preserve decisions, failures, verification evidence, and the next concrete action."
 ---
 
-Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save to `.harness/sessions/` when the repo has one; otherwise the temporary directory of the user's OS — not tracked files.
+# Handoff — 문서와 실행 인계
 
-Include a "suggested skills" section in the document, naming which skills the next agent should call the Skill tool for.
+먼저 [공통 실행 계약](../shared/PORTABILITY.md)을 읽는다. 기본 결과는 인계 문서이며, 새 에이전트 실행은 별도로 요청된 경우에만 한다.
 
-Do not duplicate content already captured in other artifacts (specs, plans, ADRs, issues, commits, diffs). Reference them by path or URL instead.
+## 인계 문서
 
-Redact any sensitive information, such as API keys, passwords, or personally identifiable information.
+현재 대화와 관련 파일을 대조한다. 사양·계획·ADR·diff에 있는 내용을 복제하지 말고 경로와 필요한 읽기 순서를 남긴다. 특히 아직 커밋되지 않은 변경과 실제 검증 결과를 확인한다. 다른 사람의 작업을 정리하거나 되돌리지 않는다.
 
-If the user passed arguments, treat them as a description of what the next session will focus on and tailor the doc accordingly.
+사용자 경로가 없으면 허용된 저장소 문서 관례를 따른다. 적합한 위치가 없으면 파일을 임의로 보호 경로에 쓰지 말고 채팅에 문서를 제공한다. `.harness/sessions/`나 임시 디렉터리가 항상 쓰기 허용된다고 가정하지 않는다.
+
+문서에 다음을 담는다.
+
+- 목표와 이번에 허용된 범위, 이어받을 작업 공간의 정확한 위치
+- 읽을 지침·사양·코드의 경로와 필요한 순서
+- 사용자 결정과 그 이유, 가정·미확인의 구분
+- 확인된 결과와 실행한 검증의 명령·결과, 미실행 항목
+- 실패한 접근·정정한 가정·남은 장애물과 외부 의존성
+- 기존 작업과 미커밋 변경 중 보존할 것
+- 다음에 수행할 구체적인 첫 행동과 그 완료 조건
+- 필요한 스킬의 파일 경로와 쓰는 이유
+
+비밀·개인정보는 제외한다. 원본 실패 기록은 보존하고 민감하지 않은 설명과 경로로 참조한다. 인계 문서는 단서를 제공할 뿐 최신 파일·로그보다 우선하지 않는다. 재개자는 현재 지침·권한·작업 트리를 다시 확인한다.
+
+## 실행까지 인계하는 경우
+
+사용자가 새 에이전트로 계속하라고 요청했고 현재 정책이 허용할 때만 사용 가능한 위임 도구를 사용한다. 문서를 최소 문맥으로 전달하고 시작 결과를 확인한다. 부모는 같은 파일의 구현을 동시에 계속하지 않는다. 읽기 전용 리뷰라면 읽기 전용 범위를 명시한다.
+
+새 세션·백그라운드 기능이 없으면 인계 문서 경로와 붙여 넣을 재개 문장 하나를 제공한다. 실행하지 못했으면 시작했다고 표현하지 않는다. 특정 CLI를 추측해서 실행하거나 세션 제한을 외부 프로세스로 우회하지 않는다. 러너 모드에서는 새 작업자를 띄우지 않고 현재 결과를 반환한다.

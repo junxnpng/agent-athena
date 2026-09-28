@@ -1,0 +1,5 @@
+interface:
+  display_name: "writing-fragments"
+  short_description: "Collect raw material before structuring an article"
+policy:
+  allow_implicit_invocation: false

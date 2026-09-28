@@ -14,7 +14,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 - `runner/harnesslib.py` 공용 부기(로그 fold·상태 파생·P2 정책·검증기·git·SUMMARY) · `runner/drivers.py` 모델 드라이버(claude/fake)
 - `hooks/run-hook` 진입점 → `session-start`(P4) · `pre-tool`(쓰기 중재·trifecta·예산·`.harness-readonly` 회사 읽기전용). 확장자 없음 — Windows 자동감지 회피
 - `tests/` 단위+e2e 테스트 · `scripts/check` 자가 검증(테스트 + 이 파일 60줄 제한 + 훅/플러그인 JSON) · `scripts/plugin-refresh` 전역 설치본 갱신
-- `skills/<이름>/` 이식 스킬 26종(대장 `skills/vendor/VENDORED.md`, 감사 정본 `docs/handoff-pack-2026-08-28.md` 4부) + 자작 `diagram`·`checkpoint`(메모리 정리→새 세션 프롬프트) · `skills/vendor/<이름>/` = 로드 제외(to-tickets)
+- `skills/<이름>/` 스킬 36종(대장 `skills/vendor/VENDORED.md`; 통합 이식 출처 `skills/vendor/PORTS.json`, 사용·감사 `docs/skill-port-review.md`) · `skills/shared/` 공통 지침 · `skills/vendor/` 로드 제외
 - `templates/harness-dir/` 대상 repo `.harness/` 골격 · `docs/` 사양(v0 `spec-v0.md`, v1은 반출 팩 2부) · `.out-of-scope/` 거절 기록 · `findings/` 실패 기록 · `ASSUMPTIONS.md` 가정 · `CONTEXT.md` 어휘
 - 대상 repo: `<repo>/.harness/{spec.md, verify, init.sh, domain.json, plan.json, log.jsonl, SUMMARY.md, BLOCKED.md, proposed-lessons.md}` — git 추적
 
@@ -32,7 +32,7 @@ Claude Code / Codex 위에 얹는 도메인 무의존 레이어. 밤새 무인�
 - 코드는 Python 3.9 stdlib만. `from __future__ import annotations` 필수, `X | None` 런타임 문법 금지. 외부 의존성 추가 금지.
 - **macOS와 Ubuntu 둘 다에서 돈다.** 셸은 `#!/bin/sh` POSIX(dash 호환)만. BSD/GNU가 갈리는 명령(`sed -i` `readlink -f` `realpath` `timeout` `date -d/-v` `stat -c/-f`)과 bashism 금지 — `scripts/portable-lint`가 거부한다. 타임아웃은 Python 프로세스 그룹 kill. subprocess는 `encoding="utf-8"` 명시.
 - 컴포넌트를 추가하면 `ASSUMPTIONS.md`에 "가정 + 유효 모델 급" 한 줄을 같이 적는다. 스킬·도구 추가 시 I7 재검사.
-- 자작 스킬 frontmatter는 `name`, `description` 2키만(Codex 이식성). vendored 스킬(`skills/vendor/VENDORED.md`)은 upstream 유지. 에이전트가 자기 스킬을 만들지 않는다. 외부 스킬은 고정 커밋 감사 후 vendoring만.
+- 자작 스킬 frontmatter는 `name`, `description` 2키만. 원본 유지형 vendored는 upstream 유지; 사용자가 요청한 통합 13종은 `skills/vendor/PORTS.json`에 출처를 고정하고 2키로 이식. 에이전트의 임의 자기 스킬 생성 금지. 외부 스킬은 고정 커밋 감사 후 이식한다.
 - 날짜를 식별자로 쓰지 않는다. 계획에 세부 구현을 쓰지 않는다. 쓰기 작업을 병렬화하지 않는다.
 - 범위 밖 요청은 `.out-of-scope/`에 파일로 남긴다(요청 / 이유 / 탈출구 / 과거 요청). 어휘 충돌은 `CONTEXT.md` 해소 기록에.
 - 끝내기 전에 `scripts/check`를 돌린다 — **파이프 뒤에 두지 않는다**(`check | tail`은 exit code를 가린다). 파일로 받아 `$?`로 게이트.

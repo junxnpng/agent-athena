@@ -1,0 +1,35 @@
+{
+  "codex": {
+    "cli_version": "0.158.0",
+    "process_exit_code": 0,
+    "mode": "ephemeral / read-only / user config ignored / web and MCP disabled",
+    "completed_event": true,
+    "observed_commands": [
+      "/bin/zsh -lc 'cat .agents/skills/to-spec/SKILL.md .agents/skills/shared/PORTABILITY.md'",
+      "/bin/zsh -lc 'if [ -f .harness/domain.json ]; then cat .harness/domain.json; fi'"
+    ],
+    "answer": "codex-spec.md"
+  },
+  "claude": {
+    "cli_version": "2.1.263",
+    "process_exit_code": 1,
+    "mode": "temporary plugin / Read,Skill only / no session persistence / strict MCP config",
+    "registered_skills": [
+      "athena-skill-smoke:claude-handoff",
+      "athena-skill-smoke:deep-interview",
+      "athena-skill-smoke:external-context",
+      "athena-skill-smoke:grill-me",
+      "athena-skill-smoke:grilling",
+      "athena-skill-smoke:handoff",
+      "athena-skill-smoke:ralph",
+      "athena-skill-smoke:research",
+      "athena-skill-smoke:to-spec",
+      "athena-skill-smoke:writing-beats",
+      "athena-skill-smoke:writing-for-agents",
+      "athena-skill-smoke:writing-fragments",
+      "athena-skill-smoke:writing-shape"
+    ],
+    "model_behavior_verified": false,
+    "error": "Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access"
+  }
+}

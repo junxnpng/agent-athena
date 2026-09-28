@@ -1,22 +1,9 @@
-# Skill mechanics
+# 이식 스킬의 구성과 호출
 
-The skill-specific branch of [`writing-for-agents`](SKILL.md): what changes when the document is a skill (frontmatter, the invocation choice, and router skills). Everything else about writing it is the universal reference in `SKILL.md`.
+`SKILL.md`의 name과 description이 발견과 호출을 안내한다. 이 통합 묶음은 frontmatter를 두 키로 통일한다. 기존 원본의 명시 호출 정책은 Codex용 `agents/openai.yaml`에 보존한다. Claude에서 자동 발견 여부가 동일하다고 보장하지 않으며, 명시 호출 목적은 description에도 적는다.
 
-## Invocation
+일반 작업에서 자동 선택이 필요한 정본은 상황과 결과로 description을 쓴다. 호환 이름은 어떤 원본 이름을 보존하는지 설명하고 정본 파일을 직접 읽도록 연결한다. 호출 도구나 명령 문법을 본문 필수 의존성으로 만들지 않는다.
 
-Two choices, trading the two loads:
+`agents/openai.yaml`은 UI 메타데이터와 실제 지원되는 호출 정책만 담는다. 본문에서 흉내 낸 도구 이름이나 frontmatter 플래그로 런타임이 생긴다고 가정하지 않는다. 묶음 배포에는 `skills/shared/`와 연결된 정본도 함께 포함한다.
 
-- A **model-invoked** skill keeps a `description`, so the agent can fire it autonomously, and other skills can reach it. You can still type its name: model-invocation always _includes_ user reach; a description only ever adds agent discovery, never removes the human's. The description is the skill's top-level context pointer, forced to stay loaded at all times: permanent context load in exchange for discoverability. A model-invoked skill whose content is all reference is also one home for shared reference: another skill can invoke it, so reference needed by several skills lives in one place. Mechanics: omit `disable-model-invocation`, and write a model-facing description carrying the trigger branches (the pointer-writing rules in `SKILL.md` apply in full).
-- A **user-invoked** skill strips the description from the agent's reach: only the human typing its name can invoke it, and no other skill can. Zero context load, but it spends cognitive load: you are the index that must remember it exists. Mechanics: set `disable-model-invocation: true`; the `description` becomes human-facing: a one-line summary, trigger lists stripped.
-
-Pick model-invocation only when the agent must reach the skill on its own, or another skill must. If it only ever fires by hand, make it user-invoked and pay no context load.
-
-Shared reference that two user-invoked skills both need can live in neither: with no descriptions, neither can fire the other. Push it to a plain file outside the skill system: external reference any skill can point at.
-
-## Splitting by invocation
-
-The invocation cut of splitting (the sequence cut lives in `SKILL.md`): split off a model-invoked skill when you have a distinct leading word that should trigger it on its own (a trigger word you actually use in your prompts), or another skill must reach it. You pay context load for the new always-loaded description, so that independent reach has to be worth it.
-
-## Router skills
-
-When user-invoked skills multiply past what you can remember, that piled-up cognitive load is cured by a **router skill**: one user-invoked skill that names the others and when to reach for each, so the human has one skill to remember instead of many. It can only hint, never fire them: user-invoked skills have no description, so nothing but the human can reach them.
+큰 조건별 절차만 참조 파일로 분리한다. 참조를 옮길 때는 링크를 읽는 위치와 패키지 안에 파일이 남는지 확인한다. 내용이 같은 규칙은 정본 한 곳에서 유지한다.

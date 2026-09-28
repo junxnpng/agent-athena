@@ -1,0 +1,5 @@
+interface:
+  display_name: "writing-beats"
+  short_description: "Develop narrative moves with grounded concepts"
+policy:
+  allow_implicit_invocation: false

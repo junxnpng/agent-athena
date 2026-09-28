@@ -1,73 +1,24 @@
 ---
 name: to-spec
-description: "Turn the current conversation into a spec and publish it to the project issue tracker: no interview, just synthesis of what you've already discussed."
-disable-model-invocation: true
+description: "Synthesize the existing conversation into a local specification when the user asks for a spec. Capture behavior, testable acceptance criteria, constraints, and unresolved decisions without restarting an interview."
 ---
 
-This skill takes the current conversation context and codebase understanding and produces a spec. Do NOT interview the user; just synthesize what you already know.
+# To spec — 합의 내용을 실행 가능한 사양으로
 
-## Process
+먼저 [공통 실행 계약](../shared/PORTABILITY.md)을 읽는다. 대화·기존 문서·관련 코드에서 이미 알려진 내용을 종합한다. 새 인터뷰나 트래커 설정을 선행 조건으로 강제하지 않는다.
 
-1. Explore the repo to understand the current state of the codebase, if you haven't already. Use the project's domain glossary vocabulary throughout the spec, and respect any ADRs in the area you're touching.
+사양은 사용자에게 나타날 동작을 설명하고, 구현 계획은 그 뒤의 별도 작업으로 둔다. 저장소 용어와 ADR을 사용하며 사용자 결정과 모델 제안을 구분한다. 코드에서 확인할 사실은 직접 확인하고, 답이 없는 결정은 열린 질문으로 남긴다.
 
-2. Sketch out the seams at which you're going to test the feature. Existing seams should be preferred to new ones. Use the highest seam possible. If new seams are needed, propose them at the highest point you can. The fewer seams across the codebase, the better - the ideal number is one.
+사용자 경로나 기존 관례를 따르고, 없으면 `docs/specs/<주제>.md`를 사용한다. 기존 문서는 먼저 읽고 요청 범위 안에서 갱신한다. 트래커 게시나 승인 라벨 부여는 이 스킬의 기본 동작이 아니다.
 
-Check with the user that these seams match their expectations.
+## 사양 형식
 
-3. Write the spec using the template below, then save it as a local Markdown file (repo 관례 위치, 없으면 `docs/specs/`).
+- **문제·목표:** 누가 어떤 상황에서 무엇을 해결하려는가.
+- **기대 동작:** 주요 사용자 시나리오와 실패·경계 상황. 개수보다 범위의 충분성을 우선한다.
+- **제약·비목표:** 호환성·데이터·환경·쓰기 범위와 의도적으로 제외한 것.
+- **성공 기준:** 구체적인 입력·동작·결과와 확인 방법. 명령을 제안했다면 실제 실행 결과와 구별한다.
+- **합의한 결정:** 인터페이스·도메인·호환 계약과 이유. 상세 구현 코드나 변동하기 쉬운 작업 목록은 넣지 않는다.
+- **검증 방향:** 외부 동작을 확인할 기존 경계와 관련 테스트 근거. 새 테스트 경계는 필요한 경우에만 제안한다.
+- **가정·미결정:** 사용자 확인 여부와 구현에 미치는 영향. 사양을 작성했다는 이유로 승인 완료라 표시하지 않는다.
 
-<spec-template>
-
-## Problem Statement
-
-The problem that the user is facing, from the user's perspective.
-
-## Solution
-
-The solution to the problem, from the user's perspective.
-
-## User Stories
-
-A LONG, numbered list of user stories. Each user story should be in the format of:
-
-1. As an <actor>, I want a <feature>, so that <benefit>
-
-<user-story-example>
-1. As a mobile bank customer, I want to see balance on my accounts, so that I can make better informed decisions about my spending
-</user-story-example>
-
-This list of user stories should be extremely extensive and cover all aspects of the feature.
-
-## Implementation Decisions
-
-A list of implementation decisions that were made. This can include:
-
-- The modules that will be built/modified
-- The interfaces of those modules that will be modified
-- Technical clarifications from the developer
-- Architectural decisions
-- Schema changes
-- API contracts
-- Specific interactions
-
-Do NOT include specific file paths or code snippets. They may end up being outdated very quickly.
-
-Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it within the relevant decision and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.
-
-## Testing Decisions
-
-A list of testing decisions that were made. Include:
-
-- A description of what makes a good test (only test external behavior, not implementation details)
-- Which modules will be tested
-- Prior art for the tests (i.e. similar types of tests in the codebase)
-
-## Out of Scope
-
-A description of the things that are out of scope for this spec.
-
-## Further Notes
-
-Any further notes about the feature.
-
-</spec-template>
+끝으로 원래 요청의 각 요구가 사양에 반영됐는지, 열린 질문을 합의로 바꾸지 않았는지 확인한다. 이후 구현은 이미 허용된 범위가 있을 때만 이어간다.

@@ -1,5 +1,5 @@
 interface:
-  display_name: "Handoff"
-  short_description: "Compact a conversation into a handoff"
+  display_name: "handoff"
+  short_description: "Preserve decisions and evidence for resumption"
 policy:
   allow_implicit_invocation: false

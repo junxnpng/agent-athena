@@ -1,0 +1,5 @@
+interface:
+  display_name: "grill-me"
+  short_description: "Interview an idea with the shared procedure"
+policy:
+  allow_implicit_invocation: false
