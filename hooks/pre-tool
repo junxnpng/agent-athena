@@ -210,10 +210,12 @@ def main() -> int:
         print("pre-tool: domain.json 파싱 실패 (%s) — private 로 간주한다" % e, file=sys.stderr)
         domain = H.Domain({"data_class": "private"})
     reason: Optional[str] = None
-    if tool.startswith("mcp__") and (domain.is_private or runner_mode):  # MCP 도구 = 외부 통신 채널 (Gmail·Drive…) — hooks.json matcher 가 mcp__.* 를 잡는다
+    if tool in ("WebFetch", "WebSearch", "web.run", "web__run") and runner_mode:
+        reason = "[harness] 무인 실행에서는 웹 조회를 허용하지 않는다 (I7)"
+    elif tool.startswith("mcp__") and (domain.is_private or runner_mode):  # MCP 도구 = 외부 통신 채널 (Gmail·Drive…) — hooks.json matcher 가 mcp__.* 를 잡는다
         reason = "[harness] MCP 도구 %s 는 %s에서 쓰지 않는다 — 외부 통신 채널 (I7)" % (tool, "비공개 repo(data_class: private)" if domain.is_private else "러너 모드")
     elif domain.is_private:  # D2: 비공개 repo — 사람이 있어도 네트워크 다리를 끊는다 (인젝션 → 유출 경로 차단)
-        if tool in ("WebFetch", "WebSearch"):
+        if tool in ("WebFetch", "WebSearch", "web.run", "web__run") and not domain.allow_public_web:
             reason = "[harness] 비공개 repo(data_class: private)에서는 %s 를 쓰지 않는다 — 웹 조회는 다른 세션에서 하고 결과만 가져온다 (I7)" % tool
         elif tool == "Skill":
             name = str(inp.get("skill") or "").split(":")[-1]

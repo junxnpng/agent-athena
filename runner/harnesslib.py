@@ -203,6 +203,11 @@ class Domain:
         return self.data_class == "private"
 
     @property
+    def allow_public_web(self) -> bool:
+        """Explicit opt-in for public web reads; callers must exclude runner mode."""
+        return self.raw.get("allow_public_web") is True
+
+    @property
     def plan_auto_propose(self) -> bool:
         return bool(self.raw["plan"]["auto_propose"])
 

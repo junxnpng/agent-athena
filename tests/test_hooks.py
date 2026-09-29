@@ -322,5 +322,25 @@ class HookTests(unittest.TestCase):
         self.assertIsNone(self.bash("python3 -c \"import urllib.request; urllib.request.urlopen('https://x')\""))
 
 
+    def test_private_public_web_opt_in(self):
+        domain_path = self.root / ".harness" / "domain.json"
+        for enabled in (True, False, "true", None):
+            domain_path.write_text(json.dumps({"data_class": "private", "allow_public_web": enabled}))
+            for runner in (False, True):
+                for tool in ("WebSearch", "WebFetch", "web.run", "web__run"):
+                    with self.subTest(enabled=enabled, runner=runner, tool=tool):
+                        out = self.hook("pre-tool", {"tool_name": tool, "tool_input": {}}, runner=runner)
+                        expected = None if enabled is True and not runner else "deny"
+                        self.assertEqual(self.decision(out), expected)
+        domain_path.write_text(json.dumps({"data_class": "private", "allow_public_web": True}))
+        self.assertEqual(self.bash("curl https://example.com"), "deny")
+        for tool in ("mcp__gmail__send", "mcp__drive__upload"):
+            self.assertEqual(self.decision(self.hook("pre-tool", {"tool_name": tool, "tool_input": {}})), "deny")
+        for runner in (False, True):
+            out = self.hook("session-start", {}, runner=runner)
+            context = out["hookSpecificOutput"]["additionalContext"]
+            self.assertEqual("공개 웹 검색·열람 허용" in context, not runner)
+
+
 if __name__ == "__main__":
     unittest.main()

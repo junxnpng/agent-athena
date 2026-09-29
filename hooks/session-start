@@ -34,11 +34,21 @@ def build(cwd: Path) -> str:
     lines = ["[harness] 세션 시작 5단계 (P4 — 훅이 강제한다. 건너뛰지 않는다)"]
     branch = git.run("rev-parse", "--abbrev-ref", "HEAD", check=False) or "?"
     try:
-        private = H.load_domain(repo).is_private
+        domain = H.load_domain(repo)
+        private = domain.is_private
+        public_web = domain.allow_public_web and not runner_mode
     except H.HarnessError:
         private = False
+        public_web = False
+    privacy_note = ""
+    if private:
+        privacy_note = " · **비공개 repo(private)** — "
+        if public_web:
+            privacy_note += "공개 웹 검색·열람 허용. 검색어·URL에 비공개 코드·개인 기록·인증정보 포함 금지. 외부 발송·업로드·셸 네트워크·네트워크 스킬 금지. 코퍼스 반입은 사람만."
+        else:
+            privacy_note += "네트워크·WebFetch·네트워크 스킬 금지, 웹 조회는 다른 세션에서"
     lines.append("1. 작업 디렉토리: %s (.harness/ 있음) · 브랜치 %s%s%s" % (repo.root, branch, " · 러너 모드 %s" % os.environ["HARNESS_NIGHT"] if runner_mode else "",
-                                                            " · **비공개 repo(private)** — 네트워크·WebFetch·네트워크 스킬 금지, 웹 조회는 다른 세션에서" if private else ""))
+                                                            privacy_note))
 
     events = H.read_log(repo.log)
     lines.append("2. 최근 로그 (.harness/log.jsonl 마지막 %d줄%s):" % (LOG_LINES, "" if events else " — 비어 있음"))
